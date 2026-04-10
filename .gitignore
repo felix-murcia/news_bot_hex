@@ -1,0 +1,80 @@
+# === Entorno virtual ===
+.venv/
+.env
+*.env
+
+# === Archivos de sistema ===
+.DS_Store
+Thumbs.db
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# === Logs ===
+logs/
+*.log
+
+# === Datos generados ===
+data/
+!data/.gitkeep  # Mantener carpeta vacía si quieres
+
+# === Llama.ccp ===
+llama.cpp/
+
+# === Modelos locales ===
+models/
+!models/.gitkeep  # Mantener carpeta vacía si quieres
+
+# === debug ====
+debug/
+profile/
+userdata/
+checklist.txt
+
+# === Archivos temporales ===
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+
+# === Salidas de pruebas ===
+test_*.json
+*.test.json
+*.jsonl  # Cubre archivos JSONL si los usas
+
+# === Archivos de compilación ===
+build/
+dist/
+*.egg-info/
+
+# === Archivos de configuración sensibles ===
+config/secrets.json
+*.key
+*.pem  # Cubre claves privadas si las usas
+
+# === Archivos específicos del proyecto ===
+*.json  # Ignora todos los JSON por defecto, excepto los que quieras incluir explícitamente
+!data/*.json  # Permite JSON en data/ si no están cubiertos por otros patrones
+!logs/*.json  # Permite JSON en logs/ si los necesitas
+reset.sh  # Ignora reset.sh si es un script temporal
+test_llama.py  # Ignora test_llama.py si es solo para pruebas
+
+.env
+.cache
+
+# Ignorar todo dentro de 
+state/*
+data/*
+
+# Pero no ignores el propio directorio
+!state/.gitkeep
+!data/.gitkeep
+
+# Ignorar carpeta de debug scraperapi
+debug/scraperapi/
+
+# Ignorar archivos de coverage
+htmlcov/
+.coverage

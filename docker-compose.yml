@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: news_bot_app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGO_HOST=${MONGO_HOST}
+      - MONGO_PORT=${MONGO_PORT}
+      - MONGO_USER=${MONGO_USER}
+      - MONGO_PASSWORD=${MONGO_PASSWORD}
+      - MONGO_DB_NAME=${MONGO_DB_NAME}
+      - USE_MONGODB=${USE_MONGODB}
+    env_file:
+      - .env
+    volumes:
+      - /tmp/logs:/app/logs
+      - /tmp/data:/app/data
+      - ${MODELS_LOCATION}:/app/models
+    network_mode: host

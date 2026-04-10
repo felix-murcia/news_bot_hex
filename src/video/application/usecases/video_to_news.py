@@ -1,0 +1,246 @@
+import os
+import uuid
+import logging
+import json
+import re
+from pathlib import Path
+from typing import Dict, Any, Optional
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger("video_bot")
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
+DATA_DIR = BASE_DIR / "data"
+CACHE_DIR = DATA_DIR / "cache"
+
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def slugify(text: str) -> str:
+    text = text.lower()
+    text = re.sub(r"[^\w\s-]", "", text)
+    text = re.sub(r"[\s_-]+", "-", text)
+    return text.strip("-")
+
+
+def check_copyright(url: str) -> bool:
+    """Verifica riesgo de copyright."""
+    copyright_domains = ["youtube.com", "youtu.be", "tiktok.com", "instagram.com"]
+    return any(domain in url.lower() for domain in copyright_domains)
+
+
+def validate_video(video_path: Path) -> bool:
+    """Valida que el video tiene audio."""
+    try:
+        if not video_path.exists():
+            logger.warning(f"[VIDEO] Video no encontrado: {video_path}")
+            return False
+        from src.video.infrastructure.adapters.video_transcriber import has_audio_stream
+
+        if not has_audio_stream(str(video_path)):
+            logger.warning(f"[VIDEO] El video no tiene pista de audio: {video_path}")
+            return False
+        return True
+    except Exception as e:
+        logger.error(f"[VIDEO] Error validando video {video_path}: {e}")
+        return False
+
+
+class VideoToNewsUseCase:
+    """Caso de uso para procesar videos y generar artículos."""
+
+    def __init__(self, use_gemini: bool = True):
+        self.use_gemini = use_gemini
+
+    def _get_or_create_transcript(
+        self, url: str, video_path: Path, transcript_path: Path
+    ) -> str:
+        """Obtiene transcripción desde caché o la genera."""
+        if transcript_path.exists():
+            logger.info(f"[VIDEO] Reutilizando transcripción cacheada")
+            return transcript_path.read_text(encoding="utf-8")
+
+        from src.video.infrastructure.adapters.video_fetcher import download_video
+
+        if not video_path.exists():
+            logger.info(f"[VIDEO] Descargando video: {url}")
+            video_path = download_video(url)
+            if not video_path:
+                raise ValueError(f"No se pudo descargar el video: {url}")
+
+        if not validate_video(video_path):
+            raise ValueError(
+                f"El video no tiene audio. No se puede transcribir: {video_path}"
+            )
+
+        logger.info(f"[VIDEO] Transcribiendo video")
+        from src.video.infrastructure.adapters.video_transcriber import transcribe_video
+
+        transcript = transcribe_video(str(video_path))
+
+        transcript_path.write_text(transcript, encoding="utf-8")
+        logger.info(f"[VIDEO] Transcripción guardada")
+        return transcript
+
+    def _generate_article(
+        self, transcript: str, url: str, tema: str = "Videos"
+    ) -> Dict[str, Any]:
+        """Genera artículo desde transcripción."""
+        try:
+            # from src.shared.adapters.gemini_client import get_gemini_client
+            from src.shared.adapters.openrouter_client import get_openrouter_client
+
+            client = get_openrouter_client({})
+
+            prompt = f"""Genera un artículo de blog en HTML sobre este video.
+
+Transcripción:
+{transcript[:4000]}
+
+Requisitos:
+- Estructura HTML con etiquetas <p> y <h2>
+- Título en <h1>
+- Al menos 5 párrafos bien desarrollados
+- Resumen del contenido del video
+- Solo devuelve el HTML del artículo"""
+
+            content = client.generate(prompt)
+
+            title_match = re.search(r"<h1>(.*?)</h1>", content, re.DOTALL)
+            title = title_match.group(1).strip() if title_match else "Video Noticia"
+
+            slug = slugify(title[:50])
+
+            article = {
+                "title": title,
+                "title_es": title,
+                "content": content,
+                "desc": transcript[:500],
+                "slug": slug,
+                "labels": [tema],
+                "source_type": "video_man",
+                "url": f"https://nbes.blog/{slug}",
+                "original_url": url,
+            }
+
+            return {"article": article, "news_item": article}
+
+        except Exception as e:
+            logger.error(f"[VIDEO] Error generando artículo: {e}")
+            lines = transcript.split("\n")[:20]
+            body = "<h1>Video Noticia</h1>\n"
+            for i, line in enumerate(lines):
+                if i % 4 == 0 and i > 0:
+                    body += "<h2>Punto clave</h2>\n"
+                body += f"<p>{line.strip()}</p>\n"
+
+            return {
+                "article": {
+                    "title": "Video Noticia",
+                    "title_es": "Video Noticia",
+                    "content": body,
+                    "slug": slugify("video-noticia"),
+                    "labels": [tema],
+                    "source_type": "video_man",
+                },
+                "news_item": {},
+            }
+
+    def _generate_tweet(self, article_data: Dict) -> str:
+        """Genera tweet desde artículo."""
+        title = article_data.get("article", {}).get("title", "Video Noticia")
+
+        try:
+            # from src.shared.adapters.gemini_client import get_gemini_client
+            from src.shared.adapters.openrouter_client import get_openrouter_client
+
+            client = get_openrouter_client({})
+            prompt = f"Genera un tweet breve sobre este video: {title[:100]}. Máximo 280 caracteres."
+            tweet = client.generate(prompt).strip()
+            if len(tweet) > 280:
+                tweet = tweet[:277] + "..."
+            return tweet
+        except Exception:
+            pass
+
+        return f"📹 {title[:200]}\n\n#Video #Noticias"
+
+    def _save_outputs(
+        self,
+        article_data: Dict,
+        transcript: str,
+        video_path: Path,
+        transcript_path: Path,
+    ):
+        """Guarda los outputs."""
+        article = article_data.get("article", {})
+
+        articles_path = DATA_DIR / "generated_video_articles.json"
+        posts_path = DATA_DIR / "generated_video_posts.json"
+
+        with open(articles_path, "w", encoding="utf-8") as f:
+            json.dump([article], f, indent=2, ensure_ascii=False)
+
+        with open(posts_path, "w", encoding="utf-8") as f:
+            json.dump(
+                [{"tweet": "", "article": article}], f, indent=2, ensure_ascii=False
+            )
+
+        logger.info(f"[VIDEO] Archivos guardados en {DATA_DIR}")
+
+    def process_video_url(self, url: str) -> Dict[str, Any]:
+        """Procesa un video y genera artículo."""
+        logger.info(f"[VIDEO] Procesando video: {url}")
+
+        if check_copyright(url):
+            logger.warning(f"[VIDEO] Posible riesgo de copyright: {url}")
+
+        file_id = str(uuid.uuid5(uuid.NAMESPACE_URL, url))
+        video_path = CACHE_DIR / f"{file_id}.mp4"
+        transcript_path = CACHE_DIR / f"{file_id}.txt"
+
+        transcript = self._get_or_create_transcript(url, video_path, transcript_path)
+
+        article_data = self._generate_article(transcript, url)
+
+        tweet_text = self._generate_tweet(article_data)
+
+        self._save_outputs(article_data, transcript, video_path, transcript_path)
+
+        result = {
+            "transcript": transcript,
+            "transcript_file": str(transcript_path),
+            "article": article_data["article"].get("content", ""),
+            "article_file": str(DATA_DIR / "generated_video_articles.json"),
+            "post": tweet_text,
+            "mode": "video",
+        }
+
+        logger.info("[VIDEO] Procesamiento completado")
+        return result
+
+
+def process_video_url(url: str) -> Dict[str, Any]:
+    """Función principal."""
+    processor = VideoToNewsUseCase()
+    return processor.process_video_url(url)
+
+
+def main():
+    import sys
+
+    if len(sys.argv) > 1:
+        url = sys.argv[1]
+        result = process_video_url(url)
+        print(f"✅ Procesado: {url}")
+        print(f"📄 Artículo: {len(result['article'])} caracteres")
+    else:
+        print("Usage: python video_to_news.py <video_url>")
+
+
+if __name__ == "__main__":
+    main()
