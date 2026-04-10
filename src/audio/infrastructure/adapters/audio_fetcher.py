@@ -4,7 +4,7 @@ import uuid
 import logging
 import subprocess
 import json
-from typing import Optional
+from typing import Optional, Dict, Any
 
 logging.basicConfig(
     level=logging.INFO,
@@ -81,12 +81,14 @@ def _download_direct(url: str, output_dir: str, audio_id: str) -> Optional[str]:
         }
         logger.info(f"[AUDIO] Descarga directa: {url[:80]}...")
         response = requests.get(url, headers=headers, timeout=60, stream=True)
-        
+
         # Manejar específicamente errores de token expirado
         if response.status_code in (400, 401, 403, 410):
-            logger.warning(f"[AUDIO] Error {response.status_code} - Token probablemente expirado")
+            logger.warning(
+                f"[AUDIO] Error {response.status_code} - Token probablemente expirado"
+            )
             return None
-            
+
         response.raise_for_status()
 
         with open(output_path, "wb") as f:
@@ -104,7 +106,9 @@ def _download_direct(url: str, output_dir: str, audio_id: str) -> Optional[str]:
 
     except requests.exceptions.HTTPError as e:
         if e.response.status_code in (400, 401, 403, 410):
-            logger.warning(f"[AUDIO] HTTP {e.response.status_code} - Token expirado, se usará yt-dlp")
+            logger.warning(
+                f"[AUDIO] HTTP {e.response.status_code} - Token expirado, se usará yt-dlp"
+            )
         else:
             logger.error(f"[AUDIO] Error HTTP en descarga directa: {e}")
         return None
@@ -120,15 +124,15 @@ def _download_with_ytdlp(
     import yt_dlp
 
     output_path = os.path.join(output_dir, f"{audio_id}.mp3")
-    
+
     # Si ya existe en caché, devolverlo
     if os.path.exists(output_path):
         logger.info(f"[AUDIO] Audio ya existe: {output_path}")
         return output_path
-    
+
     outtmpl = os.path.join(output_dir, f"{audio_id}.%(ext)s")
 
-    ydl_opts = {
+    ydl_opts: Dict[str, Any] = {
         "outtmpl": outtmpl,
         "format": "bestaudio/best",
         "quiet": False,  # Cambiar a False para debug, True en producción
@@ -152,7 +156,7 @@ def _download_with_ytdlp(
 
     try:
         logger.info(f"[AUDIO] Descargando con yt-dlp: {url[:80]}...")
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:  # type: ignore[arg-type]
             ydl.download([url])
 
         # Verificar archivo MP3
@@ -167,10 +171,22 @@ def _download_with_ytdlp(
                 # Intentar convertir a MP3
                 try:
                     mp3_path = os.path.join(output_dir, f"{audio_id}.mp3")
-                    subprocess.run([
-                        'ffmpeg', '-i', alt_path, '-acodec', 'libmp3lame',
-                        '-ab', '192k', '-y', mp3_path
-                    ], capture_output=True, check=True, timeout=120)
+                    subprocess.run(
+                        [
+                            "ffmpeg",
+                            "-i",
+                            alt_path,
+                            "-acodec",
+                            "libmp3lame",
+                            "-ab",
+                            "192k",
+                            "-y",
+                            mp3_path,
+                        ],
+                        capture_output=True,
+                        check=True,
+                        timeout=120,
+                    )
                     os.remove(alt_path)
                     logger.info(f"[AUDIO] ✅ Convertido a MP3: {mp3_path}")
                     return mp3_path
@@ -180,23 +196,17 @@ def _download_with_ytdlp(
 
         logger.error(f"[AUDIO] No se encontró archivo descargado para {audio_id}")
         return None
-        
-    except yt_dlp.utils.DownloadError as e:
+
+    except Exception as e:  # noqa: BLE001
         error_msg = str(e)
-        if "400" in error_msg or "410" in error_msg or "Token incorrect" in error_msg:
-            logger.error(f"[AUDIO] Token expirado o URL inválida. Error: {e}")
-        else:
-            logger.error(f"[AUDIO] Error en yt-dlp: {e}")
-        return None
-    except Exception as e:
-        logger.error(f"[AUDIO] Error inesperado en yt-dlp: {e}")
+        logger.error(f"[AUDIO] Error en yt-dlp: {e}")
         return None
 
 
 def download_audio(
     url: str,
-    output_dir: str = None,
-    audio_id: str = None,
+    output_dir: Optional[str] = None,
+    audio_id: Optional[str] = None,
     max_duration: int = MAX_DURATION,
 ) -> Optional[str]:
     """Descarga el audio desde la URL."""
@@ -230,17 +240,17 @@ def download_audio(
     # ============================================================
     # CASO 2: URL de página (YouTube, RTVE, podcast, etc.)
     # ============================================================
-    
+
     # Para RTVE, ir directamente a yt-dlp (evita problemas de tokens)
     if _is_rtve_url(url):
         logger.info(f"[AUDIO] URL de RTVE detectada, usando yt-dlp directamente")
         return _download_with_ytdlp(url, output_dir, audio_id, max_duration)
-    
+
     # Para otras plataformas, intentar extraer URL de audio primero
     try:
         import yt_dlp
 
-        ydl_opts_info = {
+        ydl_opts_info: Dict[str, Any] = {
             "quiet": True,
             "no_warnings": True,
             "extractor_retries": 3,
@@ -248,7 +258,7 @@ def download_audio(
         }
 
         try:
-            with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
+            with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:  # type: ignore[arg-type]
                 info = ydl.extract_info(url, download=False)
         except Exception as info_err:
             logger.warning(f"[AUDIO] Error extrayendo info: {info_err}")
@@ -264,7 +274,7 @@ def download_audio(
             # Para URLs que no son de RTVE, podemos intentar extraer la URL directa
             # y descargar con requests (más rápido)
             if not _is_rtve_url(url):
-                formats = info.get("formats", [])
+                formats: list = info.get("formats") or []
                 audio_formats = [
                     f for f in formats if f.get("vcodec") == "none" and f.get("acodec")
                 ]
@@ -273,7 +283,9 @@ def download_audio(
                     best_audio = audio_formats[0]
                     url_to_download = best_audio.get("url")
                     if url_to_download:
-                        logger.info(f"[AUDIO] Audio encontrado, descargando directamente...")
+                        logger.info(
+                            f"[AUDIO] Audio encontrado, descargando directamente..."
+                        )
                         result = _download_direct(url_to_download, output_dir, audio_id)
                         if result:
                             return result
@@ -290,10 +302,10 @@ def has_audio_stream(audio_path: str) -> bool:
     """Verifica si el archivo tiene flujo de audio válido."""
     if not audio_path or not os.path.exists(audio_path):
         return False
-    
+
     if os.path.getsize(audio_path) < 1024:
         return False
-        
+
     try:
         cmd = [
             "ffprobe",
@@ -319,9 +331,9 @@ def transcribe_audio(audio_path: str) -> str:
     try:
         import whisper
 
-        model = whisper.load_model("tiny", device="cpu")
-        result = model.transcribe(audio_path, language=None, task="transcribe")
-        return result["text"].strip()
+        model = whisper.load_model("medium", device="gpu")
+        result = model.transcribe(audio_path, language=None, task="transcribe")  # type: ignore[no-any-return]
+        return result["text"].strip()  # type: ignore[union-attr]
     except Exception as e:
         logger.error(f"[AUDIO] Error transcribiendo: {e}")
         raise
@@ -330,10 +342,10 @@ def transcribe_audio(audio_path: str) -> str:
 class AudioFetcher:
     """Fetcher para archivos de audio."""
 
-    def __init__(self, cache_dir: str = None):
+    def __init__(self, cache_dir: Optional[str] = None):
         self.cache_dir = cache_dir or CACHE_DIR
 
-    def fetch(self, url: str, audio_id: str = None) -> Optional[str]:
+    def fetch(self, url: str, audio_id: Optional[str] = None) -> Optional[str]:
         """Descarga un audio desde URL."""
         return download_audio(url, self.cache_dir, audio_id)
 
@@ -342,7 +354,7 @@ class AudioFetcher:
         return transcribe_audio(audio_path)
 
 
-def run(url: str, output_dir: str = None) -> Optional[str]:
+def run(url: str, output_dir: Optional[str] = None) -> Optional[str]:
     """Función principal."""
     return download_audio(url, output_dir)
 

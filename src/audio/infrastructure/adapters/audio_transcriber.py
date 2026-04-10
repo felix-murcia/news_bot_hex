@@ -23,14 +23,14 @@ def transcribe_audio(audio_path: str) -> str:
         import whisper
         import numpy as np
 
-        model = whisper.load_model("medium", device="cpu")
+        model = whisper.load_model("medium", device="gpu")
         logger.info("[TRANSCRIBER] Modelo cargado")
 
         result = model.transcribe(
             audio_path, language=None, task="transcribe", verbose=False, fp16=False
         )
 
-        text = result["text"].strip()
+        text = result["text"].strip()  # type: ignore[union-attr]
         detected_lang = result.get("language", "desconocido")
 
         logger.info(f"[TRANSCRIBER] Idioma: {detected_lang}")
@@ -61,13 +61,13 @@ class AudioTranscriber:
         if self._model is None:
             import whisper
 
-            self._model = whisper.load_model(self.model_size, device="cpu")
+            self._model = whisper.load_model(self.model_size, device="gpu")
         return self._model
 
     def transcribe(self, audio_path: str) -> str:
         """Transcribe un audio."""
-        result = self.model.transcribe(audio_path, language=None, task="transcribe")
-        return result["text"].strip()
+        result = self.model.transcribe(audio_path, language=None, task="transcribe")  # type: ignore[no-any-return]
+        return result["text"].strip()  # type: ignore[union-attr]
 
 
 def run(audio_path: str) -> str:

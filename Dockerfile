@@ -1,52 +1,36 @@
-# =========================
-# STAGE 1: BUILD
-# =========================
-FROM python:3.11-slim AS builder
+FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-runtime
 
 WORKDIR /app
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+RUN apt-get update && apt-get install -y git curl && rm -rf /var/lib/apt/lists/*
 
-# Dependencias de compilación
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    cmake \
-    git \
-    curl \
-    libopenblas-dev \
-    && rm -rf /var/lib/apt/lists/*
+RUN curl -L https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz -o /tmp/ffmpeg.tar.xz && \
+    tar -xf /tmp/ffmpeg.tar.xz -C /tmp && \
+    mv /tmp/ffmpeg-*-amd64-static/ffmpeg /usr/local/bin/ && \
+    mv /tmp/ffmpeg-*-amd64-static/ffprobe /usr/local/bin/ && \
+    rm -rf /tmp/ffmpeg*
+
+RUN pip install --upgrade pip setuptools wheel
+
+# Instalar whisper
+RUN pip install git+https://github.com/openai/whisper.git
+
+# Instalar faster-whisper (el que usa tu transcriber)
+RUN pip install faster-whisper
+
+# Instalar llama-cpp-python
+RUN pip install llama-cpp-python==0.2.60 --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu121
+
+# Arreglar libstdc++
+RUN rm -f /opt/conda/lib/libstdc++.so* && \
+    ln -s /usr/lib/x86_64-linux-gnu/libstdc++.so.6 /opt/conda/lib/libstdc++.so.6
 
 COPY requirements.txt .
-
-# ⬇️ ACTIVAMOS CACHE DE PIP (BuildKit)
-RUN --mount=type=cache,target=/root/.cache/pip \
-    python -m venv /opt/venv && \
-    . /opt/venv/bin/activate && \
-    pip install --upgrade pip && \
-    pip install -r requirements.txt
-
-# =========================
-# STAGE 2: RUNTIME
-# =========================
-FROM python:3.11-slim AS runtime
-
-WORKDIR /app
-
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    VIRTUAL_ENV=/opt/venv \
-    PATH="/opt/venv/bin:$PATH"
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    libopenblas-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY --from=builder /opt/venv /opt/venv
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+RUN mkdir -p logs data models
 
-RUN mkdir -p /app/logs /app/data /app/models
+EXPOSE 8000
 
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
