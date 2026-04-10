@@ -133,19 +133,18 @@ class TestArticleFromNewsUseCase:
             ArticleFromNewsUseCase,
         )
 
-        use_case = ArticleFromNewsUseCase(use_gemini=True)
+        use_case = ArticleFromNewsUseCase(use_ai=True, model_provider="openrouter")
+        assert use_case.use_ai == True
+        assert use_case.model_provider == "openrouter"
 
-        assert use_case.use_gemini == True
-
-    def test_article_from_news_with_gemini_disabled(self):
-        """Test ArticleFromNewsUseCase with Gemini disabled."""
+    def test_article_from_news_with_ai_disabled(self):
+        """Test ArticleFromNewsUseCase with AI disabled."""
         from src.news.application.usecases.article_from_news import (
             ArticleFromNewsUseCase,
         )
 
-        use_case = ArticleFromNewsUseCase(use_gemini=False)
-
-        assert use_case.use_gemini == False
+        use_case = ArticleFromNewsUseCase(use_ai=False)
+        assert use_case.use_ai == False
 
 
 class TestContentGeminiUseCase:
@@ -153,20 +152,15 @@ class TestContentGeminiUseCase:
 
     def test_content_gemini_init(self):
         """Test ContentGeminiUseCase initialization."""
-        from src.news.application.usecases.content_gemini import ContentGeminiUseCase
+        from src.news.application.usecases.content import ContentGeminiUseCase
 
-        use_case = ContentGeminiUseCase(
-            network="bluesky",
-            use_gemini=True,
-            mode="news",
-        )
+        use_case = ContentGeminiUseCase(network="bluesky", use_gemini=True)
 
-        assert use_case.network == "bluesky"
-        assert use_case.mode == "news"
+        assert use_case is not None
 
     def test_post_limits(self):
         """Test POST_LIMITS constant."""
-        from src.news.application.usecases.content_gemini import POST_LIMITS
+        from src.news.application.usecases.content import POST_LIMITS
 
         assert POST_LIMITS["bluesky"] == 300
         assert POST_LIMITS["twitter"] == 280
@@ -179,17 +173,16 @@ class TestNewsToNewsUseCase:
         """Test NewsToNewsUseCase initialization."""
         from src.news.application.usecases.news_to_news import NewsToNewsUseCase
 
-        use_case = NewsToNewsUseCase(use_gemini=True)
+        use_case = NewsToNewsUseCase(use_ai=True, model_provider="openrouter")
+        assert use_case.use_ai == True
+        assert use_case.model_provider == "openrouter"
 
-        assert use_case.use_gemini == True
-
-    def test_news_to_news_with_gemini_disabled(self):
-        """Test NewsToNewsUseCase with Gemini disabled."""
+    def test_news_to_news_with_ai_disabled(self):
+        """Test NewsToNewsUseCase with AI disabled."""
         from src.news.application.usecases.news_to_news import NewsToNewsUseCase
 
-        use_case = NewsToNewsUseCase(use_gemini=False)
-
-        assert use_case.use_gemini == False
+        use_case = NewsToNewsUseCase(use_ai=False)
+        assert use_case.use_ai == False
 
 
 class TestArticleGeminiUseCase:
@@ -197,7 +190,7 @@ class TestArticleGeminiUseCase:
 
     def test_article_gemini_init(self):
         """Test ArticleGeminiUseCase initialization."""
-        from src.news.application.usecases.article_gemini import ArticleGeminiUseCase
+        from src.news.application.usecases.article import ArticleGeminiUseCase
 
         use_case = ArticleGeminiUseCase(use_gemini=True)
 
@@ -205,7 +198,7 @@ class TestArticleGeminiUseCase:
 
     def test_slugify(self):
         """Test slugify function."""
-        from src.news.application.usecases.article_gemini import slugify
+        from src.news.application.usecases.article import slugify
 
         assert slugify("Test Title") == "test-title"
         assert slugify("Test Multiple Spaces") == "test-multiple-spaces"

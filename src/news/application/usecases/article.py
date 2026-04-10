@@ -6,8 +6,6 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from urllib.parse import urlparse
 
-from config.config import GEMINI_CONFIG
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -48,25 +46,19 @@ def _limpiar_html(html: str) -> str:
     if not html:
         return html
 
-    # Remove code blocks and backticks
     html = re.sub(r"```html", "", html)
     html = re.sub(r"```", "", html)
     html = re.sub(r"`", "", html)
 
-    # Remove h1 tags
     html = re.sub(r"<h1>.*?</h1>", "", html, flags=re.DOTALL)
 
-    # Remove divs
     html = re.sub(r"<div.*?>", "", html)
     html = re.sub(r"</div>", "", html)
 
-    # Remove multiple newlines
     html = re.sub(r"\n+", "\n", html)
 
-    # Remove multiple spaces
     html = re.sub(r" +", " ", html)
 
-    # Clean up any other code artifacts
     html = re.sub(r"&lt;", "<", html)
     html = re.sub(r"&gt;", ">", html)
     html = re.sub(r"&amp;", "&", html)
@@ -87,60 +79,34 @@ def _validar_titulo(titulo: str) -> str:
     return titulo
 
 
-class ArticleGeminiUseCase:
-    """Caso de uso para generar artículos con Gemini."""
+class ArticleUseCase:
+    """Caso de uso para generar artículos con IA."""
 
-    def __init__(self, use_gemini: bool = True, gemini_config: dict = None):
-        self.use_gemini = use_gemini
-        self.gemini_config = gemini_config or GEMINI_CONFIG
-        self.gemini_client = None
-        self.llm_local = None
+    def __init__(
+        self,
+        use_ai: bool = True,
+        ai_config: dict = None,
+        ai_model=None,
+        model_provider: str = "openrouter",
+    ):
+        self.use_ai = use_ai
+        self.ai_config = ai_config or {}
+        self.ai_model = ai_model
+        self.model_provider = model_provider
 
-        if self.use_gemini:
-            self._init_gemini()
+    def _get_ai_model(self):
+        """Obtiene el modelo de IA (lazy loading)."""
+        if self.ai_model is None:
+            from src.shared.adapters.ai.ai_factory import get_ai_adapter
 
-    def _init_gemini(self):
-        try:
-            # from src.shared.adapters.gemini_client import get_gemini_client
-            from src.shared.adapters.openrouter_client import get_openrouter_client
-
-            self.gemini_client = get_openrouter_client(self.gemini_config)
-            logger.info("[ARTICLE-GEMINI] ✅ Modo Gemini Flash activado")
-        except Exception as e:
-            logger.warning(f"[ARTICLE-GEMINI] Gemini no disponible: {e}")
-            self.use_gemini = False
-
-    def load_generated_posts(self) -> List[Dict]:
-        try:
-            from src.shared.adapters.mongo_db import get_database
-
-            db = get_database()
-            coll = db["generated_posts"]
-            data = list(coll.find({}))
-            for d in data:
-                d.pop("_id", None)
-            return data
-        except Exception as e:
-            logger.error(f"[ARTICLE-GEMINI] Error cargando posts: {e}")
-            return []
-
-    def get_current_verified_url(self) -> str:
-        try:
-            from src.shared.adapters.mongo_db import get_database
-
-            db = get_database()
-            coll = db["verified_news"]
-            data = coll.find_one({})
-            if data:
-                return data.get("url", "")
-            return ""
-        except Exception as e:
-            logger.error(f"[ARTICLE-GEMINI] Error obteniendo URL verificada: {e}")
-            return ""
+            provider = self.model_provider if self.use_ai else "mock"
+            self.ai_model = get_ai_adapter(provider, self.ai_config)
+            logger.info(f"[ARTICLE] Adapter '{provider}' instanciado")
+        return self.ai_model
 
     def _generate_article_body(self, news_item: Dict, mode: str = "news") -> str:
-        if self.use_gemini and self.gemini_client:
-            return self._generate_with_gemini(news_item, mode)
+        if self.use_ai:
+            return self._generate_with_ai(news_item, mode)
         return self._generate_fallback(news_item)
 
     def _get_full_content(self, news_item: Dict) -> str:
@@ -155,17 +121,16 @@ class ArticleGeminiUseCase:
             if verified:
                 return verified.get("content") or verified.get("desc", "")
 
-            # Try original_url
             verified = db["verified_news"].find_one({"original_url": url})
             if verified:
                 return verified.get("content") or verified.get("desc", "")
         except Exception as e:
-            logger.warning(f"[ARTICLE-GEMINI] Error getting full content: {e}")
+            logger.warning(f"[ARTICLE] Error getting full content: {e}")
         return ""
 
-    def _generate_with_gemini(self, news_item: Dict, mode: str) -> str:
+    def _generate_with_ai(self, news_item: Dict, mode: str) -> str:
         try:
-            # Use title_es if available, otherwise translate
+            model = self._get_ai_model()
             raw_title = news_item.get("title", "")
             try:
                 from src.shared.adapters.translator import translate_text
@@ -178,21 +143,17 @@ class ArticleGeminiUseCase:
 
             tema = news_item.get("tema", "Noticias")
 
-            # Get full content from verified_news
             raw_content = self._get_full_content(news_item)
             if not raw_content:
                 raw_content = news_item.get("content", news_item.get("desc", ""))
 
-            # Traducir contenido al español antes de generar
             from src.shared.adapters.translator import translate_text
 
             content_limitado = raw_content[:3500] if raw_content else ""
             try:
                 content_es = translate_text(content_limitado, target_lang="es")
             except Exception as e:
-                logger.warning(
-                    f"[ARTICLE-GEMINI] Error translating: {e}, using original"
-                )
+                logger.warning(f"[ARTICLE] Error translating: {e}, using original")
                 content_es = content_limitado
 
             prompt = f"""Genera un artículo de blog en HTML en ESPAÑOL sobre:
@@ -208,10 +169,10 @@ Requisitos:
 - Título en <h1>
 - Solo devuelve el HTML del artículo"""
 
-            result = self.gemini_client.generate(prompt)
+            result = model.generate(prompt)
             return _limpiar_html(result)
         except Exception as e:
-            logger.error(f"[ARTICLE-GEMINI] Error generando con Gemini: {e}")
+            logger.error(f"[ARTICLE] Error generando con IA: {e}")
             return self._generate_fallback(news_item)
 
     def _generate_fallback(self, news_item: Dict) -> str:
@@ -230,7 +191,6 @@ Requisitos:
         return body
 
     def make_payload(self, news_item: Dict, article_body: str) -> Dict:
-        # Use title_es if available
         raw_title = news_item.get("title", "Noticia de Última Hora")
         try:
             from src.shared.adapters.translator import translate_text
@@ -270,47 +230,66 @@ Requisitos:
 
         return payload
 
+    def load_generated_posts(self) -> List[Dict]:
+        try:
+            from src.shared.adapters.mongo_db import get_database
+
+            db = get_database()
+            coll = db["generated_posts"]
+            posts = list(coll.find({}))
+            for p in posts:
+                p.pop("_id", None)
+            return posts
+        except Exception as e:
+            logger.error(f"[ARTICLE] Error cargando posts: {e}")
+            return []
+
+    def get_current_verified_url(self) -> str:
+        try:
+            from src.shared.adapters.mongo_db import get_database
+
+            db = get_database()
+            coll = db["verified_news"]
+            news = list(coll.find({}))
+            if news:
+                return news[0].get("url", "")
+        except Exception as e:
+            logger.error(f"[ARTICLE] Error getting verified URL: {e}")
+        return ""
+
     def execute(self, limit: int = 1, mode: str = "news") -> List[Dict]:
         posts = self.load_generated_posts()
         if not posts:
-            logger.warning("[ARTICLE-GEMINI] No hay posts para procesar")
+            logger.warning("[ARTICLE] No hay posts para procesar")
             return []
 
         current_url = self.get_current_verified_url()
         if not current_url:
-            logger.warning("[ARTICLE-GEMINI] No hay URL verificada")
+            logger.warning("[ARTICLE] No hay URL verificada")
             return []
 
         aligned_posts = [
             p for p in posts if (p.get("url") or "").strip() == current_url
         ]
         if not aligned_posts:
-            logger.warning(
-                "[ARTICLE-GEMINI] No hay posts que coincidan con la URL verificada"
-            )
+            logger.warning("[ARTICLE] No hay posts que coincidan con la URL verificada")
             return []
 
         to_process = aligned_posts[:limit] if limit else aligned_posts[:1]
         generated = []
 
         for item in to_process:
-            logger.info(
-                f"[ARTICLE-GEMINI] Procesando: {item.get('title', 'Sin título')}"
-            )
+            logger.info(f"[ARTICLE] Procesando: {item.get('title', 'Sin título')}")
 
             body_html = self._generate_article_body(item, mode)
 
             if not body_html or len(body_html) < 100:
-                logger.warning(
-                    f"[ARTICLE-GEMINI] Artículo inválido para: {item.get('title')}"
-                )
+                logger.warning(f"[ARTICLE] Artículo inválido para: {item.get('title')}")
                 continue
 
             payload = self.make_payload(item, body_html)
             generated.append(payload)
-            logger.info(
-                f"[ARTICLE-GEMINI] ✅ Artículo generado: {payload.get('title')}"
-            )
+            logger.info(f"[ARTICLE] ✅ Artículo generado: {payload.get('title')}")
 
         if generated:
             try:
@@ -321,39 +300,76 @@ Requisitos:
                 coll.delete_many({})
                 coll.insert_many(generated)
                 logger.info(
-                    f"[ARTICLE-GEMINI] Guardados {len(generated)} artículos en MongoDB"
+                    f"[ARTICLE] Guardados {len(generated)} artículos en MongoDB"
                 )
             except Exception as e:
-                logger.error(f"[ARTICLE-GEMINI] Error guardando: {e}")
+                logger.error(f"[ARTICLE] Error guardando: {e}")
 
         return generated
+
+
+class ArticleGeminiUseCase(ArticleUseCase):
+    """Legacy compatibility wrapper."""
+
+    def __init__(
+        self,
+        use_gemini: bool = True,
+        gemini_config: dict = None,
+        ai_model=None,
+        model_provider: str = "openrouter",
+        **kwargs,
+    ):
+        super().__init__(
+            use_ai=use_gemini,
+            ai_config=gemini_config,
+            ai_model=ai_model,
+            model_provider=model_provider,
+            **kwargs,
+        )
 
 
 def run(
     llm=None,
     limit: int = 1,
     use_gemini: bool = True,
-    gemini_config: dict = None,
+    ai_config: dict = None,
     mode: str = "news",
+    model_provider: str = "openrouter",
 ) -> List[Dict]:
-    logger.info(f"[ARTICLE-GEMINI] Ejecutando (Gemini: {use_gemini})")
-    config = gemini_config or GEMINI_CONFIG
-    use_case = ArticleGeminiUseCase(use_gemini=use_gemini, gemini_config=config)
+    logger.info(f"[ARTICLE] Ejecutando (provider: {model_provider})")
+    use_case = ArticleUseCase(
+        use_ai=use_gemini,
+        ai_config=ai_config,
+        model_provider=model_provider,
+    )
     return use_case.execute(limit=limit, mode=mode)
 
 
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description="Generador de artículos con Gemini")
+    parser = argparse.ArgumentParser(description="Generador de artículos con IA")
     parser.add_argument("--local", action="store_true", help="Usar solo modelo local")
     parser.add_argument("--limit", type=int, default=1, help="Límite de artículos")
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="openrouter",
+        choices=["gemini", "openrouter", "local", "mock"],
+        help="Modelo de IA a usar",
+    )
 
     args = parser.parse_args()
 
-    results = run(limit=args.limit, use_gemini=not args.local)
+    results = run(
+        limit=args.limit, use_gemini=not args.local, model_provider=args.model
+    )
 
     if results:
         print(f"✅ {len(results)} artículo(s) generado(s)")
     else:
         print("⚠️ No se generaron artículos")
+
+
+if __name__ == "__main__":
+    main()

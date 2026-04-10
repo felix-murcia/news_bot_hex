@@ -14,7 +14,7 @@ from src.news.entrypoints.cli import (
     main_verifier,
     main_soft,
     main_article,
-    main_gemini,
+    main_provider,
     main_content,
     main_news_to_news,
     main_bluesky,
@@ -40,8 +40,8 @@ if __name__ == "__main__":
             main_soft()
         elif command == "article":
             main_article()
-        elif command == "gemini":
-            main_gemini()
+        elif command == "provider":
+            main_provider()
         elif command == "content":
             main_content()
         elif command == "news_to_news":
@@ -58,7 +58,7 @@ if __name__ == "__main__":
             main_pipeline()
         else:
             print(
-                "Usage: python -m src.news.entrypoints.cli [rss|verify|full|verifier|soft|article|gemini|content|news_to_news|bluesky|facebook|mastodon|wordpress|pipeline]"
+                "Usage: python -m src.news.entrypoints.cli [rss|verify|full|verifier|soft|article|provider|content|news_to_news|bluesky|facebook|mastodon|wordpress|pipeline]"
             )
     else:
         main_rss()

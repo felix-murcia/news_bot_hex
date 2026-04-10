@@ -5,16 +5,16 @@ from pathlib import Path
 from typing import Optional, Tuple
 import logging
 
+from config.settings import Settings
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger("news_bot")
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-DATA_DIR = BASE_DIR / "data"
-CACHE_DIR = DATA_DIR / "cache"
-CACHE_DIR.mkdir(parents=True, exist_ok=True)
+CACHE_DIR = Settings.CACHE_DIR
+CACHE_DIR.mkdir(exist_ok=True, parents=True)
 
 
 def get_cache_path(url: str, cache_dir: Optional[Path] = None) -> Path:

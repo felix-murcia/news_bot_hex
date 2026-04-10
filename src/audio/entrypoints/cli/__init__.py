@@ -46,18 +46,36 @@ def main_audio_to_news():
 
 def main_article_from_audio():
     """Punto de entrada para generar artículo desde transcripción."""
+    import argparse
     import sys
 
-    if len(sys.argv) < 3:
-        print("Usage: python -m src.audio.entrypoints.cli article <transcript_file>")
-        return
+    parser = argparse.ArgumentParser(
+        description="Generar artículo desde transcripción de audio"
+    )
+    parser.add_argument("transcript_file", help="Archivo con transcripción")
+    parser.add_argument("--url", type=str, default="", help="URL del audio")
+    parser.add_argument("--tema", type=str, default="Audios", help="Tema del artículo")
+    parser.add_argument("--local", action="store_true", help="Usar solo modelo local")
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="openrouter",
+        choices=["gemini", "openrouter", "local", "mock"],
+        help="Modelo de IA a usar",
+    )
 
-    transcript_file = sys.argv[2]
+    args = parser.parse_args(sys.argv[2:])
 
-    with open(transcript_file, "r", encoding="utf-8") as f:
+    with open(args.transcript_file, "r", encoding="utf-8") as f:
         transcript = f.read()
 
-    result = run_from_audio(transcript=transcript, url="", tema="Audios")
+    result = run_from_audio(
+        transcript=transcript,
+        url=args.url,
+        tema=args.tema,
+        use_gemini=not args.local,
+        model_provider=args.model,
+    )
 
     logger.info(f"[ARTICLE_AUDIO] Artículo generado")
     print(f"✅ Título: {result['article']['title']}")
@@ -78,9 +96,9 @@ if __name__ == "__main__":
             main_article_from_audio()
         else:
             print(
-                "Usage: python -m src.audio.entrypoints.cli [fetch|process|article] <args>"
+                "Usage: python -m src.audio.entrypoints.cli [fetch|process|article] [--model gemini|openrouter|local|mock] <args>"
             )
     else:
         print(
-            "Usage: python -m src.audio.entrypoints.cli [fetch|process|article] <args>"
+            "Usage: python -m src.audio.entrypoints.cli [fetch|process|article] [--model gemini|openrouter|local|mock] <args>"
         )

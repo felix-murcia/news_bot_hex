@@ -23,42 +23,38 @@ POST_LIMITS = {
 }
 
 
-class ContentGeminiUseCase:
+class ContentUseCase:
     """Caso de uso para generar contenido (tweets/posts) para redes sociales."""
 
     def __init__(
         self,
         network: str = "bluesky",
-        use_gemini: bool = True,
-        gemini_config: dict = None,
+        use_ai: bool = True,
+        ai_config: dict = None,
+        model_provider: str = "openrouter",
+        ai_model=None,
         mode: str = "news",
     ):
         self.network = network
         self.mode = mode
         self.MAX_CHARS = POST_LIMITS.get(network, 280)
-        self.use_gemini = use_gemini
-        self.gemini_config = gemini_config or {}
-        self.gemini_client = None
-        self.llm = None
+        self.use_ai = use_ai
+        self.ai_config = ai_config or {}
+        self.model_provider = model_provider
+        self.ai_model = ai_model
 
-        if self.use_gemini:
-            self._init_gemini()
-        else:
-            self._init_local()
+    def _get_ai_model(self):
+        """Obtiene el modelo de IA (lazy loading)."""
+        if self.ai_model is None:
+            from src.shared.adapters.ai.ai_factory import get_ai_adapter
 
-    def _init_gemini(self):
-        try:
-            from src.shared.adapters.gemini_client import get_gemini_client
-
-            self.gemini_client = get_gemini_client(self.gemini_config)
-            logger.info(f"[CONTENT] ✅ Gemini Flash activado ({self.network})")
-        except Exception as e:
-            logger.error(f"[CONTENT] ❌ Error Gemini: {e}")
-            self.use_gemini = False
-            self._init_local()
-
-    def _init_local(self):
-        logger.info("[CONTENT] Modo local activado")
+            if self.use_ai:
+                provider = self.model_provider
+            else:
+                provider = "mock"
+            self.ai_model = get_ai_adapter(provider, self.ai_config)
+            logger.info(f"[CONTENT] Adapter '{provider}' instanciado")
+        return self.ai_model
 
     def _get_verified_news(self) -> List[Dict]:
         try:
@@ -101,7 +97,7 @@ class ContentGeminiUseCase:
         except Exception as e:
             logger.error(f"[CONTENT] Error guardando posts: {e}")
 
-    def _generate_tweet_gemini(self, news_item: Dict) -> str:
+    def _generate_tweet_ai(self, news_item: Dict) -> str:
         title = news_item.get("title", "")
         tema = news_item.get("tema", "Noticias")
         url = news_item.get("url", "")
@@ -138,7 +134,8 @@ Empieza directamente con el tweet.
 TWEET:"""
 
         try:
-            result = self.gemini_client.generate(prompt)
+            model = self._get_ai_model()
+            result = model.generate(prompt)
             tweet = result.strip()
             if len(tweet) > self.MAX_CHARS:
                 tweet = tweet[: self.MAX_CHARS - 3] + "..."
@@ -170,7 +167,9 @@ TWEET:"""
             return None
 
     def execute(self, limit: int = 1) -> List[Dict]:
-        logger.info(f"[CONTENT] Ejecutando para {self.network} (modo: {self.mode})")
+        logger.info(
+            f"[CONTENT] Ejecutando para {self.network} (provider: {self.model_provider})"
+        )
 
         news_list = self._get_verified_news()
         if not news_list:
@@ -181,8 +180,8 @@ TWEET:"""
         for news_item in news_list[:limit]:
             url = news_item.get("url", "")
 
-            if self.use_gemini and self.gemini_client:
-                tweet = self._generate_tweet_gemini(news_item)
+            if self.use_ai:
+                tweet = self._generate_tweet_ai(news_item)
             else:
                 tweet = self._generate_tweet_fallback(news_item)
 
@@ -205,19 +204,43 @@ TWEET:"""
         return posts
 
 
+class ContentGeminiUseCase(ContentUseCase):
+    """Legacy compatibility wrapper."""
+
+    def __init__(
+        self,
+        network: str = "bluesky",
+        use_gemini: bool = True,
+        gemini_config: dict = None,
+        mode: str = "news",
+        **kwargs,
+    ):
+        model_provider = "openrouter" if use_gemini else "mock"
+        super().__init__(
+            network=network,
+            use_ai=use_gemini,
+            ai_config=gemini_config,
+            model_provider=model_provider,
+            mode=mode,
+            **kwargs,
+        )
+
+
 def run_content(
     llm=None,
     network: str = "bluesky",
     use_gemini: bool = True,
     gemini_config: Dict = None,
     mode: str = "news",
+    model_provider: str = "openrouter",
 ) -> List[Dict]:
     """Función principal para generar tweets."""
-    logger.info(f"[CONTENT] Ejecutando (Gemini: {use_gemini}, red: {network})")
-    use_case = ContentGeminiUseCase(
+    logger.info(f"[CONTENT] Ejecutando (provider: {model_provider}, red: {network})")
+    use_case = ContentUseCase(
         network=network,
-        use_gemini=use_gemini,
-        gemini_config=gemini_config,
+        use_ai=use_gemini,
+        ai_config=gemini_config,
+        model_provider=model_provider,
         mode=mode,
     )
     return use_case.execute()
@@ -237,6 +260,13 @@ def main():
     parser.add_argument(
         "--mode", type=str, default="news", choices=["news", "audio", "video"]
     )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="openrouter",
+        choices=["gemini", "openrouter", "local", "mock"],
+        help="Modelo de IA a usar",
+    )
 
     args = parser.parse_args()
 
@@ -244,6 +274,7 @@ def main():
         network=args.network,
         use_gemini=not args.local,
         mode=args.mode,
+        model_provider=args.model,
     )
 
     if results:
@@ -252,3 +283,7 @@ def main():
             print(f"  {i}. {post.get('tweet', '')[:80]}...")
     else:
         print("⚠️ No se generaron tweets")
+
+
+if __name__ == "__main__":
+    main()

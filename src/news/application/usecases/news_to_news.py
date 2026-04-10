@@ -5,18 +5,19 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from datetime import datetime
 
+from config.settings import Settings
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger("news_bot")
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-DATA_DIR = BASE_DIR / "data"
-CACHE_DIR = DATA_DIR / "cache"
+DATA_DIR = Settings.DATA_DIR
+CACHE_DIR = Settings.CACHE_DIR
 
-CACHE_DIR.mkdir(parents=True, exist_ok=True)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def slugify(text: str) -> str:
@@ -27,28 +28,37 @@ def slugify(text: str) -> str:
 
 
 def check_copyright(url: str) -> bool:
-    """Verifica riesgo de copyright."""
-    copyright_domains = [
-        "elpais.com",
-        "elmundo.es",
-        "20minutos.es",
-        "marca.com",
-        "as.com",
-        " Expansion",
-        "cincodias.elpais.es",
-        "bbc.com",
-    ]
+    """Check copyright risk for a URL."""
     url_lower = url.lower()
-    return any(domain.lower() in url_lower for domain in copyright_domains)
+    return any(domain.lower() in url_lower for domain in Settings.COPYRIGHT_DOMAINS)
 
 
 class NewsToNewsUseCase:
     """Caso de uso para procesar URLs de noticias y generar artículos."""
 
-    def __init__(self, use_gemini: bool = True):
-        self.use_gemini = use_gemini
+    def __init__(
+        self,
+        use_ai: bool = True,
+        model_provider: str = "openrouter",
+        ai_config: dict = None,
+        ai_model=None,
+    ):
+        self.use_ai = use_ai
+        self.model_provider = model_provider
+        self.ai_config = ai_config or {}
+        self.ai_model = ai_model
         self.content_extractor = None
         self.article_generator = None
+
+    def _get_ai_model(self):
+        """Obtiene el modelo de IA (lazy loading)."""
+        if self.ai_model is None:
+            from src.shared.adapters.ai.ai_factory import get_ai_adapter
+
+            provider = self.model_provider if self.use_ai else "mock"
+            self.ai_model = get_ai_adapter(provider, self.ai_config)
+            logger.info(f"[NEWS_TO_NEWS] Adapter '{provider}' instanciado")
+        return self.ai_model
 
     def _get_content_extractor(self):
         if self.content_extractor is None:
@@ -63,7 +73,11 @@ class NewsToNewsUseCase:
                 ArticleFromNewsUseCase,
             )
 
-            self.article_generator = ArticleFromNewsUseCase(use_gemini=self.use_gemini)
+            self.article_generator = ArticleFromNewsUseCase(
+                use_ai=self.use_ai,
+                model_provider=self.model_provider,
+                ai_config=self.ai_config,
+            )
         return self.article_generator
 
     def _load_from_cache(self, url: str) -> Optional[tuple[str, Path]]:
@@ -116,11 +130,9 @@ class NewsToNewsUseCase:
         tema = article_data.get("news_item", {}).get("tema", "Noticias")
 
         try:
-            from src.shared.adapters.gemini_client import get_gemini_client
-
-            client = get_gemini_client({})
+            model = self._get_ai_model()
             prompt = f"Genera un tweet breve sobre: {title}. Máximo 280 caracteres, incluye emoji y llamada a la acción."
-            tweet = client.generate(prompt).strip()
+            tweet = model.generate(prompt).strip()
             if len(tweet) > 280:
                 tweet = tweet[:277] + "..."
             return tweet
@@ -184,7 +196,7 @@ class NewsToNewsUseCase:
             "article_file": saved_files["article_file"],
             "post": tweet_text,
             "article_data": article_data,
-            "mode": "news",
+            "mode": self.model_provider,
             "saved_files": saved_files,
         }
 
@@ -192,9 +204,18 @@ class NewsToNewsUseCase:
         return result
 
 
-def process_news_url(url: str) -> Dict[str, Any]:
+def process_news_url(
+    url: str,
+    model_provider: str = "openrouter",
+    use_ai: bool = True,
+    ai_config: dict = None,
+) -> Dict[str, Any]:
     """Función principal para procesar URL de noticia."""
-    processor = NewsToNewsUseCase()
+    processor = NewsToNewsUseCase(
+        model_provider=model_provider,
+        use_ai=use_ai,
+        ai_config=ai_config,
+    )
     return processor.process_url(url)
 
 
@@ -208,6 +229,14 @@ def main():
     parser.add_argument(
         "--debug", action="store_true", help="Mostrar información de depuración"
     )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="openrouter",
+        choices=["gemini", "openrouter", "local", "mock"],
+        help="Modelo de IA a usar",
+    )
+    parser.add_argument("--local", action="store_true", help="Usar solo modelo local")
 
     args = parser.parse_args()
 
@@ -215,10 +244,15 @@ def main():
     print("📰 NEWS_TO_NEWS - Procesador de noticias web")
     print("=" * 60)
     print(f"URL: {args.url}")
+    print(f"Modelo: {args.model}")
     print()
 
     try:
-        result = process_news_url(args.url)
+        result = process_news_url(
+            url=args.url,
+            model_provider=args.model,
+            use_ai=not args.local,
+        )
 
         print("✅ PROCESAMIENTO COMPLETADO")
         print(f"📝 Contenido extraído: {len(result['source_content'])} caracteres")

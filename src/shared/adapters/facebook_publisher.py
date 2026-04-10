@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 from datetime import datetime
 from typing import List, Dict, Optional
 
+from config.settings import Settings
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -13,37 +15,39 @@ logging.basicConfig(
 logger = logging.getLogger("news_bot")
 
 load_dotenv()
-PAGE_ID = os.getenv("FACEBOOK_PAGE_ID")
-PAGE_TOKEN = os.getenv("FACEBOOK_PAGE_ACCESS_TOKEN")
-APP_ID = os.getenv("FACEBOOK_APP_ID")
-APP_SECRET = os.getenv("FACEBOOK_APP_SECRET")
+
+# Use Settings for all configuration
+PAGE_ID = Settings.FACEBOOK_PAGE_ID
+PAGE_TOKEN = Settings.FACEBOOK_PAGE_ACCESS_TOKEN
+APP_ID = Settings.FACEBOOK_APP_ID
+APP_SECRET = Settings.FACEBOOK_APP_SECRET
 
 if not PAGE_ID or not PAGE_TOKEN:
-    raise ValueError("Credenciales de Facebook no encontradas en .env")
+    raise ValueError("Facebook credentials not found in .env")
 
 
 def validate_token(token: str) -> bool:
-    """Valida el token de Facebook."""
-    debug_url = f"https://graph.facebook.com/debug_token?input_token={token}&access_token={APP_ID}|{APP_SECRET}"
+    """Validate Facebook token."""
+    debug_url = f"{Settings.FACEBOOK_GRAPH_API_BASE}/debug_token?input_token={token}&access_token={APP_ID}|{APP_SECRET}"
     resp = requests.get(debug_url)
     if resp.status_code != 200:
-        logger.warning(f"[FACEBOOK] Error al validar token: {resp.text}")
+        logger.warning(f"[FACEBOOK] Error validating token: {resp.text}")
         return False
     data = resp.json().get("data", {})
     if not data.get("is_valid"):
-        logger.error(f"[FACEBOOK] Token inválido o caducado: {data}")
+        logger.error(f"[FACEBOOK] Invalid or expired token: {data}")
         return False
     exp = data.get("expires_at")
     if exp:
         exp_date = datetime.fromtimestamp(exp).strftime("%Y-%m-%d %H:%M:%S")
-        logger.info(f"[FACEBOOK] Token válido. Expira: {exp_date}")
+        logger.info(f"[FACEBOOK] Token valid. Expires: {exp_date}")
     else:
-        logger.info("[FACEBOOK] Token válido")
+        logger.info("[FACEBOOK] Token valid")
     return True
 
 
 if not validate_token(PAGE_TOKEN):
-    raise SystemExit("El token de página no es válido")
+    raise SystemExit("Page token is not valid")
 
 
 def clean_article_text(html: str, max_chars: int = 5000) -> str:
@@ -200,14 +204,14 @@ class FacebookPublisher:
                 and image_url.startswith("http")
                 and validate_image_url(image_url)
             ):
-                endpoint = f"https://graph.facebook.com/v23.0/{PAGE_ID}/photos"
+                endpoint = f"{Settings.FACEBOOK_GRAPH_API_BASE}/{Settings.FACEBOOK_GRAPH_API_VERSION}/{PAGE_ID}/photos"
                 payload = {
                     "url": image_url,
                     "caption": message_text,
                     "access_token": PAGE_TOKEN,
                 }
             else:
-                endpoint = f"https://graph.facebook.com/v23.0/{PAGE_ID}/feed"
+                endpoint = f"{Settings.FACEBOOK_GRAPH_API_BASE}/{Settings.FACEBOOK_GRAPH_API_VERSION}/{PAGE_ID}/feed"
                 payload = {"message": message_text, "access_token": PAGE_TOKEN}
 
             logger.info(f"[FACEBOOK] Publicando en {endpoint}")

@@ -5,14 +5,15 @@ import re
 from pathlib import Path
 from typing import Dict, Any, Optional, Union
 
+from config.settings import Settings
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger("audio_bot")
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-DATA_DIR = BASE_DIR / "data"
+DATA_DIR = Settings.DATA_DIR
 AUDIO_ARTICLES_PATH = DATA_DIR / "generated_audio_articles.json"
 AUDIO_POSTS_PATH = DATA_DIR / "generated_audio_posts.json"
 
@@ -35,19 +36,33 @@ def limpiar(texto: str) -> str:
 class ArticleFromAudioUseCase:
     """Caso de uso para generar artículo desde transcripción de audio."""
 
-    def __init__(self, use_gemini: bool = True, gemini_config: Optional[Dict] = None):
+    def __init__(
+        self,
+        use_gemini: bool = True,
+        gemini_config: Optional[Dict] = None,
+        ai_model=None,
+        model_provider: str = "openrouter",
+    ):
         self.use_gemini = use_gemini
         self.gemini_config = gemini_config or {}
+        self.ai_model = ai_model
+        self.model_provider = model_provider
+
+    def _get_ai_model(self):
+        """Obtiene el modelo de IA (lazy loading)."""
+        if self.ai_model is None:
+            from src.shared.adapters.ai.ai_factory import get_ai_adapter
+
+            provider = self.model_provider if self.use_gemini else "mock"
+            self.ai_model = get_ai_adapter(provider, self.gemini_config)
+        return self.ai_model
 
     def _generate_with_gemini(
         self, transcript: str, url: str, tema: str
     ) -> Dict[str, Any]:
-        """Genera artículo usando Gemini."""
+        """Genera artículo usando el modelo de IA desacoplado."""
         try:
-            # from src.shared.adapters.gemini_client import get_gemini_client
-            from src.shared.adapters.openrouter_client import get_openrouter_client
-
-            client = get_openrouter_client(self.gemini_config)
+            model = self._get_ai_model()
 
             prompt = """Genera un artículo de blog en HTML sobre este audio/podcast.
 
@@ -62,12 +77,14 @@ Requisitos:
 - Al menos 5 párrafos bien desarrollados
 - Solo devuelve el HTML del artículo""".format(transcript[:4000], tema)
 
-            content = client.generate(prompt)
+            content = model.generate(prompt)
 
             title_match = re.search(r"<h1>(.*?)</h1>", content, re.DOTALL)
             title = title_match.group(1).strip() if title_match else f"Audio: {tema}"
 
-            return self._build_article_response(content, title, url, tema, "gemini")
+            return self._build_article_response(
+                content, title, url, tema, model.provider
+            )
 
         except Exception as e:
             logger.error(f"[ARTICLE_AUDIO] Error con Gemini: {e}")
@@ -172,13 +189,17 @@ def run_from_audio(
     url: str = "",
     tema: str = "Audios",
     use_gemini: bool = True,
-    llm: Any = None,
+    ai_model=None,
     gemini_config: Optional[Dict] = None,
+    model_provider: str = "openrouter",
 ) -> Dict[str, Any]:
     """Función principal."""
-    logger.info(f"[ARTICLE_AUDIO] Ejecutando (Gemini: {use_gemini})")
+    logger.info(f"[ARTICLE_AUDIO] Ejecutando (provider: {model_provider})")
     use_case = ArticleFromAudioUseCase(
-        use_gemini=use_gemini, gemini_config=gemini_config
+        use_gemini=use_gemini,
+        gemini_config=gemini_config,
+        ai_model=ai_model,
+        model_provider=model_provider,
     )
     return use_case.execute(transcript, url, tema)
 
@@ -196,6 +217,13 @@ def main():
     parser.add_argument("--url", type=str, default="", help="URL del audio")
     parser.add_argument("--tema", type=str, default="Audios", help="Tema del artículo")
     parser.add_argument("--local", action="store_true", help="Usar solo modelo local")
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="openrouter",
+        choices=["gemini", "openrouter", "local", "mock"],
+        help="Modelo de IA a usar",
+    )
 
     args = parser.parse_args()
 
@@ -213,6 +241,7 @@ def main():
             url=args.url,
             tema=args.tema,
             use_gemini=not args.local,
+            model_provider=args.model,
         )
 
         elapsed = time.time() - start_time

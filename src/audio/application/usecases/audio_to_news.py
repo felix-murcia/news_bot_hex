@@ -36,8 +36,27 @@ def check_copyright(url: str) -> bool:
 class AudioToNewsUseCase:
     """Caso de uso para procesar audio y generar artículos."""
 
-    def __init__(self, use_gemini: bool = True):
-        self.use_gemini = use_gemini
+    def __init__(
+        self,
+        use_ai: bool = True,
+        model_provider: str = "openrouter",
+        ai_config: dict = None,
+        ai_model=None,
+    ):
+        self.use_ai = use_ai
+        self.model_provider = model_provider
+        self.ai_config = ai_config or {}
+        self.ai_model = ai_model
+
+    def _get_ai_model(self):
+        """Obtiene el modelo de IA (lazy loading)."""
+        if self.ai_model is None:
+            from src.shared.adapters.ai.ai_factory import get_ai_adapter
+
+            provider = self.model_provider if self.use_ai else "mock"
+            self.ai_model = get_ai_adapter(provider, self.ai_config)
+            logger.info(f"[AUDIO] Adapter '{provider}' instanciado")
+        return self.ai_model
 
     def _get_or_create_transcript(
         self, url: str, audio_path: Path, transcript_path: Path
@@ -76,9 +95,7 @@ class AudioToNewsUseCase:
     ) -> Dict[str, Any]:
         """Genera artículo desde transcripción."""
         try:
-            from src.shared.adapters.gemini_client import get_gemini_client
-
-            client = get_gemini_client({})
+            model = self._get_ai_model()
 
             prompt = f"""Genera un artículo de blog en HTML sobre este audio/podcast.
 
@@ -94,7 +111,7 @@ Requisitos:
 - Resumen del contenido del audio
 - Solo devuelve el HTML del artículo"""
 
-            content = client.generate(prompt)
+            content = model.generate(prompt)
 
             title_match = re.search(r"<h1>(.*?)</h1>", content, re.DOTALL)
             title = title_match.group(1).strip() if title_match else f"Audio: {tema}"
@@ -141,11 +158,9 @@ Requisitos:
         title = article_data.get("article", {}).get("title", "Audio Noticia")
 
         try:
-            from src.shared.adapters.gemini_client import get_gemini_client
-
-            client = get_gemini_client({})
+            model = self._get_ai_model()
             prompt = f"Genera un tweet breve sobre este audio: {title[:100]}. Máximo 280 caracteres."
-            tweet = client.generate(prompt).strip()
+            tweet = model.generate(prompt).strip()
             if len(tweet) > 280:
                 tweet = tweet[:277] + "..."
             return tweet
@@ -204,23 +219,45 @@ Requisitos:
         return result
 
 
-def process_audio_url(url: str) -> Dict[str, Any]:
+def process_audio_url(
+    url: str,
+    model_provider: str = "openrouter",
+    use_ai: bool = True,
+    ai_config: dict = None,
+) -> Dict[str, Any]:
     """Función principal."""
-    processor = AudioToNewsUseCase()
+    processor = AudioToNewsUseCase(
+        model_provider=model_provider,
+        use_ai=use_ai,
+        ai_config=ai_config,
+    )
     return processor.process_audio_url(url)
 
 
 def main():
-    import sys
+    import argparse
 
-    if len(sys.argv) > 1:
-        url = sys.argv[1]
-        result = process_audio_url(url)
-        print(f"✅ Procesado: {url}")
-        print(f"📄 Artículo: {len(result['article'])} caracteres")
-        print(f"🐦 Tweet: {result['post'][:100]}...")
-    else:
-        print("Usage: python audio_to_news.py <audio_url>")
+    parser = argparse.ArgumentParser(description="Procesar audio y generar artículo")
+    parser.add_argument("url", help="URL del audio")
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="openrouter",
+        choices=["gemini", "openrouter", "local", "mock"],
+        help="Modelo de IA a usar",
+    )
+    parser.add_argument("--local", action="store_true", help="Usar solo modelo local")
+
+    args = parser.parse_args()
+
+    result = process_audio_url(
+        url=args.url,
+        model_provider=args.model,
+        use_ai=not args.local,
+    )
+    print(f"✅ Procesado: {args.url}")
+    print(f"📄 Artículo: {len(result['article'])} caracteres")
+    print(f"🐦 Tweet: {result['post'][:100]}...")
 
 
 if __name__ == "__main__":

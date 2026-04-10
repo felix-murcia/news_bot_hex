@@ -6,14 +6,15 @@ import unicodedata
 from pathlib import Path
 from typing import Dict, Any
 
+from config.settings import Settings
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger("video_bot")
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-DATA_DIR = BASE_DIR / "data"
+DATA_DIR = Settings.DATA_DIR
 VIDEO_ARTICLES_PATH = DATA_DIR / "generated_video_articles.json"
 VIDEO_POSTS_PATH = DATA_DIR / "generated_video_posts.json"
 
@@ -40,21 +41,20 @@ class ArticleFromVideoUseCase:
 
     def __init__(
         self,
-        llm_provider: str = "gemini",
+        llm_provider: str = "openrouter",
         llm_config: dict = None,
     ):
         self.llm_provider = llm_provider
         self.llm_config = llm_config or {}
-        self._llm_client = None
+        self._ai_model = None
 
-    @property
-    def llm_client(self):
-        """Lazy load LLM client."""
-        if self._llm_client is None:
-            from src.shared.adapters.llm_client import get_llm_client
+    def _get_ai_model(self):
+        """Lazy load AI model."""
+        if self._ai_model is None:
+            from src.shared.adapters.ai.ai_factory import get_ai_adapter
 
-            self._llm_client = get_llm_client(self.llm_provider, self.llm_config)
-        return self._llm_client
+            self._ai_model = get_ai_adapter(self.llm_provider, self.llm_config)
+        return self._ai_model
 
     def execute(self, transcript: str, url: str, tema: str) -> Dict[str, Any]:
         """Ejecuta el caso de uso."""
@@ -80,7 +80,7 @@ Requisitos:
 - Al menos 5 párrafos bien desarrollados
 - Solo devuelve el HTML del artículo"""
 
-        content = self.llm_client.generate(prompt)
+        content = self._get_ai_model().generate(prompt)
 
         title_match = re.search(r"<h1>(.*?)</h1>", content, re.DOTALL)
         title = title_match.group(1).strip() if title_match else f"Video: {tema}"
@@ -219,11 +219,11 @@ def main():
     parser.add_argument("--url", type=str, default="", help="URL del video")
     parser.add_argument("--tema", type=str, default="Videos", help="Tema del artículo")
     parser.add_argument(
-        "--llm",
+        "--model",
         type=str,
-        default="gemini",
-        choices=["gemini", "openrouter"],
-        help="Proveedor LLM (gemini, openrouter)",
+        default="openrouter",
+        choices=["gemini", "openrouter", "local", "mock"],
+        help="Modelo de IA a usar",
     )
 
     args = parser.parse_args()
@@ -241,7 +241,7 @@ def main():
             transcript=transcript,
             url=args.url,
             tema=args.tema,
-            llm_provider=args.llm,
+            llm_provider=args.model,
         )
 
         elapsed = time.time() - start_time

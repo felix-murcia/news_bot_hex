@@ -1,11 +1,10 @@
 """Audio pipeline orchestrator.
 
-Este use-case orquesta el procesamiento completo de audio a artículo publicado.
+This use-case orchestrates the complete audio-to-article processing pipeline.
 """
 
 import logging
-import re
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 
 from src.audio.infrastructure.adapters.audio_fetcher import (
     download_audio,
@@ -13,188 +12,76 @@ from src.audio.infrastructure.adapters.audio_fetcher import (
 )
 from src.audio.infrastructure.adapters.audio_transcriber import transcribe_audio
 from src.audio.application.usecases.article_from_audio import run_from_audio
-from src.shared.adapters.image_enricher import ImageEnricher
-
-from src.shared.adapters.wordpress_publisher import publish_post
-from src.shared.adapters.publishers.social import SocialMediaPublisher
+from src.shared.application.usecases.base_pipeline import BasePipelineUseCase
 
 logger = logging.getLogger("audio_bot")
 
 
-class AudioPipelineUseCase:
-    """Orquesta el procesamiento completo de audio."""
+class AudioPipelineUseCase(BasePipelineUseCase):
+    """Orchestrates complete audio processing pipeline."""
 
     def __init__(self, no_publish: bool = False):
-        self.no_publish = no_publish
-        self._image_enricher: Optional[ImageEnricher] = None
-        self._social_publisher: Optional[SocialMediaPublisher] = None
-
-    @property
-    def image_enricher(self) -> ImageEnricher:
-        if self._image_enricher is None:
-            self._image_enricher = ImageEnricher(mode="audio")
-        return self._image_enricher
-
-    @property
-    def social_publisher(self) -> SocialMediaPublisher:
-        if self._social_publisher is None:
-            self._social_publisher = SocialMediaPublisher()
-        return self._social_publisher
+        super().__init__(mode="audio", no_publish=no_publish)
 
     def run(self, url: str, tema: str) -> Dict[str, Any]:
-        logger.info("[1/10] Descargando audio")
+        logger.info("[1/10] Downloading audio")
 
         transcript = ""
+        audio_path: Optional[str] = None
 
         try:
             audio_path = download_audio(url)
             if not audio_path or not has_audio_stream(audio_path):
-                raise RuntimeError(f"Audio sin flujo de audio válido: {url}")
+                raise RuntimeError(f"Audio without valid stream: {url}")
 
-            logger.info("[1/10] Audio descargado, transcribiendo...")
+            self._track_temp_file(audio_path)
+            logger.info("[1/10] Audio downloaded, transcribing...")
             transcript = transcribe_audio(audio_path)
             logger.info(
-                f"[1/10] Transcripción completada: {len(transcript)} caracteres"
+                f"[1/10] Transcription completed: {len(transcript)} characters"
             )
 
         except Exception as e:
-            logger.error(f"[1/10] Error descargando/transcribiendo audio: {e}")
-            raise RuntimeError(f"Error en descarga/transcripción del audio: {e}") from e
+            logger.error(f"[1/10] Error downloading/transcribing audio: {e}")
+            raise RuntimeError(f"Error in audio download/transcription: {e}") from e
 
-        logger.info("[2/10] Generando tweets/posts y artículo")
+        logger.info("[2/10] Generating article and posts")
         try:
             result = run_from_audio(
                 transcript=transcript, url=url, tema=tema, llm_provider="openrouter"
             )
         except Exception as e:
-            logger.error(f"[2/10] Error en generación de contenido: {e}")
+            logger.error(f"[2/10] Error in content generation: {e}")
             raise
 
         article = result["article"]
         tweet = result["tweet"]
+        tweets: List[str] = [tweet]
 
-        logger.info("[3/10] Generando tweets/posts")
-        tweets = [tweet]
+        logger.info("[5/7] Enriching with images")
+        articles_for_images = [article]
+        enriched_articles = self._enrich_with_images(articles_for_images)
+        enriched_article = enriched_articles[0]
 
-        logger.info("[4/10] Generando artículo profesional en español")
-        article_data = article
-        article_for_images = [article_data]
-
-        logger.info("[5/10] Buscando imágenes en Unsplash")
-        try:
-            from src.shared.adapters.unsplash_fetcher import UnsplashFetcher
-
-            unsplash_fetcher = UnsplashFetcher(mode="audio")
-            article_for_images = unsplash_fetcher.fetch_for_posts(article_for_images)
-        except Exception as e:
-            logger.warning(f"[5/10] Error en Unsplash: {e}")
-
-        logger.info("[6/10] Buscando imágenes en Google Images")
-        try:
-            from src.shared.adapters.google_images_fetcher import GoogleImagesFetcher
-
-            google_fetcher = GoogleImagesFetcher(mode="audio")
-            article_for_images = google_fetcher.fetch_for_posts(article_for_images)
-        except Exception as e:
-            logger.warning(f"[6/10] Error en Google Images: {e}")
-
-        logger.info("[7/10] Enriqueciendo artículo con imágenes")
-        enriched = self.image_enricher.enrich(article_for_images)
-        enriched_article = enriched[0]
-
-        wordpress_post_id = None
+        wordpress_url: Optional[str] = None
         if not self.no_publish:
-            logger.info("[8/10] Publicando en WordPress")
-            try:
-                from src.shared.adapters.wordpress_publisher import (
-                    ensure_category,
-                    ensure_tag,
-                )
+            logger.info("[8/10] Publishing to WordPress")
+            wordpress_url = self._publish_to_wordpress(enriched_article, tema)
+            if wordpress_url:
+                enriched_article["wp_url"] = wordpress_url
 
-                topic = (
-                    enriched_article.get("labels", [tema])[0]
-                    if enriched_article.get("labels")
-                    else tema
-                )
-                if topic in ["Audio", "Podcast"]:
-                    topic = "Noticias"
-                category_id = ensure_category(topic)
+        logger.info("[9/10] Publishing to social media")
+        social_results = self._publish_to_social(enriched_article, tweet, url)
 
-                labels = enriched_article.get("labels", [])
-                tag_ids = [ensure_tag(t) for t in labels if isinstance(t, str)]
-                tag_ids = [tid for tid in tag_ids if tid is not None]
+        logger.info("[10/10] Cleaning up temporary files")
+        self._cleanup_temp_files()
 
-                image_url = enriched_article.get("image_url")
-                featured_image_id = None
-                if image_url and "nbes.blog" not in image_url:
-                    from src.shared.adapters.wordpress_publisher import (
-                        upload_image_from_url,
-                    )
-
-                    try:
-                        featured_image_id = upload_image_from_url(
-                            image_url,
-                            alt_text=enriched_article.get("alt_text"),
-                            credit=enriched_article.get("image_credit"),
-                        )
-                    except Exception as e:
-                        logger.warning(f"[WORDPRESS] Error subiendo imagen: {e}")
-
-                content = enriched_article.get("content", "")
-                content = re.sub(
-                    r"<h1[^>]*>.*?</h1>", "", content, flags=re.DOTALL | re.IGNORECASE
-                )
-                content = content.strip()
-
-                wordpress_post_id = publish_post(
-                    title=enriched_article.get("title"),
-                    content=content,
-                    categories=[category_id] if category_id else None,
-                    tags=tag_ids if tag_ids else None,
-                    is_draft=False,
-                    featured_image=featured_image_id,
-                    excerpt=enriched_article.get("excerpt"),
-                    slug=enriched_article.get("slug"),
-                    seo_title=None,
-                    focus_keyword=enriched_article.get("title"),
-                    canonical_url=None,
-                )
-            except Exception as e:
-                logger.warning(f"[8/10] Fallo en publicación de WordPress: {e}")
-                wordpress_post_id = None
-
-        if wordpress_post_id and enriched_article.get("url"):
-            wp_url = enriched_article["url"]
-            enriched_article["wp_url"] = wp_url
-        else:
-            logger.info("[8/10] Publicación en WordPress omitida por --no-publish")
-
-        logger.info("[9/10] Publicando en redes sociales")
-        try:
-            post_for_social = {
-                "tweet": tweets[0] if tweets else "",
-                "wp_url": enriched_article.get(
-                    "wp_url", enriched_article.get("url", "")
-                ),
-                "url": url,
-                "image_url": enriched_article.get("image_url", ""),
-            }
-            social_results = self.social_publisher.publish(post_for_social)
-        except Exception as e:
-            logger.error(f"[9/10] Error al publicar en redes sociales: {e}")
-            social_results = []
-
-        logger.info("[10/10] Limpieza de archivos temporales")
-        logger.info("[10/10] Limpieza completada")
-
-        return {
-            "url": url,
-            "transcript": transcript,
-            "article": article_data,
-            "article_file": result.get("article_file", ""),
-            "images": enriched_article.get("image_url", []),
-            "tweets": tweets,
-            "wordpress_post_id": wordpress_post_id,
-            "social_results": social_results,
-            "mode": "audio",
-        }
+        return self.build_result(
+            url=url,
+            transcript=transcript,
+            article=enriched_article,
+            article_file=result.get("article_file", ""),
+            tweets=tweets,
+            wordpress_url=wordpress_url,
+            social_results=social_results,
+        )

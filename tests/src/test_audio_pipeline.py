@@ -59,9 +59,8 @@ class TestAudioToNewsUseCase:
         """Test AudioToNewsUseCase initialization."""
         from src.audio.application.usecases import AudioToNewsUseCase
 
-        use_case = AudioToNewsUseCase(use_gemini=True)
-
-        assert use_case.use_gemini is True
+        use_case = AudioToNewsUseCase(model_provider="openrouter")
+        assert use_case.model_provider == "openrouter"
 
 
 class TestArticleFromAudioUseCase:
@@ -71,9 +70,8 @@ class TestArticleFromAudioUseCase:
         """Test ArticleFromAudioUseCase initialization."""
         from src.audio.application.usecases import ArticleFromAudioUseCase
 
-        use_case = ArticleFromAudioUseCase(use_gemini=True)
-
-        assert use_case.use_gemini is True
+        use_case = ArticleFromAudioUseCase(model_provider="openrouter")
+        assert use_case.model_provider == "openrouter"
 
 
 class TestAudioTranscriber:
@@ -95,10 +93,10 @@ class TestAudioPipeline:
         from src.audio.application.usecases import AudioToNewsUseCase
         from src.audio.application.usecases import ArticleFromAudioUseCase
 
-        use_case = AudioToNewsUseCase(use_gemini=False)
+        use_case = AudioToNewsUseCase(use_ai=False)
         assert use_case is not None
 
-        article_use_case = ArticleFromAudioUseCase(use_gemini=True)
+        article_use_case = ArticleFromAudioUseCase(model_provider="openrouter")
         assert article_use_case is not None
 
 

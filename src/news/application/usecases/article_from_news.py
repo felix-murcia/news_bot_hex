@@ -3,6 +3,8 @@ import json
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
+
+from config.settings import Settings
 from src.shared.adapters.translator import translate_text
 from src.news.infrastructure.adapters import JinaContentExtractor
 
@@ -12,12 +14,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger("news_bot")
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-DATA_DIR = BASE_DIR / "data"
-CACHE_DIR = DATA_DIR / "cache"
+DATA_DIR = Settings.DATA_DIR
+CACHE_DIR = Settings.CACHE_DIR
 NEWS_ARTICLES_PATH = DATA_DIR / "generated_news_articles.json"
 NEWS_POSTS_PATH = DATA_DIR / "generated_news_posts.json"
-URL_NBES = "https://nbes.blog"
 
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -51,9 +51,28 @@ def build_article_post(
 class ArticleFromNewsUseCase:
     """Caso de uso para generar artículo desde noticia."""
 
-    def __init__(self, use_gemini: bool = True):
-        self.use_gemini = use_gemini
+    def __init__(
+        self,
+        use_ai: bool = True,
+        model_provider: str = "openrouter",
+        ai_config: dict = None,
+        ai_model=None,
+    ):
+        self.use_ai = use_ai
+        self.model_provider = model_provider
+        self.ai_config = ai_config or {}
+        self.ai_model = ai_model
         self.content_extractor = JinaContentExtractor()
+
+    def _get_ai_model(self):
+        """Obtiene el modelo de IA (lazy loading)."""
+        if self.ai_model is None:
+            from src.shared.adapters.ai.ai_factory import get_ai_adapter
+
+            provider = self.model_provider if self.use_ai else "mock"
+            self.ai_model = get_ai_adapter(provider, self.ai_config)
+            logger.info(f"[ARTICLE_NEWS] Adapter '{provider}' instanciado")
+        return self.ai_model
 
     def execute(
         self, content: str, url: str = "", tema: str = "Noticias"
@@ -72,7 +91,7 @@ class ArticleFromNewsUseCase:
         news_item = {
             "resumen": resumen,
             "source_url": url,
-            "url": URL_NBES,
+            "url": Settings.WP_SITE_URL,
             "source": "web",
             "source_type": "news_man",
             "tema": tema,
@@ -124,7 +143,7 @@ class ArticleFromNewsUseCase:
             "article": payload,
             "post": post,
             "news_item": news_item,
-            "mode": "gemini" if self.use_gemini else "local",
+            "mode": self.model_provider if self.use_ai else "local",
             "stats": {
                 "parrafos": parrafos,
                 "subtitulos": subtitulos,
@@ -133,23 +152,18 @@ class ArticleFromNewsUseCase:
         }
 
     def _generate_article_body(self, content: str, news_item: Dict) -> str:
-        if self.use_gemini:
-            return self._generate_with_gemini(content, news_item)
+        if self.use_ai:
+            return self._generate_with_ai(content, news_item)
         return self._generate_with_local(content, news_item)
 
-    def _generate_with_gemini(self, content: str, news_item: Dict) -> str:
+    def _generate_with_ai(self, content: str, news_item: Dict) -> str:
         try:
-            # from src.shared.adapters.gemini_client import get_gemini_client
-            from src.shared.adapters.openrouter_client import get_openrouter_client
-
-
-            # client = get_gemini_client({})
-            client = get_openrouter_client({})
+            model = self._get_ai_model()
             prompt = self._build_article_prompt(content, news_item)
-            result = client.generate(prompt)
+            result = model.generate(prompt)
             return self._parse_article_response(result)
         except Exception as e:
-            logger.error(f"[ARTICLE_NEWS] Error generando con Gemini: {e}")
+            logger.error(f"[ARTICLE_NEWS] Error generando con IA: {e}")
             return self._generate_fallback(content, news_item)
 
     def _generate_with_local(self, content: str, news_item: Dict) -> str:
@@ -223,13 +237,22 @@ Requisitos:
 
 
 def run_from_news(
-    content: str, url: str = "", tema: str = "Noticias", use_gemini: bool = True
+    content: str,
+    url: str = "",
+    tema: str = "Noticias",
+    use_gemini: bool = True,
+    model_provider: str = "openrouter",
+    ai_config: dict = None,
 ) -> Dict[str, Any]:
     """Función de compatibilidad para pipeline existente."""
     logger.info(
-        f"[ARTICLE_NEWS] Ejecutando pipeline para noticias (Gemini: {use_gemini})"
+        f"[ARTICLE_NEWS] Ejecutando pipeline para noticias (provider: {model_provider})"
     )
-    use_case = ArticleFromNewsUseCase(use_gemini=use_gemini)
+    use_case = ArticleFromNewsUseCase(
+        use_ai=use_gemini,
+        model_provider=model_provider,
+        ai_config=ai_config,
+    )
     return use_case.execute(content, url, tema)
 
 
@@ -250,6 +273,13 @@ def main():
         "--tema", type=str, default="Noticias", help="Tema del artículo"
     )
     parser.add_argument("--local", action="store_true", help="Usar solo modelo local")
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="openrouter",
+        choices=["gemini", "openrouter", "local", "mock"],
+        help="Modelo de IA a usar",
+    )
 
     args = parser.parse_args()
 
@@ -265,7 +295,11 @@ def main():
 
     try:
         results = run_from_news(
-            content=content, url=args.url, tema=args.tema, use_gemini=not args.local
+            content=content,
+            url=args.url,
+            tema=args.tema,
+            use_gemini=not args.local,
+            model_provider=args.model,
         )
         elapsed = time.time() - start_time
 
@@ -282,3 +316,7 @@ def main():
         import traceback
 
         traceback.print_exc()
+
+
+if __name__ == "__main__":
+    main()

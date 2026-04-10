@@ -12,11 +12,11 @@ from src.news.application.usecases.article_from_news import (
     run_from_news,
     main as main_article_from_news,
 )
-from src.news.application.usecases.article_gemini import (
+from src.news.application.usecases.article import (
     run as run_article_gemini,
     main as main_article_gemini,
 )
-from src.news.application.usecases.content_gemini import (
+from src.news.application.usecases.content import (
     run_content as run_content_gemini,
     main as main_content_gemini,
 )
@@ -145,9 +145,38 @@ def main_article():
     main_article_from_news()
 
 
-def main_gemini():
-    """Punto de entrada para generar artículos con Gemini."""
-    main_article_gemini()
+def main_article():
+    """Punto de entrada para generar artículo desde noticia."""
+    main_article_from_news()
+
+
+def main_provider():
+    """Punto de entrada para generar artículos con IA (multi-proveedor)."""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Generador de artículos con IA")
+    parser.add_argument("--local", action="store_true", help="Usar solo modelo local")
+    parser.add_argument("--limit", type=int, default=1, help="Límite de artículos")
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="openrouter",
+        choices=["gemini", "openrouter", "local", "mock"],
+        help="Modelo de IA a usar",
+    )
+
+    args = parser.parse_args()
+
+    from src.news.application.usecases.article import run
+
+    results = run(
+        limit=args.limit, use_gemini=not args.local, model_provider=args.model
+    )
+
+    if results:
+        print(f"✅ {len(results)} artículo(s) generado(s)")
+    else:
+        print("⚠️ No se generaron artículos")
 
 
 def main_content():
@@ -206,12 +235,12 @@ def main_pipeline():
     main_full_verify()
 
     logger.info("[3/10] Generando tweets/posts desde noticias verificadas...")
-    from src.news.application.usecases.content_gemini import run_content
+    from src.news.application.usecases.content import run_content
 
     run_content(use_gemini=True, mode="news")
 
     logger.info("[4/10] Generando artículos profesionales en español con Gemini...")
-    from src.news.application.usecases.article_gemini import run as run_article_gemini
+    from src.news.application.usecases.article import run as run_article_gemini
 
     run_article_gemini(use_gemini=True)
 
@@ -264,8 +293,8 @@ if __name__ == "__main__":
             main_soft()
         elif sys.argv[1] == "article":
             main_article()
-        elif sys.argv[1] == "gemini":
-            main_gemini()
+        elif sys.argv[1] == "provider":
+            main_provider()
         elif sys.argv[1] == "content":
             main_content()
         elif sys.argv[1] == "news_to_news":
@@ -282,7 +311,7 @@ if __name__ == "__main__":
             main_pipeline()
         else:
             print(
-                "Uso: python -m src.news.entrypoints.cli [rss|verify|full|verifier|soft|article|gemini|content|news_to_news|bluesky|facebook|mastodon|wordpress|pipeline]"
+                "Uso: python -m src.news.entrypoints.cli [rss|verify|full|verifier|soft|article|provider|content|news_to_news|bluesky|facebook|mastodon|wordpress|pipeline]"
             )
     else:
         main_rss()

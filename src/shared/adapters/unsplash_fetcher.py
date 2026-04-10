@@ -5,6 +5,8 @@ import random
 import re
 from dotenv import load_dotenv
 
+from config.settings import Settings
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -12,11 +14,12 @@ logging.basicConfig(
 logger = logging.getLogger("news_bot")
 
 load_dotenv()
-UNSPLASH_ACCESS_KEY = os.getenv("UNSPLASH_ACCESS_KEY")
-if not UNSPLASH_ACCESS_KEY:
-    logger.warning("[UNSPLASH] Falta UNSPLASH_ACCESS_KEY en .env")
 
-UNSPLASH_API = "https://api.unsplash.com/search/photos"
+UNSPLASH_ACCESS_KEY = Settings.UNSPLASH_ACCESS_KEY
+if not UNSPLASH_ACCESS_KEY:
+    logger.warning("[UNSPLASH] Missing UNSPLASH_ACCESS_KEY in .env")
+
+UNSPLASH_API = Settings.UNSPLASH_API_URL
 
 UNSPLASH_SYNONYMS = {
     "protesta": ["manifestación", "reclamo", "activismo"],
@@ -123,7 +126,7 @@ class UnsplashFetcher:
     def fetch_for_posts(self, posts: list) -> list:
         changed = 0
         used_ids = get_used_ids()
-        fallback_url = "https://api.nbes.blog/image-310/"
+        fallback_url = Settings.WP_DEFAULT_IMAGE_URL
 
         for post in posts:
             if post.get("unsplash_image"):

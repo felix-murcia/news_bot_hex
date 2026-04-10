@@ -27,9 +27,9 @@ class TestVideoToNewsUseCase:
         """Test VideoToNewsUseCase initialization."""
         from src.video.application.usecases import VideoToNewsUseCase
 
-        use_case = VideoToNewsUseCase(use_gemini=True)
-
-        assert use_case.use_gemini is True
+        use_case = VideoToNewsUseCase(use_ai=True, model_provider="openrouter")
+        assert use_case.use_ai is True
+        assert use_case.model_provider == "openrouter"
 
     def test_check_copyright(self):
         """Test copyright check function."""
@@ -80,7 +80,7 @@ class TestVideoPipeline:
         from src.video.application.usecases import VideoToNewsUseCase
         from src.video.application.usecases import ArticleFromVideoUseCase
 
-        use_case = VideoToNewsUseCase(use_gemini=False)
+        use_case = VideoToNewsUseCase(use_ai=False)
         assert use_case is not None
 
         article_use_case = ArticleFromVideoUseCase(llm_provider="mock")

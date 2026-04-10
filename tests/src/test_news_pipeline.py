@@ -19,7 +19,6 @@ class TestNewsPipelineImports:
             main_verifier,
             main_soft,
             main_article,
-            main_gemini,
             main_content,
             main_news_to_news,
             main_bluesky,
@@ -34,7 +33,6 @@ class TestNewsPipelineImports:
         assert callable(main_verifier)
         assert callable(main_soft)
         assert callable(main_article)
-        assert callable(main_gemini)
         assert callable(main_content)
         assert callable(main_news_to_news)
         assert callable(main_bluesky)
@@ -67,10 +65,10 @@ class TestNewsPipelineImports:
         )
         from src.news.application.usecases.soft_verify import SoftVerifyUseCase
         from src.news.application.usecases.article_from_news import run_from_news
-        from src.news.application.usecases.article_gemini import (
+        from src.news.application.usecases.article import (
             run as run_article_gemini,
         )
-        from src.news.application.usecases.content_gemini import (
+        from src.news.application.usecases.content import (
             run_content as run_content_gemini,
         )
         from src.news.application.usecases.news_to_news import process_news_url

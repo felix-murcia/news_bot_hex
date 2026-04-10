@@ -4,17 +4,17 @@ import requests
 from pathlib import Path
 from hashlib import md5
 
+from config.settings import Settings
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger("news_bot")
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-IMG_DIR = BASE_DIR / "data" / "images"
+DEF_LOGO_URL = Settings.WP_DEFAULT_IMAGE_URL
+IMG_DIR = Settings.IMAGES_DIR
 IMG_DIR.mkdir(parents=True, exist_ok=True)
-
-DEF_LOGO_URL = "https://api.nbes.blog/image-310/"
 
 
 def extract_image(url: str) -> str | None:

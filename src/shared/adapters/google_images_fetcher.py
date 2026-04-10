@@ -5,6 +5,8 @@ import random
 import re
 from dotenv import load_dotenv
 
+from config.settings import Settings
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -12,13 +14,14 @@ logging.basicConfig(
 logger = logging.getLogger("news_bot")
 
 load_dotenv()
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-GOOGLE_CX = os.getenv("GOOGLE_CX")
+
+GOOGLE_API_KEY = Settings.GOOGLE_SEARCH_API_KEY
+GOOGLE_CX = Settings.GOOGLE_SEARCH_ENGINE_ID
 
 if not GOOGLE_API_KEY or not GOOGLE_CX:
-    logger.warning("[GOOGLE] Faltan GOOGLE_API_KEY o GOOGLE_CX en .env")
+    logger.warning("[GOOGLE] Missing GOOGLE_SEARCH_API_KEY or GOOGLE_SEARCH_ENGINE_ID in .env")
 
-GOOGLE_API = "https://www.googleapis.com/customsearch/v1"
+GOOGLE_API = Settings.GOOGLE_API_URL
 
 GOOGLE_SYNONYMS = {
     "protesta": ["manifestación", "reclamo", "activismo"],
@@ -123,7 +126,7 @@ class GoogleImagesFetcher:
     def fetch_for_posts(self, posts: list) -> list:
         changed = 0
         used_ids = get_used_ids()
-        fallback_url = "https://api.nbes.blog/image-310/"
+        fallback_url = Settings.WP_DEFAULT_IMAGE_URL
 
         for post in posts:
             if post.get("google_image"):

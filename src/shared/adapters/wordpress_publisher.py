@@ -1,10 +1,11 @@
 import os
 import logging
 import requests
-from dotenv import load_dotenv
 from pathlib import Path
 from typing import List, Dict, Optional
 from io import BytesIO
+
+from config.settings import Settings
 
 logging.basicConfig(
     level=logging.INFO,
@@ -12,23 +13,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger("news_bot")
 
-load_dotenv()
-WP_API_BASE = os.getenv("WP_HOSTING_API_BASE")
-WP_JWT_TOKEN = os.getenv("WP_HOSTING_JWT_TOKEN")
-
 
 def get_headers():
-    if not WP_JWT_TOKEN:
-        raise RuntimeError("No se encontró WP_HOSTING_JWT_TOKEN en .env")
+    """Get authentication headers for WordPress API."""
+    if not Settings.WP_HOSTING_JWT_TOKEN:
+        raise RuntimeError("WP_HOSTING_JWT_TOKEN not found in .env")
     return {
-        "Authorization": f"Bearer {WP_JWT_TOKEN}",
+        "Authorization": f"Bearer {Settings.WP_HOSTING_JWT_TOKEN}",
         "Content-Type": "application/json",
         "User-Agent": "Mozilla/5.0 (compatible; NBESBot/1.0)",
     }
 
 
 def rest_url(endpoint: str) -> str:
-    return f"{WP_API_BASE}/wp-json/wp/v2/{endpoint}"
+    """Build WordPress REST API URL for an endpoint."""
+    return f"{Settings.WP_API_URL}/{endpoint}"
 
 
 def upload_image(
