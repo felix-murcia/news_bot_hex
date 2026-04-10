@@ -2,6 +2,7 @@
 .venv/
 .env
 *.env
+.vscode/
 
 # === Archivos de sistema ===
 .DS_Store

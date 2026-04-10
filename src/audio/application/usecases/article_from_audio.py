@@ -3,7 +3,7 @@ import logging
 import json
 import re
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional, Union
 
 logging.basicConfig(
     level=logging.INFO,
@@ -35,7 +35,7 @@ def limpiar(texto: str) -> str:
 class ArticleFromAudioUseCase:
     """Caso de uso para generar artículo desde transcripción de audio."""
 
-    def __init__(self, use_gemini: bool = True, gemini_config: dict = None):
+    def __init__(self, use_gemini: bool = True, gemini_config: Optional[Dict] = None):
         self.use_gemini = use_gemini
         self.gemini_config = gemini_config or {}
 
@@ -173,7 +173,7 @@ def run_from_audio(
     tema: str = "Audios",
     use_gemini: bool = True,
     llm: Any = None,
-    gemini_config: Dict = None,
+    gemini_config: Optional[Dict] = None,
 ) -> Dict[str, Any]:
     """Función principal."""
     logger.info(f"[ARTICLE_AUDIO] Ejecutando (Gemini: {use_gemini})")
