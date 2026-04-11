@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv
+env/
+venv/
+.git/
+.gitignore
+.md
+test/
+logs/
+*.log
+.DS_Store
+models/
+venv_news_bot/

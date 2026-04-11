@@ -98,45 +98,17 @@ class ContentUseCase:
             logger.error(f"[CONTENT] Error guardando posts: {e}")
 
     def _generate_tweet_ai(self, news_item: Dict) -> str:
+        from src.shared.adapters.ai.agents import TweetGeopoliticsAgent
+
         title = news_item.get("title", "")
         tema = news_item.get("tema", "Noticias")
         url = news_item.get("url", "")
-
-        prompt = f"""# ROLE: EDITOR JEFE DE GEOPOLÍTICA – THE ECONOMIST
-Actúa como editor senior de la sección de geopolítica de The Economist. Tu función es transformar contenido en un tweet periodístico profesional, preciso y objetivo.
-
-# INPUT
-Título: {title}
-Tema: {tema}
-
-# HARD RULES (OBLIGATORIAS)
-- Estilo escrito periodístico (The Economist, FT, El País).
-- Objetividad total: no opiniones, no especulación, no sensacionalismo.
-- Tercera persona, tono formal, sin coloquialismos.
-
-# TWEET FORMAT (ESTRUCTURA OBLIGATORIA)
-[L1] Hecho principal conciso y relevante (incluye datos si existen)
-[L2] Contexto, impacto o consecuencia
-[HASHTAGS] 2–3 hashtags específicos del tema
-
-# NEGATIVE EXAMPLES (PROHIBIDO)
-- "Descubre los detalles"
-- "Link a la noticia"
-- "Más información"
-- Llamadas a la acción
-
-# TASK
-Genera EXACTAMENTE UN tweet periodístico profesional en español.
-Máximo {self.MAX_CHARS} caracteres.
-No incluyas prefacios, explicaciones ni texto adicional.
-Empieza directamente con el tweet.
-
-TWEET:"""
+        desc = news_item.get("desc", "")[:200]
 
         try:
             model = self._get_ai_model()
-            result = model.generate(prompt)
-            tweet = result.strip()
+            agent = TweetGeopoliticsAgent(model)
+            tweet = agent.generate(title=title, tema=tema, context=desc)
             if len(tweet) > self.MAX_CHARS:
                 tweet = tweet[: self.MAX_CHARS - 3] + "..."
             return tweet

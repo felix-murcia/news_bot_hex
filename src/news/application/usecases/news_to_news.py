@@ -125,14 +125,17 @@ class NewsToNewsUseCase:
 
     def _generate_tweet(self, article_data: Dict) -> str:
         """Genera tweet a partir del artículo."""
+        from src.shared.adapters.ai.agents import TweetGeopoliticsAgent
+
         title = article_data.get("article", {}).get("title", "")
         url = article_data.get("article", {}).get("url", "")
         tema = article_data.get("news_item", {}).get("tema", "Noticias")
+        desc = article_data.get("article", {}).get("desc", "")[:200]
 
         try:
             model = self._get_ai_model()
-            prompt = f"Genera un tweet breve sobre: {title}. Máximo 280 caracteres, incluye emoji y llamada a la acción."
-            tweet = model.generate(prompt).strip()
+            agent = TweetGeopoliticsAgent(model)
+            tweet = agent.generate(title=title, tema=tema, context=desc)
             if len(tweet) > 280:
                 tweet = tweet[:277] + "..."
             return tweet

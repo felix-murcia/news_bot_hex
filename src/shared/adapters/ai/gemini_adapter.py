@@ -94,7 +94,11 @@ class GeminiAdapter:
                 model=model_name,
                 contents=full_prompt,
             )
-            return response.text
+            text = response.text
+            if not text:
+                logger.warning(f"[GEMINI] Empty response")
+                return ""
+            return text.strip()
 
         except ImportError:
             logger.error("[GEMINI] google-genai no instalado")

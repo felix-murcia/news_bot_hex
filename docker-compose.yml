@@ -16,6 +16,8 @@ services:
       - MONGO_PASSWORD=${MONGO_PASSWORD}
       - MONGO_DB_NAME=${MONGO_DB_NAME}
       - USE_MONGODB=${USE_MONGODB}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
     env_file:
       - .env
     volumes:
@@ -23,3 +25,10 @@ services:
       - /tmp/data:/app/data
       - ${MODELS_LOCATION}:/app/models
     network_mode: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

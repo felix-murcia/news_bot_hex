@@ -316,6 +316,144 @@ class DummyFakeNewsModel(FakeNewsModel):
         return True, 1.0
 
 
+class RoBERTaFakeNewsModel(FakeNewsModel):
+    """Adapter real para modelo de detección de fake news.
+
+    Carga el modelo desde una ruta externa configurable vía
+    Settings.FAKE_NEWS_MODEL_PATH (soporta Docker volume mounts).
+    Soporta modelos con safetensors o pytorch weights.
+    """
+
+    def __init__(self, model_path: str = None, device: str = None):
+        from config.settings import Settings
+
+        self.model_path = model_path or Settings.FAKE_NEWS_MODEL_PATH
+        self._pipeline = None
+        self._device = device or ("cuda" if self._has_cuda() else "cpu")
+        self._label_mapping = {}
+
+    @staticmethod
+    def _has_cuda() -> bool:
+        try:
+            import torch
+            if not torch.cuda.is_available():
+                return False
+            # Verificar compatibilidad de compute capability
+            device = torch.cuda.current_device()
+            major, minor = torch.cuda.get_device_capability(device)
+            # PyTorch 2.3+ requiere CC >= 7.5
+            if major < 7:
+                logger.warning(
+                    f"[FAKE_NEWS] GPU CC {major}.{minor} no compatible con "
+                    f"PyTorch CUDA build. Usando CPU."
+                )
+                return False
+            return True
+        except Exception as e:
+            logger.warning(f"[FAKE_NEWS] CUDA check error: {e}")
+            return False
+
+    def _load_pipeline(self):
+        if self._pipeline is None:
+            from transformers import (
+                pipeline,
+                AutoModelForSequenceClassification,
+                AutoTokenizer,
+            )
+
+            logger.info(f"[FAKE_NEWS] Cargando modelo desde: {self.model_path}")
+            logger.info(f"[FAKE_NEWS] Dispositivo: {self._device}")
+
+            # Intentar safetensors primero, fallback a pytorch
+            try:
+                model = AutoModelForSequenceClassification.from_pretrained(
+                    self.model_path, use_safetensors=True
+                )
+            except Exception:
+                logger.warning("[FAKE_NEWS] Safetensors falló, usando pytorch weights")
+                model = AutoModelForSequenceClassification.from_pretrained(
+                    self.model_path, use_safetensors=False
+                )
+
+            tokenizer = AutoTokenizer.from_pretrained(self.model_path)
+
+            # Leer mapeo de etiquetas del config
+            id2label = getattr(model.config, "id2label", {})
+            self._label_mapping = id2label
+            logger.info(f"[FAKE_NEWS] Label mapping: {id2label}")
+
+            device_idx = 0 if self._device == "cuda" else -1
+            self._pipeline = pipeline(
+                "text-classification",
+                model=model,
+                tokenizer=tokenizer,
+                device=device_idx,
+                truncation=True,
+                max_length=512,
+            )
+            logger.info(f"[FAKE_NEWS] Modelo cargado exitosamente")
+
+    def _label_to_bool(self, label: str) -> bool:
+        """Convierte etiqueta del modelo a booleano (True=real, False=fake)."""
+        label_upper = label.upper()
+
+        # Etiquetas semánticas claras
+        if label_upper in ("REAL", "TRUE", "LEGIT", "AUTHENTIC"):
+            return True
+        if label_upper in ("FAKE", "FALSE", "HOAX", "MISINFORMATION"):
+            return False
+
+        # LABEL_0 / LABEL_1 - depende del dataset
+        # Para este modelo específico (fake_news_roberta):
+        # LABEL_0 = fake, LABEL_1 = real
+        if "LABEL_0" in label_upper:
+            return False  # fake
+        if "LABEL_1" in label_upper:
+            return True  # real
+
+        # Fallback: usar el mapeo del modelo si existe
+        if self._label_mapping:
+            import re
+            match = re.search(r"LABEL_(\d+)", label_upper)
+            if match:
+                idx = int(match.group(1))
+                mapped = self._label_mapping.get(idx, "").upper()
+                return mapped in ("REAL", "TRUE", "LEGIT")
+
+        # Último recurso
+        return True
+
+    def predict(self, title: str, desc: str) -> Tuple[bool, float]:
+        text = f"{title}. {desc}"
+        self._load_pipeline()
+
+        result = self._pipeline(text)[0]
+        label = result["label"]
+        score = result["score"]
+        is_real = self._label_to_bool(label)
+
+        logger.debug(
+            f"[FAKE_NEWS] '{title[:60]}...' → real={is_real}, "
+            f"label={label}, confidence={score:.4f}"
+        )
+        return is_real, score
+
+    def predict_batch(self, texts: List[str]) -> Tuple[List[bool], List[float]]:
+        self._load_pipeline()
+
+        results = self._pipeline(texts, batch_size=min(len(texts), 16))
+        is_real_list = []
+        confidence_list = []
+
+        for result in results:
+            label = result["label"]
+            score = result["score"]
+            is_real_list.append(self._label_to_bool(label))
+            confidence_list.append(score)
+
+        return is_real_list, confidence_list
+
+
 def parse_date_flexible(date_input) -> datetime | None:
     if not date_input:
         return None

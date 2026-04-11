@@ -55,6 +55,12 @@ def _get_default_prompt(agent_name: str) -> str:
         "quality_assurance": "Revisa el siguiente texto y señala problemas de calidad.",
         "bullet": "Convierte el siguiente texto a formato de viñetas.",
         "comparative": "Realiza un análisis comparativo del siguiente texto.",
+        # Nuevos prompts centralizados
+        "article": "Eres un redactor periodístico experto. Genera un artículo profesional en HTML sobre el siguiente tema.",
+        "post-tweet": "Genera un tweet conciso y objetivo sobre el siguiente tema. Máximo 280 caracteres con 2 hashtags.",
+        "article-from-transcript": "Convierte la siguiente transcripción en un artículo de blog profesional en HTML.",
+        "article-from-video": "Convierte la siguiente transcripción de video en un artículo de blog en español con estructura HTML.",
+        "tweet-geopolitics": "Actúa como editor senior de geopolítica. Genera un tweet periodístico profesional estilo The Economist.",
     }
     return defaults.get(
         agent_name, f"Eres un asistente de IA. Procesa el siguiente texto."

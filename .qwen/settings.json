@@ -1,7 +1,23 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "Bash(python *)",
+      "Bash(docker ps *)",
+      "Bash(docker logs *)",
+      "Bash(docker compose down)",
+      "Bash(docker compose up *)",
+      "Bash(.venv/bin/python *)",
+      "Bash(sleep *)",
+      "Bash(curl *)",
+      "Bash(pkill *)",
+      "Bash(echo *)",
+      "Bash(docker exec *)",
+      "Bash(dpkg *)",
+      "Bash(apt *)",
+      "Bash(docker cp *)",
+      "Bash(docker compose build *)"
     ]
-  }
+  },
+  "$version": 3
 }

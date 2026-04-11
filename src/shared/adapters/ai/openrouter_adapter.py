@@ -99,7 +99,15 @@ class OpenRouterAdapter:
             )
             response.raise_for_status()
             result = response.json()
-            return result["choices"][0]["message"]["content"]
+            content = result.get("choices", [{}])[0].get("message", {}).get("content")
+            if not content:
+                logger.warning(f"[OPENROUTER] Empty content in response")
+                # Try alternative response structure
+                if "output" in result:
+                    content = result["output"]
+                elif "text" in result:
+                    content = result["text"]
+            return content or ""
         except Exception as e:
             logger.error(f"[OPENROUTER] Error: {e}")
             raise

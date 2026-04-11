@@ -61,26 +61,16 @@ class ArticleFromVideoUseCase:
         return self._generate_article(transcript, url, tema)
 
     def _generate_article(self, transcript: str, url: str, tema: str) -> Dict[str, Any]:
-        """Genera artículo usando el cliente LLM configurado."""
+        """Genera artículo desde transcripción de video usando agentes centralizados."""
+        from src.shared.adapters.ai.agents import ArticleFromContentAgent
         from src.shared.adapters.translator import translate_text
 
         transcerpt_es = translate_text(transcript[:3000], target_lang="es")
 
-        prompt = f"""Genera un artículo de blog en HTML en ESPAÑOL sobre este video.
+        model = self._get_ai_model()
+        agent = ArticleFromContentAgent(model, source_type="video")
 
-Transcripción (traducida):
-{transcerpt_es}
-
-Tema: {tema}
-
-Requisitos:
-- Escribe TODO el artículo en español
-- Estructura HTML con etiquetas <p> y <h2>
-- Título en <h1>
-- Al menos 5 párrafos bien desarrollados
-- Solo devuelve el HTML del artículo"""
-
-        content = self._get_ai_model().generate(prompt)
+        content = agent.generate(transcript[:4000], tema=tema)
 
         title_match = re.search(r"<h1>(.*?)</h1>", content, re.DOTALL)
         title = title_match.group(1).strip() if title_match else f"Video: {tema}"
@@ -130,56 +120,26 @@ Requisitos:
         }
 
     def _generate_tweet(self, content: str, title: str, tema: str, url: str) -> str:
-        """Genera tweet profesional."""
+        """Genera tweet profesional usando agente centralizado."""
+        from src.shared.adapters.ai.agents import TweetGeopoliticsAgent
+
         clean = re.sub(r"<[^>]+>", " ", content)
         lines = [l.strip() for l in clean.split("\n") if l.strip()]
         context = lines[0][:300] if lines else title
 
-        tweet_prompt = f"""# ROLE: EDITOR JEFE DE GEOPOLÍTICA – THE ECONOMIST
-Actúa como editor senior de la sección de geopolítica de The Economist. Tu función es transformar contenido en un tweet periodístico profesional, preciso y objetivo.
+        model = self._get_ai_model()
+        agent = TweetGeopoliticsAgent(model)
 
-INPUT
-Título: {title}
-Tema: {tema}
-Contenido: {context[:200]}
-
-HARD RULES (OBLIGATORIAS)
-- Estilo escrito periodístico (The Economist, FT, El País).
-- Objetividad total: no opiniones, no especulación, no sensacionalismo.
-- Tercera persona, tono formal, sin coloquialismos.
-- No pongas "Video sobre..." ni "Este video trata de..."
-
-TWEET FORMAT
-[L1] Hecho principal conciso y relevante
-[L2] Contexto, impacto o consecuencia
-[HASHTAGS] 2–3 hashtags específicos del tema
-
-PROHIBIDO
-- "Descubre los detalles"
-- "Link a la noticia"
-- "Video sobre..."
-- "Este video trata de..."
-
-TASK
-Genera EXACTAMENTE UN tweet periodístico profesional en español.
-Máximo 280 caracteres.
-Empieza directamente con el tweet.
-
-TWEET:"""
-
-        tweet = self.llm_client.generate(tweet_prompt)
-        if not tweet:
-            raise RuntimeError("Tweet generation failed: empty response from LLM")
+        tweet = agent.generate(
+            title=title,
+            tema=tema,
+            context=context[:200],
+        )
 
         tweet = tweet.strip()[:280]
 
-        if "Video sobre" in tweet or "este video" in tweet.lower():
-            raise ValueError(
-                "Tweet generation failed: model produced forbidden pattern"
-            )
-
+        # Limpieza de patrones no deseados
         tweet = re.sub(r"\[HASHTAGS\]", "", tweet, flags=re.IGNORECASE)
-        tweet = re.sub(r"^Hashtags:.*$", "", tweet, flags=re.MULTILINE)
         tweet = re.sub(r"^\s*#\w+\s*$", "", tweet, flags=re.MULTILINE)
         tweet = tweet.strip()
 
@@ -193,7 +153,6 @@ def run_from_video(
     transcript: str,
     url: str = "",
     tema: str = "Videos",
-    # llm_provider: str = "gemini",
     llm_provider: str = "openrouter",
     llm_config: Dict = None,
 ) -> Dict[str, Any]:

@@ -6,6 +6,7 @@ Factory para obtener instancias de adapters de IA.
 
 import logging
 from typing import Dict, Optional
+from src.shared.domain.ports.ai_model_port import AIModelPort
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ def get_ai_adapter(
     provider: str = "gemini",
     config: Optional[Dict] = None,
     validate_key: bool = False,
-) -> "AIModelPort":
+) -> AIModelPort:
     """
     Get an instance of the specified AI adapter.
 

@@ -62,22 +62,12 @@ class ArticleFromAudioUseCase:
     ) -> Dict[str, Any]:
         """Genera artículo usando el modelo de IA desacoplado."""
         try:
+            from src.shared.adapters.ai.agents import ArticleFromContentAgent
+
             model = self._get_ai_model()
+            agent = ArticleFromContentAgent(model, source_type="transcript")
 
-            prompt = """Genera un artículo de blog en HTML sobre este audio/podcast.
-
-Transcripción:
-{}
-
-Tema: {}
-
-Requisitos:
-- Estructura HTML con etiquetas <p> y <h2>
-- Título en <h1>
-- Al menos 5 párrafos bien desarrollados
-- Solo devuelve el HTML del artículo""".format(transcript[:4000], tema)
-
-            content = model.generate(prompt)
+            content = agent.generate(transcript[:4000], tema=tema)
 
             title_match = re.search(r"<h1>(.*?)</h1>", content, re.DOTALL)
             title = title_match.group(1).strip() if title_match else f"Audio: {tema}"

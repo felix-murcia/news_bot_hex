@@ -47,6 +47,7 @@ from src.news.infrastructure.adapters import (
     MongoScoringConfigRepository,
     JinaContentExtractor,
     DummyFakeNewsModel,
+    RoBERTaFakeNewsModel,
 )
 
 logging.basicConfig(
@@ -92,13 +93,30 @@ def main_verify():
 
 def main_full_verify():
     """Punto de entrada para verificación completa de noticias."""
+    from config.settings import Settings
+
     article_repo = MongoArticleRepository()
     verified_repo = MongoVerifiedNewsRepository()
     published_urls_repo = MongoPublishedUrlsRepository()
     keywords_repo = MongoKeywordsRepository()
     scoring_config_repo = MongoScoringConfigRepository()
     content_extractor = JinaContentExtractor()
-    fake_news_model = DummyFakeNewsModel()
+
+    # Fake news model: real si está disponible, dummy como fallback
+    if Settings.FAKE_NEWS_MODEL_ENABLED:
+        try:
+            import os
+            if os.path.isdir(Settings.FAKE_NEWS_MODEL_PATH):
+                fake_news_model = RoBERTaFakeNewsModel()
+                logger.info(f"[VERIFIER] RoBERTa fake news model cargado desde: {Settings.FAKE_NEWS_MODEL_PATH}")
+            else:
+                logger.warning(f"[VERIFIER] Ruta del modelo no existe: {Settings.FAKE_NEWS_MODEL_PATH}, usando DummyFakeNewsModel")
+                fake_news_model = DummyFakeNewsModel()
+        except Exception as e:
+            logger.warning(f"[VERIFIER] Error cargando RoBERTa model: {e}, usando DummyFakeNewsModel")
+            fake_news_model = DummyFakeNewsModel()
+    else:
+        fake_news_model = DummyFakeNewsModel()
 
     use_case = FullVerifyNewsUseCase(
         article_repo=article_repo,

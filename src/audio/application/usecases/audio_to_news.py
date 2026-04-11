@@ -95,23 +95,12 @@ class AudioToNewsUseCase:
     ) -> Dict[str, Any]:
         """Genera artículo desde transcripción."""
         try:
+            from src.shared.adapters.ai.agents import ArticleFromContentAgent
+
             model = self._get_ai_model()
+            agent = ArticleFromContentAgent(model, source_type="transcript")
 
-            prompt = f"""Genera un artículo de blog en HTML sobre este audio/podcast.
-
-Transcripción:
-{transcript[:4000]}
-
-Tema: {tema}
-
-Requisitos:
-- Estructura HTML con etiquetas <p> y <h2>
-- Título en <h1>
-- Al menos 5 párrafos bien desarrollados
-- Resumen del contenido del audio
-- Solo devuelve el HTML del artículo"""
-
-            content = model.generate(prompt)
+            content = agent.generate(transcript[:4000], tema=tema)
 
             title_match = re.search(r"<h1>(.*?)</h1>", content, re.DOTALL)
             title = title_match.group(1).strip() if title_match else f"Audio: {tema}"
@@ -155,12 +144,14 @@ Requisitos:
 
     def _generate_tweet(self, article_data: Dict) -> str:
         """Genera tweet desde artículo."""
+        from src.shared.adapters.ai.agents import TweetAgent
+
         title = article_data.get("article", {}).get("title", "Audio Noticia")
 
         try:
             model = self._get_ai_model()
-            prompt = f"Genera un tweet breve sobre este audio: {title[:100]}. Máximo 280 caracteres."
-            tweet = model.generate(prompt).strip()
+            agent = TweetAgent(model)
+            tweet = agent.generate(f"Audio/Podcast: {title[:100]}")
             if len(tweet) > 280:
                 tweet = tweet[:277] + "..."
             return tweet

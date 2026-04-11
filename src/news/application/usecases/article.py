@@ -130,11 +130,13 @@ class ArticleUseCase:
 
     def _generate_with_ai(self, news_item: Dict, mode: str) -> str:
         try:
+            from src.shared.adapters.ai.agents import ArticleAgent
+            from src.shared.adapters.translator import translate_text
+
             model = self._get_ai_model()
             raw_title = news_item.get("title", "")
-            try:
-                from src.shared.adapters.translator import translate_text
 
+            try:
                 title = news_item.get("title_es") or translate_text(
                     raw_title[:200], target_lang="es"
                 )
@@ -147,8 +149,6 @@ class ArticleUseCase:
             if not raw_content:
                 raw_content = news_item.get("content", news_item.get("desc", ""))
 
-            from src.shared.adapters.translator import translate_text
-
             content_limitado = raw_content[:3500] if raw_content else ""
             try:
                 content_es = translate_text(content_limitado, target_lang="es")
@@ -156,20 +156,10 @@ class ArticleUseCase:
                 logger.warning(f"[ARTICLE] Error translating: {e}, using original")
                 content_es = content_limitado
 
-            prompt = f"""Genera un artículo de blog en HTML en ESPAÑOL sobre:
-
-Título (en español): {title}
-Tema: {tema}
-Contenido: {content_es}
-
-Requisitos:
-- Escribe TODO el artículo en español
-- Estructura HTML con etiquetas <p> y <h2>
-- Al menos 5 párrafos bien desarrollados
-- Título en <h1>
-- Solo devuelve el HTML del artículo"""
-
-            result = model.generate(prompt)
+            agent = ArticleAgent(model)
+            result = agent.generate(
+                topic_or_news=f"Título: {title}\nTema: {tema}\nContenido: {content_es}"
+            )
             return _limpiar_html(result)
         except Exception as e:
             logger.error(f"[ARTICLE] Error generando con IA: {e}")
