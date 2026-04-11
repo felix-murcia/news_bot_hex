@@ -30,7 +30,7 @@ class ContentUseCase:
         self,
         network: str = "bluesky",
         use_ai: bool = True,
-        ai_config: dict = None,
+        ai_config: Optional[dict] = None,
         model_provider: str = "openrouter",
         ai_model=None,
         mode: str = "news",
@@ -211,7 +211,7 @@ class ContentGeminiUseCase(ContentUseCase):
         self,
         network: str = "bluesky",
         use_gemini: bool = True,
-        gemini_config: dict = None,
+        gemini_config: Optional[dict] = None,
         mode: str = "news",
         **kwargs,
     ):
@@ -230,7 +230,7 @@ def run_content(
     llm=None,
     network: str = "bluesky",
     use_gemini: bool = True,
-    gemini_config: Dict = None,
+    gemini_config: Optional[Dict] = None,
     mode: str = "news",
     model_provider: str = "openrouter",
 ) -> List[Dict]:

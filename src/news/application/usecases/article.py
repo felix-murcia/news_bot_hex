@@ -85,7 +85,7 @@ class ArticleUseCase:
     def __init__(
         self,
         use_ai: bool = True,
-        ai_config: dict = None,
+        ai_config: Optional[dict] = None,
         ai_model=None,
         model_provider: str = "openrouter",
     ):
@@ -314,7 +314,7 @@ class ArticleGeminiUseCase(ArticleUseCase):
     def __init__(
         self,
         use_gemini: bool = True,
-        gemini_config: dict = None,
+        gemini_config: Optional[dict] = None,
         ai_model=None,
         model_provider: str = "openrouter",
         **kwargs,
@@ -332,7 +332,7 @@ def run(
     llm=None,
     limit: int = 1,
     use_gemini: bool = True,
-    ai_config: dict = None,
+    ai_config: Optional[dict] = None,
     mode: str = "news",
     model_provider: str = "openrouter",
 ) -> List[Dict]:

@@ -19,7 +19,9 @@ GOOGLE_API_KEY = Settings.GOOGLE_SEARCH_API_KEY
 GOOGLE_CX = Settings.GOOGLE_SEARCH_ENGINE_ID
 
 if not GOOGLE_API_KEY or not GOOGLE_CX:
-    logger.warning("[GOOGLE] Missing GOOGLE_SEARCH_API_KEY or GOOGLE_SEARCH_ENGINE_ID in .env")
+    logger.warning(
+        "[GOOGLE] Missing GOOGLE_SEARCH_API_KEY or GOOGLE_SEARCH_ENGINE_ID in .env"
+    )
 
 GOOGLE_API = Settings.GOOGLE_API_URL
 
@@ -144,15 +146,20 @@ class GoogleImagesFetcher:
             result = search_google_images(query, used_ids)
 
             if result:
-                post["google_image"] = result.get("url")
-                post["google_image_url"] = result.get("url")
+                img_url = result.get("url")
+                img_id = result.get("id")
+                post["google_image"] = img_url
+                post["google_image_url"] = img_url
                 post["image_credit"] = "Google Images"
                 post["alt_text"] = title[:200]
                 if not post.get("image_url") or post.get("image_url") == fallback_url:
-                    post["image_url"] = result.get("url")
-                add_used_id(result.get("id"))
+                    post["image_url"] = img_url
+                if img_id:
+                    add_used_id(img_id)
                 changed += 1
-                logger.info(f"[GOOGLE] ✅ {title[:40]}: {result.get('url')[:40]}")
+                logger.info(
+                    f"[GOOGLE] ✅ {title[:40]}: {img_url[:40] if img_url else ''}"
+                )
             else:
                 logger.warning(f"[GOOGLE] No encontrada: {title[:40]}")
 

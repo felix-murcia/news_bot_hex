@@ -20,9 +20,9 @@ REFERER = "http://nbes.blog"
 APP_TITLE = "nbes.blog"
 
 
-def get_openrouter_client(config: dict = None) -> "OpenRouterClient":
+def get_openrouter_client(config: Optional[dict] = None) -> "OpenRouterClient":
     """Get OpenRouter client instance."""
-    return OpenRouterClient(config or {})
+    return OpenRouterClient(config if config else {})
 
 
 class OpenRouterClient:
@@ -62,9 +62,9 @@ class OpenRouterClient:
     def generate(
         self,
         prompt: str,
-        system_prompt: str = None,
-        temperature: float = None,
-        max_tokens: int = None,
+        system_prompt: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
         **kwargs,
     ) -> str:
         """Generate content using OpenRouter."""
@@ -112,7 +112,7 @@ class OpenRouterClient:
 class MockOpenRouterClient:
     """Mock OpenRouter client for testing."""
 
-    def __init__(self, config: dict = None):
+    def __init__(self, config: Optional[dict] = None):
         self.config = config or {}
 
     def generate(self, prompt: str, **kwargs) -> str:
@@ -124,7 +124,7 @@ class MockOpenRouterClient:
         )
 
 
-def get_mock_openrouter_client(config: dict = None) -> "MockOpenRouterClient":
+def get_mock_openrouter_client(config: Optional[dict] = None) -> "MockOpenRouterClient":
     """Get mock OpenRouter client for testing."""
     return MockOpenRouterClient(config)
 
@@ -138,7 +138,7 @@ class OpenRouterClientWrapper:
     def generate(
         self,
         prompt: str,
-        system_prompt: str = None,
+        system_prompt: Optional[str] = None,
         temperature: float = 0.3,
         max_tokens: int = 2048,
         **kwargs,

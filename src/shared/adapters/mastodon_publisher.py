@@ -30,10 +30,10 @@ session.mount("https://", HTTPAdapter(max_retries=retries))
 
 def publish_post(
     content: str,
-    url: str = None,
-    image_path: str = None,
-    image_url: str = None,
-    hashtags: List[str] = None,
+    url: Optional[str] = None,
+    image_path: Optional[str] = None,
+    image_url: Optional[str] = None,
+    hashtags: Optional[List[str]] = None,
 ) -> Optional[str]:
     """Publica un post en Mastodon."""
     try:
@@ -96,9 +96,9 @@ def publish_post(
             except Exception as e:
                 logger.warning(f"[MASTODON] Error con imagen remota: {e}")
 
-        payload = {"status": status_text}
+        payload: Dict = {"status": status_text}
         if media_ids:
-            payload["media_ids"] = media_ids
+            payload["media_ids"] = media_ids  # type: ignore[assignment]
 
         logger.info("[MASTODON] Publicando toot...")
         resp = requests.post(
@@ -152,7 +152,7 @@ class MastodonPublisher:
             logger.error(f"[MASTODON] Error guardando post: {e}")
             return False
 
-    def publish_posts(self, posts: List[Dict] = None) -> Dict:
+    def publish_posts(self, posts: Optional[List[Dict]] = None) -> Dict:
         """Publica posts en Mastodon."""
         if posts is None:
             posts = self._load_posts_from_mongo()
@@ -180,11 +180,13 @@ class MastodonPublisher:
             orig_url = (post.get("url") or "").strip()
             url = wp_url or orig_url
 
-            image_path = post.get("image_path")
+            image_path = post.get("image_path") or None
             image_url = (post.get("image_url") or "").strip()
-            hashtags = post.get("hashtags", [])
+            hashtags = post.get("hashtags") or []
 
-            post_url = publish_post(content, url, image_path, image_url, hashtags)
+            post_url = publish_post(
+                content, url or None, image_path, image_url or None, hashtags
+            )
 
             if post_url:
                 logger.info(f"[MASTODON] ✅Publicado: {post_url}")

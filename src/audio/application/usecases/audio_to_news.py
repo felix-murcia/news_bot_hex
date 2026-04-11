@@ -40,7 +40,7 @@ class AudioToNewsUseCase:
         self,
         use_ai: bool = True,
         model_provider: str = "openrouter",
-        ai_config: dict = None,
+        ai_config: Optional[dict] = None,
         ai_model=None,
     ):
         self.use_ai = use_ai
@@ -73,10 +73,10 @@ class AudioToNewsUseCase:
 
         if not audio_path.exists():
             logger.info(f"[AUDIO] Descargando audio: {url}")
-            audio_path = download_audio(url)
-            if not audio_path:
+            downloaded_path = download_audio(url)
+            if not downloaded_path:
                 raise ValueError(f"No se pudo descargar el audio: {url}")
-            audio_path = Path(audio_path)
+            audio_path = Path(downloaded_path)
 
         if not has_audio_stream(str(audio_path)):
             raise ValueError("El audio no tiene pista válida. No se puede transcribir.")
@@ -223,7 +223,7 @@ def process_audio_url(
     url: str,
     model_provider: str = "openrouter",
     use_ai: bool = True,
-    ai_config: dict = None,
+    ai_config: Optional[dict] = None,
 ) -> Dict[str, Any]:
     """Función principal."""
     processor = AudioToNewsUseCase(

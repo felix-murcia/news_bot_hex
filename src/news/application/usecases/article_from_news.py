@@ -55,7 +55,7 @@ class ArticleFromNewsUseCase:
         self,
         use_ai: bool = True,
         model_provider: str = "openrouter",
-        ai_config: dict = None,
+        ai_config: Optional[dict] = None,
         ai_model=None,
     ):
         self.use_ai = use_ai
@@ -242,7 +242,7 @@ def run_from_news(
     tema: str = "Noticias",
     use_gemini: bool = True,
     model_provider: str = "openrouter",
-    ai_config: dict = None,
+    ai_config: Optional[dict] = None,
 ) -> Dict[str, Any]:
     """Función de compatibilidad para pipeline existente."""
     logger.info(

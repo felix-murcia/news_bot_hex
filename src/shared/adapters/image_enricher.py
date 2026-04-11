@@ -40,12 +40,16 @@ def extract_image(url: str) -> str | None:
             tag = soup.find("meta", property=prop) or soup.find(
                 "meta", attrs={"name": prop}
             )
-            if tag and tag.get("content"):
-                return tag["content"]
+            if tag:
+                content = tag.get("content")
+                if content:
+                    return str(content)
 
         img = soup.find("img")
-        if img and img.get("src"):
-            return img["src"]
+        if img:
+            src = img.get("src")
+            if src:
+                return str(src)
 
     except Exception as e:
         logger.warning(f"[IMAGES] No se pudo extraer imagen de {url}: {e}")

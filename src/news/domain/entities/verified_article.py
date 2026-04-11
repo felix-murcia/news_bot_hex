@@ -1,6 +1,6 @@
 from datetime import datetime
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List
 
 
 @dataclass
@@ -19,7 +19,7 @@ class VerifiedArticle:
     verification: dict
     slug: str = ""
     content: str = ""
-    labels: list = None
+    labels: Optional[list] = None
     image_url: str = ""
     excerpt: str = ""
     seo_title: str = ""

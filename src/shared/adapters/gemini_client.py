@@ -12,7 +12,7 @@ logging.basicConfig(
 logger = logging.getLogger("news_bot")
 
 
-def get_gemini_client(config: dict = None) -> "GeminiClient":
+def get_gemini_client(config: Optional[dict] = None) -> "GeminiClient":
     """Get Gemini client instance."""
     return GeminiClient(config or {})
 
@@ -40,7 +40,7 @@ class GeminiClient:
                 model=model_name,
                 contents=prompt,
             )
-            return response.text
+            return response.text or ""
 
         except ImportError:
             logger.error("[GEMINI] google-genai not installed")
@@ -53,7 +53,7 @@ class GeminiClient:
 class MockGeminiClient:
     """Mock Gemini client for testing."""
 
-    def __init__(self, config: dict = None):
+    def __init__(self, config: Optional[dict] = None):
         self.config = config or {}
 
     def generate(self, prompt: str, **kwargs) -> str:
@@ -65,7 +65,7 @@ class MockGeminiClient:
         )
 
 
-def get_mock_gemini_client(config: dict = None) -> "MockGeminiClient":
+def get_mock_gemini_client(config: Optional[dict] = None) -> "MockGeminiClient":
     """Get mock Gemini client for testing."""
     return MockGeminiClient(config)
 
@@ -79,7 +79,7 @@ class GeminiClientWrapper:
     def generate(
         self,
         prompt: str,
-        system_prompt: str = None,
+        system_prompt: Optional[str] = None,
         temperature: float = 0.3,
         max_tokens: int = 2048,
         **kwargs,

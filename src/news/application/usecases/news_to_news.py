@@ -40,7 +40,7 @@ class NewsToNewsUseCase:
         self,
         use_ai: bool = True,
         model_provider: str = "openrouter",
-        ai_config: dict = None,
+        ai_config: Optional[dict] = None,
         ai_model=None,
     ):
         self.use_ai = use_ai
@@ -208,7 +208,7 @@ def process_news_url(
     url: str,
     model_provider: str = "openrouter",
     use_ai: bool = True,
-    ai_config: dict = None,
+    ai_config: Optional[dict] = None,
 ) -> Dict[str, Any]:
     """Función principal para procesar URL de noticia."""
     processor = NewsToNewsUseCase(

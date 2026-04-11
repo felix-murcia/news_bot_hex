@@ -26,7 +26,7 @@ logger = logging.getLogger("news_bot")
 
 class BasePipelineUseCase(ABC):
     """Abstract base class for all media processing pipelines.
-    
+
     Provides common functionality for:
     - Image enrichment (Unsplash, Google Images, extraction from source)
     - WordPress publishing (category/tag management, image upload, post creation)
@@ -82,7 +82,7 @@ class BasePipelineUseCase(ABC):
                     logger.debug(f"[CLEANUP] Removed: {file_path}")
             except Exception as e:
                 logger.warning(f"[CLEANUP] Failed to remove {file_path}: {e}")
-        
+
         if cleaned > 0:
             logger.info(f"[CLEANUP] Removed {cleaned} temporary file(s)")
         self._temp_files.clear()
@@ -91,7 +91,7 @@ class BasePipelineUseCase(ABC):
         self, articles: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """Enrich articles with images from multiple sources.
-        
+
         Steps:
         1. Try Unsplash
         2. Try Google Images
@@ -118,14 +118,14 @@ class BasePipelineUseCase(ABC):
         logger.info("[IMAGE_ENRICHMENT] Selecting best images")
         enriched = self.image_enricher.enrich(articles)
         logger.info(f"[IMAGE_ENRICHMENT] Enriched {len(enriched)} article(s)")
-        
+
         return enriched
 
     def _publish_to_wordpress(
         self, article: Dict[str, Any], tema: str
     ) -> Optional[str]:
         """Publish an article to WordPress.
-        
+
         Returns:
             WordPress post URL if successful, None otherwise
         """
@@ -136,30 +136,25 @@ class BasePipelineUseCase(ABC):
         logger.info("[WORDPRESS] Publishing article")
         try:
             # Determine category
-            topic = (
-                article.get("labels", [tema])[0]
-                if article.get("labels")
-                else tema
-            )
+            topic = article.get("labels", [tema])[0] if article.get("labels") else tema
             # Normalize common topics to default category
             topic_normalization = {
-                "Audio", "Podcast", "Video", 
-                "Política", "Política internacional",
+                "Audio",
+                "Podcast",
+                "Video",
+                "Política",
+                "Política internacional",
             }
             if topic in topic_normalization:
                 topic = "Noticias"
-            
+
             category_id = ensure_category(topic)
 
             # Handle tags
             labels = article.get("labels", [])
             precomputed_tags = article.get("hashtags", [])
             all_tags = list(set(labels + precomputed_tags))
-            tag_ids = [
-                ensure_tag(t) 
-                for t in all_tags 
-                if isinstance(t, str)
-            ]
+            tag_ids = [ensure_tag(t) for t in all_tags if isinstance(t, str)]
             tag_ids = [tid for tid in tag_ids if tid is not None]
 
             # Upload featured image
@@ -178,16 +173,17 @@ class BasePipelineUseCase(ABC):
             # Clean content (remove h1 tags - WordPress uses title)
             content = article.get("content", "")
             content = re.sub(
-                r"<h1[^>]*>.*?</h1>", 
-                "", 
-                content, 
+                r"<h1[^>]*>.*?</h1>",
+                "",
+                content,
                 flags=re.DOTALL | re.IGNORECASE,
             )
             content = content.strip()
 
             # Publish
+            article_title = article.get("title") or "Untitled"
             wordpress_url = publish_post(
-                title=article.get("title"),
+                title=article_title,
                 content=content,
                 categories=[category_id] if category_id else None,
                 tags=tag_ids if tag_ids else None,
@@ -196,7 +192,7 @@ class BasePipelineUseCase(ABC):
                 excerpt=article.get("excerpt"),
                 slug=article.get("slug"),
                 seo_title=None,
-                focus_keyword=article.get("title"),
+                focus_keyword=article_title,
                 canonical_url=None,
             )
 
@@ -215,7 +211,7 @@ class BasePipelineUseCase(ABC):
         self, article: Dict[str, Any], tweet: str, source_url: str
     ) -> List[Dict[str, Any]]:
         """Publish to social media platforms.
-        
+
         Returns:
             List of publishing results per platform
         """
@@ -241,11 +237,11 @@ class BasePipelineUseCase(ABC):
     @abstractmethod
     def run(self, url: str, tema: str) -> Dict[str, Any]:
         """Execute the full pipeline.
-        
+
         Args:
             url: Source URL (audio, video, or news)
             tema: Topic/category for the article
-            
+
         Returns:
             Dictionary with pipeline results
         """
@@ -262,7 +258,7 @@ class BasePipelineUseCase(ABC):
         social_results: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """Build a standardized result dictionary.
-        
+
         Args:
             url: Source URL
             transcript: Transcription text
@@ -271,7 +267,7 @@ class BasePipelineUseCase(ABC):
             tweets: List of generated tweets
             wordpress_url: WordPress post URL
             social_results: Social media publishing results
-            
+
         Returns:
             Standardized result dictionary
         """

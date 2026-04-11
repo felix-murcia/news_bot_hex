@@ -101,4 +101,6 @@ def etiquetar_tematica(title: str, desc: str, model=None) -> str:
 def reload_keywords():
     global KEYWORDS, CATEGORIES
     _ensure_keywords_loaded()
-    logger.info(f"[CATEGORIZACIÓN] Keywords recargadas: {len(KEYWORDS)} categorías")
+    logger.info(
+        f"[CATEGORIZACIÓN] Keywords recargadas: {len(KEYWORDS) if KEYWORDS else 0} categorías"
+    )

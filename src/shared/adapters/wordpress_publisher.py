@@ -31,7 +31,7 @@ def rest_url(endpoint: str) -> str:
 
 
 def upload_image(
-    image_path: str, credit: str = None, alt_text: str = None
+    image_path: str, credit: Optional[str] = None, alt_text: Optional[str] = None
 ) -> Optional[int]:
     try:
         headers = get_headers()
@@ -71,7 +71,7 @@ def upload_image(
 
 
 def upload_image_from_url(
-    image_url: str, alt_text: str = None, credit: str = None
+    image_url: str, alt_text: Optional[str] = None, credit: Optional[str] = None
 ) -> Optional[int]:
     try:
         resp = requests.get(
@@ -165,15 +165,15 @@ def ensure_tag(name: str) -> Optional[int]:
 def publish_post(
     title: str,
     content: str,
-    categories: List = None,
-    tags: List = None,
+    categories: Optional[List] = None,
+    tags: Optional[List] = None,
     is_draft: bool = False,
-    featured_image: int = None,
-    excerpt: str = None,
-    slug: str = None,
-    seo_title: str = None,
-    focus_keyword: str = None,
-    canonical_url: str = None,
+    featured_image: Optional[int] = None,
+    excerpt: Optional[str] = None,
+    slug: Optional[str] = None,
+    seo_title: Optional[str] = None,
+    focus_keyword: Optional[str] = None,
+    canonical_url: Optional[str] = None,
 ) -> Optional[str]:
     try:
         headers = get_headers()
@@ -276,7 +276,7 @@ class WordPressPublisher:
             return False
 
     def publish_articles(
-        self, articles: List[Dict] = None, posts: List[Dict] = None
+        self, articles: Optional[List[Dict]] = None, posts: Optional[List[Dict]] = None
     ) -> Dict:
         """Publica artículos en WordPress."""
         if articles is None:

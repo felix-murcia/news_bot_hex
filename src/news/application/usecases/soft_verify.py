@@ -124,9 +124,9 @@ class SoftVerifyUseCase:
 
     def __init__(
         self,
-        verified_repo: VerifiedNewsRepository = None,
-        published_urls_repo: PublishedUrlsRepository = None,
-        content_extractor: ContentExtractor = None,
+        verified_repo: Optional[VerifiedNewsRepository] = None,
+        published_urls_repo: Optional[PublishedUrlsRepository] = None,
+        content_extractor: Optional[ContentExtractor] = None,
     ):
         self._verified_repo = verified_repo or MongoVerifiedNewsRepository()
         self._published_urls_repo = (

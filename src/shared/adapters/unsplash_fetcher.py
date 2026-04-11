@@ -144,17 +144,22 @@ class UnsplashFetcher:
             result = search_unsplash(query, used_ids)
 
             if result:
-                post["unsplash_image"] = result.get("regular_url")
-                post["unsplash_image_url"] = result.get("full_url")
-                post["unsplash_id"] = result.get("id")
-                post["image_credit"] = result.get("user", "Unsplash")
-                post["alt_text"] = result.get("description", title)[:200]
-                post["image_url"] = result.get("regular_url")
-                add_used_id(result.get("id"))
+                img_id = result.get("id")
+                regular_url = result.get("regular_url") or ""
+                full_url = result.get("full_url") or ""
+                user = result.get("user") or "Unsplash"
+                description = result.get("description") or title
+
+                post["unsplash_image"] = regular_url
+                post["unsplash_image_url"] = full_url
+                post["unsplash_id"] = img_id
+                post["image_credit"] = user
+                post["alt_text"] = description[:200]
+                post["image_url"] = regular_url
+                if img_id:
+                    add_used_id(img_id)
                 changed += 1
-                logger.info(
-                    f"[UNSPLASH] ✅ {title[:40]}: {result.get('regular_url')[:40]}"
-                )
+                logger.info(f"[UNSPLASH] ✅ {title[:40]}: {regular_url[:40]}")
             else:
                 logger.warning(f"[UNSPLASH] No encontradas: {title[:40]}")
 
