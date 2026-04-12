@@ -98,28 +98,24 @@ class ContentUseCase:
 
         title = news_item.get("title", "")
         tema = news_item.get("tema", "Noticias")
-        url = news_item.get("url", "")
         desc = news_item.get("desc", "")[:200]
 
-        try:
-            model = self._get_ai_model()
-            agent = TweetGeopoliticsAgent(model)
-            tweet = agent.generate(title=title, tema=tema, context=desc)
-            if len(tweet) > self.MAX_CHARS:
-                tweet = tweet[: self.MAX_CHARS - 3] + "..."
-            return tweet
-        except Exception as e:
-            logger.error(f"[CONTENT] Error generando tweet: {e}")
-            return self._generate_tweet_fallback(news_item)
-
-    def _generate_tweet_fallback(self, news_item: Dict) -> str:
-        title = news_item.get("title", "")[:200]
-        tema = news_item.get("tema", "Noticias")
-
-        tweet = f"📰 {title}\n\n#{tema.replace(' ', '')}"
+        model = self._get_ai_model()
+        agent = TweetGeopoliticsAgent(model)
+        tweet = agent.generate(title=title, tema=tema, context=desc)
 
         if len(tweet) > self.MAX_CHARS:
             tweet = tweet[: self.MAX_CHARS - 3] + "..."
+        tweet = tweet.strip()
+
+        if not tweet:
+            logger.error(
+                f"[CONTENT] Tweet generado vacío para: {title[:80]}... "
+                f"(tema: {tema}). Se aborta la publicación."
+            )
+            raise RuntimeError(
+                f"Tweet vacío para '{title[:80]}...'. No se publica contenido de baja calidad."
+            )
 
         return tweet
 

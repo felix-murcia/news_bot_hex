@@ -121,20 +121,24 @@ class NewsToNewsUseCase:
         tema = article_data.get("news_item", {}).get("tema", "Noticias")
         desc = article_data.get("article", {}).get("desc", "")[:200]
 
-        try:
-            model = self._get_ai_model()
-            agent = TweetGeopoliticsAgent(model)
-            tweet = agent.generate(title=title, tema=tema, context=desc)
-            if len(tweet) > 280:
-                tweet = tweet[:277] + "..."
-            return tweet
-        except Exception:
-            pass
+        model = self._get_ai_model()
+        agent = TweetGeopoliticsAgent(model)
+        tweet = agent.generate(title=title, tema=tema, context=desc)
 
-        tweet = f"📰 {title[:200]}\n\n#{tema.replace(' ', '')}"
-        if url:
-            tweet = f"{tweet}\n{url}"
-        return tweet[:280]
+        if len(tweet) > 280:
+            tweet = tweet[:277] + "..."
+        tweet = tweet.strip()
+
+        if not tweet:
+            logger.error(
+                f"[NEWS_TO_NEWS] Tweet generado vacío para: {title[:80]}... "
+                f"(tema: {tema}). Se aborta la publicación."
+            )
+            raise RuntimeError(
+                f"Tweet vacío para '{title[:80]}...'. No se publica contenido de baja calidad."
+            )
+
+        return tweet
 
     def _save_outputs(self, article_data: Dict, content: str, content_path: Path):
         """Guarda los outputs en archivos."""

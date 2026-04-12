@@ -9,12 +9,21 @@ from src.logging_config import get_logger
 logger = get_logger("news_bot")
 
 load_dotenv()
-MASTODON_INSTANCE = os.getenv("MASTODON_INSTANCE", "").strip().rstrip("/")
-MASTODON_ACCESS_TOKEN = os.getenv("MASTODON_TOKEN")
+
+# Support both names: MASTODON_INSTANCE (legacy) and MASTODON_INSTANCE_URL (Settings)
+MASTODON_INSTANCE = (
+    os.getenv("MASTODON_INSTANCE_URL")
+    or os.getenv("MASTODON_INSTANCE", "")
+).strip().rstrip("/")
+# Support both names: MASTODON_TOKEN (legacy) and MASTODON_ACCESS_TOKEN (Settings)
+MASTODON_ACCESS_TOKEN = (
+    os.getenv("MASTODON_ACCESS_TOKEN")
+    or os.getenv("MASTODON_TOKEN", "")
+)
 
 if not MASTODON_INSTANCE or not MASTODON_ACCESS_TOKEN:
     raise RuntimeError(
-        "Faltan variables de entorno: MASTODON_INSTANCE o MASTODON_TOKEN"
+        "Faltan variables de entorno: MASTODON_INSTANCE_URL o MASTODON_ACCESS_TOKEN"
     )
 
 MASTODON_API_BASE = f"https://{MASTODON_INSTANCE}"

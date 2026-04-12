@@ -143,6 +143,15 @@ class ArticleFromVideoUseCase:
         if len(tweet) > 280:
             tweet = tweet[:277] + "..."
 
+        if not tweet:
+            logger.error(
+                f"[VIDEO] Tweet generado vacío para: {title[:80]}... "
+                f"(tema: {tema}). Se aborta la publicación."
+            )
+            raise RuntimeError(
+                f"Tweet vacío para '{title[:80]}...'. No se publica contenido de baja calidad."
+            )
+
         return tweet
 
 

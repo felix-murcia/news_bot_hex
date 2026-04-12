@@ -145,17 +145,24 @@ class AudioToNewsUseCase:
 
         title = article_data.get("article", {}).get("title", "Audio Noticia")
 
-        try:
-            model = self._get_ai_model()
-            agent = TweetAgent(model)
-            tweet = agent.generate(f"Audio/Podcast: {title[:100]}")
-            if len(tweet) > 280:
-                tweet = tweet[:277] + "..."
-            return tweet
-        except Exception:
-            pass
+        model = self._get_ai_model()
+        agent = TweetAgent(model)
+        tweet = agent.generate(f"Audio/Podcast: {title[:100]}")
 
-        return f"🎙️ {title[:200]}\n\n#Audio #Podcast"
+        if len(tweet) > 280:
+            tweet = tweet[:277] + "..."
+        tweet = tweet.strip()
+
+        if not tweet:
+            logger.error(
+                f"[AUDIO] Tweet generado vacío para: {title[:80]}... "
+                f"Se aborta la publicación."
+            )
+            raise RuntimeError(
+                f"Tweet vacío para '{title[:80]}...'. No se publica contenido de baja calidad."
+            )
+
+        return tweet
 
     def _save_outputs(self, article_data: Dict, transcript: str):
         """Guarda los outputs."""

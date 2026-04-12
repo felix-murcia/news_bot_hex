@@ -140,6 +140,7 @@ class ArticleFromAudioUseCase:
         return {
             "article": article,
             "post": post,
+            "tweet": tweet,
             "news_item": article,
             "mode": mode,
             "stats": {
