@@ -1,16 +1,12 @@
 import os
-import logging
 import requests
 from pathlib import Path
 from hashlib import md5
 
 from config.settings import Settings
+from src.logging_config import get_logger
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("news_bot")
+logger = get_logger("news_bot")
 
 DEF_LOGO_URL = Settings.WP_DEFAULT_IMAGE_URL
 IMG_DIR = Settings.IMAGES_DIR

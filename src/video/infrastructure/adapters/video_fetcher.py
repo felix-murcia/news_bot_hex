@@ -4,11 +4,9 @@ import uuid
 import logging
 from typing import Optional
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("news_bot")
+from src.logging_config import get_logger
+
+logger = get_logger("video_bot.infra.fetcher")
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CACHE_DIR = os.path.join(BASE_DIR, "data", "cache")
@@ -35,6 +33,9 @@ def download_video(
     url: str, output_dir: str = None, video_id: str = None
 ) -> Optional[str]:
     """Descarga el video desde la URL usando yt_dlp."""
+    import time
+    step_start = time.time()
+
     if not video_id:
         video_id = extract_video_id(url) or str(uuid.uuid4())
 
@@ -45,8 +46,10 @@ def download_video(
     output_path = os.path.join(output_dir, f"{video_id}.mp4")
 
     if os.path.exists(output_path):
-        logger.info(f"[VIDEO] Video ya en caché: {output_path}")
+        logger.info(f"Video cache hit: {os.path.basename(output_path)}")
         return output_path
+
+    logger.info(f"Video download started: {url[:80]}...")
 
     try:
         import yt_dlp
@@ -62,18 +65,19 @@ def download_video(
             "skip_download": False,
             "http_chunk_size": 10485760,
         }
-        logger.info(f"[VIDEO] Descargando: {url}")
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
         if os.path.exists(output_path):
-            logger.info(f"[VIDEO] ✅ Descargado: {output_path}")
+            elapsed = time.time() - step_start
+            size_mb = os.path.getsize(output_path) / (1024 * 1024)
+            logger.info(f"Video downloaded in {elapsed:.1f}s: {size_mb:.1f} MB")
             return output_path
         else:
-            logger.error(f"[VIDEO] Video no encontrado tras descarga: {output_path}")
+            logger.error(f"Video file not found after download: {output_path}")
             return None
     except Exception as e:
-        logger.error(f"[VIDEO] Error descargando {url}: {e}")
+        logger.error(f"Video download error: {e}")
         return None
 
 

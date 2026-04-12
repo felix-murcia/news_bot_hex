@@ -1,4 +1,8 @@
-import logging
+from src.logging_config import setup_logging, get_logger
+
+setup_logging()
+logger = get_logger("news_bot.pipeline")
+
 from src.news.application.usecases import (
     FetchRSSNewsUseCase,
     VerifyNewsUseCase,
@@ -46,15 +50,8 @@ from src.news.infrastructure.adapters import (
     MongoKeywordsRepository,
     MongoScoringConfigRepository,
     JinaContentExtractor,
-    DummyFakeNewsModel,
-    RoBERTaFakeNewsModel,
+    ClassicNewsValidatorAdapter,
 )
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("news_bot")
 
 
 def main_rss():
@@ -67,13 +64,16 @@ def main_rss():
     result = use_case.execute()
 
     if result["status"] == "error":
-        logger.error(f"[RSS] {result['message']}")
-        return
+        logger.error(f"[RSS] Error: {result['message']}")
+        return result
 
+    total = result.get('total_articles', 0)
+    new = result.get('new_articles', 0)
+    existing = total - new
     logger.info(
-        f"[RSS] TOTAL: {result['new_articles']} nuevas + {result['total_articles'] - result['new_articles']} existentes = "
-        f"{result['total_articles']} artículos → MongoDB (raw_news)"
+        f"[RSS] Capturadas {total} noticias ({new} nuevas, {existing} existentes) desde fuentes RSS → MongoDB"
     )
+    return result
 
 
 def main_verify():
@@ -93,8 +93,6 @@ def main_verify():
 
 def main_full_verify():
     """Punto de entrada para verificación completa de noticias."""
-    from config.settings import Settings
-
     article_repo = MongoArticleRepository()
     verified_repo = MongoVerifiedNewsRepository()
     published_urls_repo = MongoPublishedUrlsRepository()
@@ -102,21 +100,8 @@ def main_full_verify():
     scoring_config_repo = MongoScoringConfigRepository()
     content_extractor = JinaContentExtractor()
 
-    # Fake news model: real si está disponible, dummy como fallback
-    if Settings.FAKE_NEWS_MODEL_ENABLED:
-        try:
-            import os
-            if os.path.isdir(Settings.FAKE_NEWS_MODEL_PATH):
-                fake_news_model = RoBERTaFakeNewsModel()
-                logger.info(f"[VERIFIER] RoBERTa fake news model cargado desde: {Settings.FAKE_NEWS_MODEL_PATH}")
-            else:
-                logger.warning(f"[VERIFIER] Ruta del modelo no existe: {Settings.FAKE_NEWS_MODEL_PATH}, usando DummyFakeNewsModel")
-                fake_news_model = DummyFakeNewsModel()
-        except Exception as e:
-            logger.warning(f"[VERIFIER] Error cargando RoBERTa model: {e}, usando DummyFakeNewsModel")
-            fake_news_model = DummyFakeNewsModel()
-    else:
-        fake_news_model = DummyFakeNewsModel()
+    # Classic validator: TF-IDF + LogisticRegression (CPU, fast)
+    fake_news_model = ClassicNewsValidatorAdapter()
 
     use_case = FullVerifyNewsUseCase(
         article_repo=article_repo,
@@ -131,14 +116,14 @@ def main_full_verify():
     result = use_case.execute()
 
     if result["status"] == "error":
-        logger.error(f"[VERIFIER] {result['message']}")
-        return
+        logger.error(f"[VERIFIER] Error: {result['message']}")
+        return result
 
     logger.info(
-        f"[VERIFIER] Procesados: {result.get('processed', 0)}, "
-        f"Verificados: {result.get('verified', 0)}, "
-        f"Guardados: {result.get('saved', 0)}"
+        f"[VERIFIER] Procesadas {result.get('processed', 0)} noticias → "
+        f"{result.get('verified', 0)} verificadas, {result.get('saved', 0)} guardadas en MongoDB"
     )
+    return result
 
 
 def main_verifier():
@@ -156,11 +141,6 @@ def main_soft():
         f"[SOFT] ✅ Noticia seleccionada: {result.get('title', '')} "
         f"(score={result.get('score', 0)}, strategy={result.get('strategy', '')})"
     )
-
-
-def main_article():
-    """Punto de entrada para generar artículo desde noticia."""
-    main_article_from_news()
 
 
 def main_article():
@@ -217,75 +197,96 @@ def main_news_to_news():
 def main_bluesky():
     """Punto de entrada para publicar en Bluesky."""
     result = run_bluesky()
-    logger.info(f"[BLUESKY] Resultado: {result}")
-    print(f"[BLUESKY] Publicados: {result.get('published', 0)}")
+    logger.info(f"[BLUESKY] Publicación finalizada. Publicados: {result.get('published', 0)}")
+    return result
 
 
 def main_facebook():
     """Punto de entrada para publicar en Facebook."""
     result = run_facebook()
-    logger.info(f"[FACEBOOK] Resultado: {result}")
-    print(f"[FACEBOOK] Publicados: {result.get('published', 0)}")
+    logger.info(f"[FACEBOOK] Publicación finalizada. Publicados: {result.get('published', 0)}")
+    return result
 
 
 def main_mastodon():
     """Punto de entrada para publicar en Mastodon."""
     result = run_mastodon()
-    logger.info(f"[MASTODON] Resultado: {result}")
-    print(f"[MASTODON] Publicados: {result.get('published', 0)}")
+    logger.info(f"[MASTODON] Publicación finalizada. Publicados: {result.get('published', 0)}")
+    return result
 
 
 def main_wordpress():
     """Punto de entrada para publicar en WordPress."""
     result = run_wordpress()
-    logger.info(f"[WORDPRESS] Resultado: {result}")
-    print(f"[WORDPRESS] Publicados: {result.get('published', 0)}")
+    logger.info(f"[WORDPRESS] Publicación finalizada. Publicados: {result.get('published', 0)}")
+    return result
 
 
 def main_pipeline():
     """Punto de entrada para ejecutar el pipeline completo."""
-    logger.info("=== INICIO PIPELINE COMPLETO ===")
+    import time
+    pipeline_start = time.time()
 
-    logger.info("[1/10] Obteniendo RSS...")
-    main_rss()
+    logger.info("=" * 60)
+    logger.info("PIPELINE COMPLETO — INICIO")
+    logger.info("=" * 60)
 
-    logger.info("[2/10] Verificando y filtrando noticias...")
+    # Step 1: RSS Fetch
+    logger.info("[RSS] Iniciando captura de fuentes RSS...")
+    result_rss = main_rss()
+    logger.info("[RSS] Finalizada captura de fuentes RSS.")
+
+    # Step 2: Full Verification
+    logger.info("[VERIFIER] Iniciando verificación completa de noticias...")
     main_full_verify()
+    logger.info("[VERIFIER] Verificación completa finalizada.")
 
-    logger.info("[3/10] Generando tweets/posts desde noticias verificadas...")
+    # Step 3: Generate tweets/posts
+    logger.info("[CONTENT] Iniciando generación de tweets/posts desde noticias verificadas...")
     from src.news.application.usecases.content import run_content
+    posts = run_content(use_gemini=True, mode="news")
+    logger.info(f"[CONTENT] Finalizada generación de {len(posts)} post(s).")
 
-    run_content(use_gemini=True, mode="news")
-
-    logger.info("[4/10] Generando artículos profesionales en español con Gemini...")
+    # Step 4: Generate articles
+    logger.info("[ARTICLE] Iniciando generación de artículos profesionales en español...")
     from src.news.application.usecases.article import run as run_article_gemini
+    articles = run_article_gemini(use_gemini=True)
+    logger.info(f"[ARTICLE] Finalizada generación de {len(articles)} artículo(s).")
 
-    run_article_gemini(use_gemini=True)
-
-    logger.info("[5/10] Buscando imágenes en Unsplash...")
+    # Step 5: Unsplash images
+    logger.info("[IMAGE] Iniciando búsqueda de imágenes en Unsplash...")
     from src.shared.adapters.unsplash_fetcher import run as run_unsplash
-
     run_unsplash()
+    logger.info("[IMAGE] Búsqueda en Unsplash finalizada.")
 
-    logger.info("[6/10] Buscando imágenes en Google Images...")
+    # Step 6: Google Images
+    logger.info("[IMAGE] Iniciando búsqueda de imágenes en Google Images...")
     from src.shared.adapters.google_images_fetcher import run as run_google
-
     run_google()
+    logger.info("[IMAGE] Búsqueda en Google Images finalizada.")
 
-    logger.info("[7/10] Enriqueciendo con imágenes...")
+    # Step 7: Image enrichment
+    logger.info("[IMAGE] Iniciando enriquecimiento y selección de imágenes...")
     from src.shared.adapters.image_enricher import run as run_image_enricher
-
     run_image_enricher()
+    logger.info("[IMAGE] Enriquecimiento de imágenes finalizado.")
 
-    logger.info("[8/10] Publicando en WordPress...")
-    main_wordpress()
+    # Step 8: WordPress
+    logger.info("[WORDPRESS] Iniciando publicación en WordPress...")
+    wp_result = main_wordpress()
+    logger.info(f"[WORDPRESS] Publicación en WordPress finalizada. Publicados: {wp_result.get('published', 0)}")
 
-    logger.info("[9/10] Publicando en redes sociales (usando URL de WordPress)...")
+    # Step 9: Social Media
+    logger.info("[SOCIAL] Iniciando publicación en redes sociales...")
     main_facebook()
     main_bluesky()
     main_mastodon()
+    logger.info("[SOCIAL] Publicación en redes sociales finalizada.")
 
-    logger.info("=== PIPELINE COMPLETO FINALIZADO ===")
+    elapsed = time.time() - pipeline_start
+    logger.info("=" * 60)
+    logger.info(f"PIPELINE COMPLETO — FINALIZADO en {elapsed:.1f}s")
+    logger.info("=" * 60)
 
 
 def reload_sources():

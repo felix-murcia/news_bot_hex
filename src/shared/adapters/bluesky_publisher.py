@@ -1,21 +1,15 @@
-import json
 import os
-import logging
 import re
 import requests
 from io import BytesIO
 from PIL import Image
 from atproto import Client, models
 from dotenv import load_dotenv
-from pathlib import Path
 from typing import List, Dict, Optional
 import regex
+from src.logging_config import get_logger
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("news_bot")
+logger = get_logger("news_bot")
 
 load_dotenv()
 HANDLE = os.getenv("BLUESKY_HANDLE")
@@ -77,7 +71,7 @@ def build_hashtag_facets(text: str) -> List:
             models.AppBskyRichtextFacet.Main(
                 features=[models.AppBskyRichtextFacet.Tag(tag=match.group()[1:])],
                 index=models.AppBskyRichtextFacet.ByteSlice(
-                    byteStart=start_byte, byteEnd=end_byte
+                    byte_start=start_byte, byte_end=end_byte
                 ),
             )
         )
@@ -134,7 +128,7 @@ class BlueskyPublisher:
             logger.error(f"[BLUESKY] Error guardando post: {e}")
             return False
 
-    def publish_posts(self, posts: List[Dict] = None) -> Dict:
+    def publish_posts(self, posts: Optional[List[Dict]] = None) -> Dict:
         """Publica posts en Bluesky."""
         if posts is None:
             posts = self._load_posts_from_mongo()
@@ -186,8 +180,9 @@ class BlueskyPublisher:
             if url and image_url:
                 try:
                     compressed = compress_image_from_url(image_url)
+                    compressed.seek(0)
                     thumb_blob = self.client.com.atproto.repo.upload_blob(
-                        compressed
+                        compressed.read()
                     ).blob
                 except Exception as e:
                     logger.warning(f"[BLUESKY] Error con miniatura: {e}")

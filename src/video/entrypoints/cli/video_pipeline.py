@@ -15,10 +15,14 @@ Usage example::
 import argparse
 import logging
 import sys
+import time
+
+from src.logging_config import setup_logging, get_logger
+
+setup_logging()
+logger = get_logger("video_bot.pipeline")
 
 from src.video.application.usecases.video_pipeline import VideoPipelineUseCase
-
-logger = logging.getLogger("news_bot")
 
 
 def parse_args(argv: list) -> argparse.Namespace:
@@ -41,27 +45,28 @@ def main(argv: list = None):
         argv = sys.argv[1:]
     args = parse_args(argv)
 
-    logger.info("=== INICIO VIDEO PIPELINE ===")
-    logger.info("[1/10] Descargando video y extrayendo audio")
-    logger.info("[2/10] Transcribiendo audio con Whisper")
-    logger.info("[3/10] Generando tweets/posts")
-    logger.info("[4/10] Generando artículo profesional en español (Gemini/OpenRouter)")
-    logger.info("[5/10] Buscando imágenes en Unsplash")
-    logger.info("[6/10] Buscando imágenes en Google Images")
-    logger.info("[7/10] Enriqueciendo artículo con imágenes")
-    logger.info("[8/10] Publicando en WordPress")
-    logger.info("[9/10] Publicando en redes sociales (X/Twitter, LinkedIn, Facebook)")
-    logger.info("[10/10] Limpiando archivos temporales")
+    pipeline_start = time.time()
+    logger.info("=" * 60)
+    logger.info("VIDEO PIPELINE — INICIO")
+    logger.info(f"URL: {args.url}")
+    logger.info(f"Tema: {args.tema}")
+    logger.info(f"Publish: {not args.no_publish}")
+    logger.info("=" * 60)
 
     usecase = VideoPipelineUseCase(no_publish=args.no_publish)
     try:
         result = usecase.run(url=args.url, tema=args.tema)
     except Exception as e:
-        logger.error(f"Error ejecutando el pipeline: {e}")
+        elapsed = time.time() - pipeline_start
+        logger.error(f"VIDEO PIPELINE — Error tras {elapsed:.1f}s: {e}", exc_info=True)
         sys.exit(1)
 
-    logger.info("=== VIDEO PIPELINE COMPLETO ===")
-    print(result)
+    elapsed = time.time() - pipeline_start
+    logger.info("=" * 60)
+    logger.info(f"VIDEO PIPELINE — FINALIZADO en {elapsed:.1f}s")
+    logger.info(f"WordPress URL: {result.get('wordpress_url', 'N/A')}")
+    logger.info(f"Social platforms: {len(result.get('social_results', []))}")
+    logger.info("=" * 60)
     return result
 
 

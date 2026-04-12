@@ -1,15 +1,11 @@
-import os
-import logging
 import json
 import re
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("news_bot")
+from src.logging_config import get_logger
+
+logger = get_logger("news_bot.usecase.content")
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 DATA_DIR = BASE_DIR / "data"

@@ -1,117 +1,78 @@
-"""Simple social media publisher used by the video pipeline.
+"""Social media publisher facade.
 
-The real project may have concrete implementations for X/Twitter, LinkedIn and
-Facebook. For the purpose of this task we provide a lightweight wrapper that
-accepts an article dict (as produced by ``ArticleFromVideoUseCase``) and a list
-of tweet strings. It returns a list of dicts describing the simulated publish
-results.
+Publishes articles to Bluesky and Mastodon (real implementations).
+X, LinkedIn and Facebook are simulated for now.
 """
 
-import logging
-from typing import List, Dict, Any
+from src.logging_config import get_logger
 
-logger = logging.getLogger("news_bot")
+logger = get_logger("news_bot.social")
+
+from typing import List, Dict, Any
 
 
 class SocialMediaPublisher:
-    """Publish an article and optional tweets to social platforms.
+    """Publish an article to social platforms.
 
-    This wrapper now incluye X, LinkedIn, Facebook y, opcionalmente,
-    Bluesky y Mastodon. Los publicadores específicos se crean bajo demanda
-    para evitar dependencias innecesarias cuando no se usan.
+    Real: Bluesky, Mastodon
+    Simulated: X, LinkedIn, Facebook
     """
 
     def __init__(self, enable_bluesky: bool = True, enable_mastodon: bool = True):
-        # Los publicadores se importan aquí para evitar ciclos de importación.
         self._bluesky = None
         self._mastodon = None
         if enable_bluesky:
             try:
                 from src.shared.adapters.bluesky_publisher import BlueskyPublisher
-
                 self._bluesky = BlueskyPublisher()
             except Exception as e:
-                logger.warning(f"[SOCIAL] No se pudo inicializar BlueskyPublisher: {e}")
+                logger.warning(f"Bluesky init failed: {e}")
         if enable_mastodon:
             try:
                 from src.shared.adapters.mastodon_publisher import MastodonPublisher
-
                 self._mastodon = MastodonPublisher()
             except Exception as e:
-                logger.warning(
-                    f"[SOCIAL] No se pudo inicializar MastodonPublisher: {e}"
-                )
+                logger.warning(f"Mastodon init failed: {e}")
 
     def publish(self, post: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Publica el post en todas las plataformas configuradas."""
+        """Publish the post to all configured platforms."""
         tweet = post.get("tweet", "")
         wp_url = post.get("wp_url", "")
         url = post.get("url", "")
         final_url = wp_url or url
         image_url = post.get("image_url", "")
+        results: List[Dict[str, Any]] = []
 
-        results = []
+        # Simulated platforms
+        for platform in ("X", "LinkedIn", "Facebook"):
+            results.append({
+                "platform": platform,
+                "status": "success",
+                "url": f"https://example.com/{platform.lower()}/post/12345",
+            })
 
-        platforms = ["X", "LinkedIn", "Facebook"]
-        for platform in platforms:
+        # Bluesky (real)
+        if self._bluesky:
             try:
-                logger.info(f"[SOCIAL] Publicando en {platform}")
-                results.append(
-                    {
-                        "platform": platform,
-                        "status": "success",
-                        "url": f"https://example.com/{platform.lower()}/post/12345",
-                    }
-                )
-            except Exception as e:
-                logger.error(f"[SOCIAL] Error publicando en {platform}: {e}")
-                results.append(
-                    {"platform": platform, "status": "error", "error": str(e)}
-                )
-
-        if getattr(self, "_bluesky", None):
-            try:
-                logger.info("[SOCIAL] Publicando en Bluesky")
                 bluesky_post = {
-                    "tweet": tweet,
-                    "wp_url": final_url,
-                    "url": url,
-                    "image_url": image_url,
-                    "hashtags": [],
+                    "tweet": tweet, "wp_url": final_url,
+                    "url": url, "image_url": image_url, "hashtags": [],
                 }
-                bluesky_res = self._bluesky.publish_posts([bluesky_post])
-                results.append(
-                    {"platform": "Bluesky", "status": "success", "detail": bluesky_res}
-                )
+                res = self._bluesky.publish_posts([bluesky_post])
+                results.append({"platform": "Bluesky", "status": "success", "detail": res})
             except Exception as e:
-                logger.error(f"[SOCIAL] Error en Bluesky: {e}")
-                results.append(
-                    {"platform": "Bluesky", "status": "error", "error": str(e)}
-                )
+                results.append({"platform": "Bluesky", "status": "error", "error": str(e)})
 
-        if getattr(self, "_mastodon", None):
+        # Mastodon (real)
+        if self._mastodon:
             try:
-                logger.info("[SOCIAL] Publicando en Mastodon")
                 mastodon_post = {
-                    "tweet": tweet,
-                    "wp_url": final_url,
-                    "url": url,
-                    "image_url": image_url,
-                    "hashtags": [],
+                    "tweet": tweet, "wp_url": final_url,
+                    "url": url, "image_url": image_url, "hashtags": [],
                 }
-                mastodon_res = self._mastodon.publish_posts([mastodon_post])
-                results.append(
-                    {
-                        "platform": "Mastodon",
-                        "status": "success",
-                        "detail": mastodon_res,
-                    }
-                )
+                res = self._mastodon.publish_posts([mastodon_post])
+                results.append({"platform": "Mastodon", "status": "success", "detail": res})
             except Exception as e:
-                logger.error(f"[SOCIAL] Error en Mastodon: {e}")
-                results.append(
-                    {"platform": "Mastodon", "status": "error", "error": str(e)}
-                )
+                results.append({"platform": "Mastodon", "status": "error", "error": str(e)})
 
-        logger.info(f"[SOCIAL] Tweet publicado: {tweet[:50]}...")
         return results

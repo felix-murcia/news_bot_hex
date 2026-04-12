@@ -16,7 +16,13 @@
       "Bash(dpkg *)",
       "Bash(apt *)",
       "Bash(docker cp *)",
-      "Bash(docker compose build *)"
+      "Bash(docker compose build *)",
+      "Bash(grep *)",
+      "Bash(cat)",
+      "Bash(eof)",
+      "Bash(docker images *)",
+      "Bash(docker images)",
+      "Bash(tail *)"
     ]
   },
   "$version": 3

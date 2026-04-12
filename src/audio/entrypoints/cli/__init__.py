@@ -1,13 +1,9 @@
-import logging
+from src.logging_config import setup_logging, get_logger
+setup_logging()
+logger = get_logger("audio_bot")
 from src.audio.infrastructure.adapters.audio_fetcher import AudioFetcher, download_audio
 from src.audio.application.usecases.audio_to_news import process_audio_url
 from src.audio.application.usecases.article_from_audio import run_from_audio
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("audio_bot")
 
 
 def main_fetch():

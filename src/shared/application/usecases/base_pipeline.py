@@ -4,13 +4,16 @@ This abstract class extracts the common functionality between audio, video,
 and news pipelines to avoid code duplication.
 """
 
-import logging
 import re
-import tempfile
 import os
+import time
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+
+from src.logging_config import get_logger
+
+logger = get_logger("news_bot.base_pipeline")
 
 from src.shared.adapters.image_enricher import ImageEnricher
 from src.shared.adapters.wordpress_publisher import (
@@ -20,8 +23,6 @@ from src.shared.adapters.wordpress_publisher import (
     upload_image_from_url,
 )
 from src.shared.adapters.publishers.social import SocialMediaPublisher
-
-logger = logging.getLogger("news_bot")
 
 
 class BasePipelineUseCase(ABC):
@@ -74,66 +75,72 @@ class BasePipelineUseCase(ABC):
     def _cleanup_temp_files(self):
         """Remove all tracked temporary files."""
         cleaned = 0
+        failed = 0
         for file_path in self._temp_files:
             try:
                 if os.path.exists(file_path):
+                    size = os.path.getsize(file_path)
                     os.remove(file_path)
                     cleaned += 1
-                    logger.debug(f"[CLEANUP] Removed: {file_path}")
+                    logger.debug(f"Temp file removed: {file_path} ({size} bytes)")
             except Exception as e:
-                logger.warning(f"[CLEANUP] Failed to remove {file_path}: {e}")
+                failed += 1
+                logger.warning(f"Failed to remove temp file {file_path}: {e}")
 
-        if cleaned > 0:
-            logger.info(f"[CLEANUP] Removed {cleaned} temporary file(s)")
+        if cleaned > 0 or failed > 0:
+            logger.info(
+                f"Temp cleanup: {cleaned} removed, {failed} failed, "
+                f"{len(self._temp_files)} total tracked"
+            )
         self._temp_files.clear()
 
     def _enrich_with_images(
         self, articles: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """Enrich articles with images from multiple sources.
+        """Enrich articles with images from multiple sources."""
+        step_start = time.time()
+        logger.info("Image enrichment started: Unsplash + Google Images + selection")
 
-        Steps:
-        1. Try Unsplash
-        2. Try Google Images
-        3. Use ImageEnricher to select best option
-        """
-        logger.info("[IMAGE_ENRICHMENT] Fetching from Unsplash")
         try:
             from src.shared.adapters.unsplash_fetcher import UnsplashFetcher
 
             unsplash_fetcher = UnsplashFetcher(mode=self.mode)
             articles = unsplash_fetcher.fetch_for_posts(articles)
+            logger.debug("Unsplash fetch completed")
         except Exception as e:
-            logger.warning(f"[IMAGE_ENRICHMENT] Unsplash error: {e}")
+            logger.warning(f"Unsplash enrichment failed: {e}")
 
-        logger.info("[IMAGE_ENRICHMENT] Fetching from Google Images")
         try:
             from src.shared.adapters.google_images_fetcher import GoogleImagesFetcher
 
             google_fetcher = GoogleImagesFetcher(mode=self.mode)
             articles = google_fetcher.fetch_for_posts(articles)
+            logger.debug("Google Images fetch completed")
         except Exception as e:
-            logger.warning(f"[IMAGE_ENRICHMENT] Google Images error: {e}")
+            logger.warning(f"Google Images enrichment failed: {e}")
 
-        logger.info("[IMAGE_ENRICHMENT] Selecting best images")
         enriched = self.image_enricher.enrich(articles)
-        logger.info(f"[IMAGE_ENRICHMENT] Enriched {len(enriched)} article(s)")
+        elapsed = time.time() - step_start
+
+        images_found = sum(1 for a in enriched if a.get("image_url"))
+        logger.info(
+            f"Image enrichment completed in {elapsed:.1f}s: "
+            f"{len(enriched)} articles, {images_found} with images"
+        )
 
         return enriched
 
     def _publish_to_wordpress(
         self, article: Dict[str, Any], tema: str
     ) -> Optional[str]:
-        """Publish an article to WordPress.
-
-        Returns:
-            WordPress post URL if successful, None otherwise
-        """
+        """Publish an article to WordPress."""
         if self.no_publish:
-            logger.info("[WORDPRESS] Publishing skipped (no-publish mode)")
+            logger.info("WordPress publishing skipped (no-publish mode)")
             return None
 
-        logger.info("[WORDPRESS] Publishing article")
+        step_start = time.time()
+        logger.info(f"WordPress publish started: '{article.get('title', 'Untitled')[:80]}'")
+
         try:
             # Determine category
             topic = article.get("labels", [tema])[0] if article.get("labels") else tema
@@ -149,6 +156,7 @@ class BasePipelineUseCase(ABC):
                 topic = "Noticias"
 
             category_id = ensure_category(topic)
+            logger.debug(f"WordPress category: '{topic}' (id={category_id})")
 
             # Handle tags
             labels = article.get("labels", [])
@@ -156,6 +164,7 @@ class BasePipelineUseCase(ABC):
             all_tags = list(set(labels + precomputed_tags))
             tag_ids = [ensure_tag(t) for t in all_tags if isinstance(t, str)]
             tag_ids = [tid for tid in tag_ids if tid is not None]
+            logger.debug(f"WordPress tags: {len(tag_ids)} tags")
 
             # Upload featured image
             image_url = article.get("image_url")
@@ -167,8 +176,9 @@ class BasePipelineUseCase(ABC):
                         alt_text=article.get("alt_text"),
                         credit=article.get("image_credit"),
                     )
+                    logger.debug(f"Featured image uploaded (id={featured_image_id})")
                 except Exception as e:
-                    logger.warning(f"[WORDPRESS] Failed to upload image: {e}")
+                    logger.warning(f"Failed to upload featured image: {e}")
 
             # Clean content (remove h1 tags - WordPress uses title)
             content = article.get("content", "")
@@ -196,30 +206,30 @@ class BasePipelineUseCase(ABC):
                 canonical_url=None,
             )
 
+            elapsed = time.time() - step_start
             if wordpress_url:
-                logger.info(f"[WORDPRESS] ✅ Published: {wordpress_url}")
+                logger.info(f"WordPress published in {elapsed:.1f}s: {wordpress_url}")
             else:
-                logger.warning("[WORDPRESS] Failed to publish")
+                logger.warning(f"WordPress publish failed (no URL returned) after {elapsed:.1f}s")
 
             return wordpress_url
 
         except Exception as e:
-            logger.error(f"[WORDPRESS] Error publishing: {e}")
+            elapsed = time.time() - step_start
+            logger.error(f"WordPress publish error after {elapsed:.1f}s: {e}")
             return None
 
     def _publish_to_social(
         self, article: Dict[str, Any], tweet: str, source_url: str
     ) -> List[Dict[str, Any]]:
-        """Publish to social media platforms.
-
-        Returns:
-            List of publishing results per platform
-        """
+        """Publish to social media platforms."""
         if self.no_publish:
-            logger.info("[SOCIAL] Publishing skipped (no-publish mode)")
+            logger.info("Social media publishing skipped (no-publish mode)")
             return []
 
-        logger.info("[SOCIAL] Publishing to social media")
+        step_start = time.time()
+        logger.info(f"Social media publish started: '{tweet[:80]}...'")
+
         try:
             post_for_social = {
                 "tweet": tweet,
@@ -228,10 +238,15 @@ class BasePipelineUseCase(ABC):
                 "image_url": article.get("image_url", ""),
             }
             social_results = self.social_publisher.publish(post_for_social)
-            logger.info(f"[SOCIAL] Published to {len(social_results)} platform(s)")
+            elapsed = time.time() - step_start
+            platforms = ", ".join(r.get("platform", "?") for r in social_results)
+            logger.info(
+                f"Social media published in {elapsed:.1f}s to {len(social_results)} platform(s): {platforms}"
+            )
             return social_results
         except Exception as e:
-            logger.error(f"[SOCIAL] Error publishing to social media: {e}")
+            elapsed = time.time() - step_start
+            logger.error(f"Social media publish error after {elapsed:.1f}s: {e}")
             return []
 
     @abstractmethod

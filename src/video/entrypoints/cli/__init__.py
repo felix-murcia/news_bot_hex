@@ -1,14 +1,10 @@
-import logging
+from src.logging_config import setup_logging, get_logger
+setup_logging()
+logger = get_logger("video_bot")
 from src.video.infrastructure.adapters.video_fetcher import VideoFetcher, download_video
 from src.video.application.usecases.video_to_news import process_video_url
 from src.video.application.usecases.article_from_video import run_from_video
 from src.video.application.usecases.video_pipeline import VideoPipelineUseCase
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("video_bot")
 
 
 def main_fetch():

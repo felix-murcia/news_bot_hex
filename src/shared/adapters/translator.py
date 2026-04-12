@@ -1,15 +1,11 @@
 import re
 import hashlib
 import os
-import logging
 from typing import List, Optional
 from deep_translator import GoogleTranslator
+from src.logging_config import get_logger
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("news_bot")
+logger = get_logger("news_bot")
 
 CACHE_DIR = os.path.join("data", "cache", "translations")
 os.makedirs(CACHE_DIR, exist_ok=True)

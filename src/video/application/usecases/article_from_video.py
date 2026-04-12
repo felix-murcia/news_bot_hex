@@ -7,12 +7,9 @@ from pathlib import Path
 from typing import Dict, Any
 
 from config.settings import Settings
+from src.logging_config import get_logger
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("video_bot")
+logger = get_logger("video_bot.usecase.article_from_video")
 
 DATA_DIR = Settings.DATA_DIR
 VIDEO_ARTICLES_PATH = DATA_DIR / "generated_video_articles.json"

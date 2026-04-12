@@ -1,17 +1,12 @@
 import os
-import logging
-import json
 import requests
 from typing import Optional, Dict, Any
 from dotenv import load_dotenv
+from src.logging_config import get_logger
 
 load_dotenv()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("news_bot")
+logger = get_logger("news_bot")
 
 DEFAULT_MODEL = "openrouter/free"
 DEFAULT_TEMPERATURE = 0.3

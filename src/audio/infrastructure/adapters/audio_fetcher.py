@@ -6,11 +6,9 @@ import subprocess
 import json
 from typing import Optional, Dict, Any
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("audio_bot")
+from src.logging_config import get_logger
+
+logger = get_logger("audio_bot.infra.fetcher")
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CACHE_DIR = os.path.join(BASE_DIR, "data", "cache")
@@ -210,6 +208,9 @@ def download_audio(
     max_duration: int = MAX_DURATION,
 ) -> Optional[str]:
     """Descarga el audio desde la URL."""
+    import time
+    step_start = time.time()
+
     if not audio_id:
         audio_id = extract_audio_id(url) or str(uuid.uuid4())
 
@@ -221,29 +222,29 @@ def download_audio(
 
     # Verificar caché
     if os.path.exists(output_path_mp3):
-        logger.info(f"[AUDIO] Audio ya en caché: {output_path_mp3}")
+        logger.info(f"Audio cache hit: {os.path.basename(output_path_mp3)}")
         return output_path_mp3
+
+    logger.info(f"Audio download started: {url[:80]}...")
 
     # ============================================================
     # CASO 1: URL directa de audio (ej: https://ejemplo.com/audio.mp3)
     # ============================================================
     if is_direct_audio_url(url):
-        logger.info(f"[AUDIO] URL directa de audio detectada")
-        # Para URLs directas, intentar descarga directa primero
+        logger.info("Direct audio URL detected")
         result = _download_direct(url, output_dir, audio_id)
         if result:
+            logger.info(f"Direct download completed in {time.time() - step_start:.1f}s")
             return result
-        # Si falla, intentar con yt-dlp
-        logger.warning(f"[AUDIO] Descarga directa falló, intentando con yt-dlp...")
+        logger.warning("Direct download failed, falling back to yt-dlp")
         return _download_with_ytdlp(url, output_dir, audio_id, max_duration)
 
     # ============================================================
     # CASO 2: URL de página (YouTube, RTVE, podcast, etc.)
     # ============================================================
 
-    # Para RTVE, ir directamente a yt-dlp (evita problemas de tokens)
     if _is_rtve_url(url):
-        logger.info(f"[AUDIO] URL de RTVE detectada, usando yt-dlp directamente")
+        logger.info("RTVE URL detected, using yt-dlp directly")
         return _download_with_ytdlp(url, output_dir, audio_id, max_duration)
 
     # Para otras plataformas, intentar extraer URL de audio primero
@@ -261,7 +262,7 @@ def download_audio(
             with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:  # type: ignore[arg-type]
                 info = ydl.extract_info(url, download=False)
         except Exception as info_err:
-            logger.warning(f"[AUDIO] Error extrayendo info: {info_err}")
+            logger.debug(f"Metadata extraction failed (expected for some URLs): {info_err}")
             info = None
 
         if info:
@@ -271,8 +272,6 @@ def download_audio(
                     f"El audio dura {duration / 60:.1f} minutos, supera el límite de {max_duration / 60} minutos."
                 )
 
-            # Para URLs que no son de RTVE, podemos intentar extraer la URL directa
-            # y descargar con requests (más rápido)
             if not _is_rtve_url(url):
                 formats: list = info.get("formats") or []
                 audio_formats = [
@@ -283,18 +282,17 @@ def download_audio(
                     best_audio = audio_formats[0]
                     url_to_download = best_audio.get("url")
                     if url_to_download:
-                        logger.info(
-                            f"[AUDIO] Audio encontrado, descargando directamente..."
-                        )
                         result = _download_direct(url_to_download, output_dir, audio_id)
                         if result:
+                            logger.info(f"Extracted URL download completed in {time.time() - step_start:.1f}s")
                             return result
-                        logger.warning("[AUDIO] Descarga directa de URL extraída falló")
+                        logger.warning("Direct download from extracted URL failed")
 
     except Exception as e:
-        logger.warning(f"[AUDIO] Error en extracción de metadata: {e}")
+        logger.debug(f"Metadata extraction error (non-critical): {e}")
 
     # Fallback final: usar yt-dlp para la descarga completa
+    logger.info("Falling back to yt-dlp full download")
     return _download_with_ytdlp(url, output_dir, audio_id, max_duration)
 
 
@@ -325,18 +323,10 @@ def has_audio_stream(audio_path: str) -> bool:
 
 
 def transcribe_audio(audio_path: str) -> str:
-    """Transcribe un archivo de audio usando Whisper."""
-    logger.info(f"[AUDIO] Transcribiendo: {audio_path}")
+    """Transcribe un archivo de audio usando Groq Whisper API."""
+    from src.audio.infrastructure.adapters.audio_transcriber import transcribe_audio as _transcribe
 
-    try:
-        import whisper
-
-        model = whisper.load_model("medium", device="gpu")
-        result = model.transcribe(audio_path, language=None, task="transcribe")  # type: ignore[no-any-return]
-        return result["text"].strip()  # type: ignore[union-attr]
-    except Exception as e:
-        logger.error(f"[AUDIO] Error transcribiendo: {e}")
-        raise
+    return _transcribe(audio_path)
 
 
 class AudioFetcher:

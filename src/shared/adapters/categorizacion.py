@@ -1,12 +1,8 @@
 import re
-from typing import Dict, List
-import logging
+from typing import Dict
+from src.logging_config import get_logger
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("news_bot")
+logger = get_logger("news_bot")
 
 KEYWORDS = None
 CATEGORIES = ["Noticias"]

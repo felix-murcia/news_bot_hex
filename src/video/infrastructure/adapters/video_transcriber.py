@@ -1,24 +1,30 @@
+"""
+Video Transcriber using Groq Whisper API.
+
+Reemplaza el modelo local Whisper por Groq API para transcripción.
+"""
+
 import os
 import logging
+import tempfile
+import subprocess
 from typing import Optional
 from pathlib import Path
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("video_bot")
+import requests
+from dotenv import load_dotenv
 
-IS_JETSON = os.path.exists("/etc/nv_tegra_release")
-if IS_JETSON:
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+from config.settings import Settings
+from src.logging_config import get_logger
+
+load_dotenv()
+
+logger = get_logger("video_bot.infra.transcriber")
 
 
 def has_audio_stream(video_path: str) -> bool:
     """Check if video has an audio stream."""
     try:
-        import subprocess
-
         result = subprocess.run(
             [
                 "ffprobe",
@@ -40,61 +46,112 @@ def has_audio_stream(video_path: str) -> bool:
         return True
 
 
-def transcribe_video(video_path: str) -> str:
-    """Transcribe un video usando Whisper."""
-    logger.info(
-        f"[TRANSCRIBER] Iniciando transcripción: {os.path.basename(video_path)}"
-    )
-
+def _convert_to_wav(input_path: str) -> str:
+    """Extract and convert audio to 16kHz mono WAV for Groq API."""
+    output_path = tempfile.mktemp(suffix=".wav")
     try:
-        import whisper
-        import numpy as np
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-i", input_path,
+                "-ar", "16000",
+                "-ac", "1",
+                "-f", "wav",
+                output_path,
+            ],
+            check=True,
+            capture_output=True,
+            timeout=300,
+        )
+        size = os.path.getsize(output_path)
+        logger.info(f"[TRANSCRIBER] Audio extraído y convertido a WAV: {size} bytes")
+        return output_path
+    except subprocess.CalledProcessError as e:
+        logger.error(f"[TRANSCRIBER] FFmpeg falló: {e.stderr.decode()}")
+        raise RuntimeError(f"FFmpeg failed: {e}")
+    except FileNotFoundError:
+        logger.error("[TRANSCRIBER] ffmpeg no encontrado en PATH")
+        raise RuntimeError("ffmpeg es requerido para extracción de audio")
 
-        model = whisper.load_model("medium", device="gpu")
-        logger.info("[TRANSCRIBER] Modelo cargado")
 
-        result = model.transcribe(
-            video_path, language=None, task="transcribe", verbose=False, fp16=False
+def _send_to_groq(wav_path: str) -> str:
+    """Send WAV file to Groq Whisper API."""
+    api_key = Settings.GROQ_API_KEY
+    if not api_key:
+        raise RuntimeError("GROQ_API_KEY no configurada en .env")
+
+    with open(wav_path, "rb") as f:
+        resp = requests.post(
+            Settings.GROQ_API_URL,
+            headers={"Authorization": f"Bearer {api_key}"},
+            data={
+                "model": Settings.GROQ_TRANSCRIBE_MODEL,
+                "language": "es",
+                "response_format": "text",
+            },
+            files={"file": ("audio.wav", f, "audio/wav")},
+            timeout=600,
         )
 
-        text = result["text"].strip()  # type: ignore[union-attr]
-        detected_lang = result.get("language", "desconocido")
+    resp.raise_for_status()
+    result = resp.json()
+    text = result.get("text", "").strip()
 
-        logger.info(f"[TRANSCRIBER] Idioma: {detected_lang}")
-        logger.info(f"[TRANSCRIBER] Transcripción: {len(text)} caracteres")
+    if not text:
+        logger.warning("[TRANSCRIBER] Transcripción vacía")
+        return ""
+
+    return text
+
+
+def transcribe_video(video_path: str) -> str:
+    """Transcribe un video usando Groq Whisper API."""
+    import time
+    step_start = time.time()
+
+    logger.info(f"Transcription started: {os.path.basename(video_path)}")
+
+    if not os.path.exists(video_path):
+        raise FileNotFoundError(f"Video no encontrado: {video_path}")
+
+    wav_path = None
+    try:
+        wav_path = _convert_to_wav(video_path)
+        text = _send_to_groq(wav_path)
+        elapsed = time.time() - step_start
+
+        logger.info(f"Transcription completed in {elapsed:.1f}s: {len(text)} characters")
 
         if not text or len(text) < 50:
-            logger.warning(f"[TRANSCRIBER] Transcripción muy corta")
+            logger.warning("Transcription result is very short (< 50 chars)")
 
         return text
 
-    except ImportError:
-        logger.error("[TRANSCRIBER] Whisper no instalado")
-        raise RuntimeError("Instala whisper: pip install openai-whisper")
+    except requests.HTTPError as e:
+        error_detail = e.response.text if hasattr(e, "response") else str(e)
+        logger.error(f"Groq API HTTP error: {error_detail}")
+        raise RuntimeError(f"Groq API error: {error_detail}")
     except Exception as e:
-        logger.error(f"[TRANSCRIBER] Error: {e}")
+        logger.error(f"Transcription error: {e}")
         raise
+    finally:
+        if wav_path and os.path.exists(wav_path):
+            try:
+                os.unlink(wav_path)
+            except OSError:
+                pass
 
 
 class VideoTranscriber:
-    """Transcriptor de videos."""
+    """Transcriptor de videos usando Groq."""
 
-    def __init__(self, model_size: str = "tiny"):
-        self.model_size = model_size
-        self._model = None
-
-    @property
-    def model(self):
-        if self._model is None:
-            import whisper
-
-            self._model = whisper.load_model(self.model_size, device="gpu")
-        return self._model
+    def __init__(self, model: str = "whisper-large-v3-turbo"):
+        self.model = model
 
     def transcribe(self, video_path: str) -> str:
         """Transcribe un video."""
-        result = self.model.transcribe(video_path, language=None, task="transcribe")  # type: ignore[no-any-return]
-        return result["text"].strip()  # type: ignore[union-attr]
+        return transcribe_video(video_path)
 
 
 def run(video_path: str) -> str:

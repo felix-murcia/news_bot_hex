@@ -1,11 +1,7 @@
 import sys
-import logging
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("news_bot")
+from src.logging_config import setup_logging, get_logger
+setup_logging()
+logger = get_logger("news_bot")
 
 from src.news.entrypoints.cli import (
     main_rss,

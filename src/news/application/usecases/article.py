@@ -1,38 +1,42 @@
 import os
 import json
-import logging
 import re
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from urllib.parse import urlparse
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("news_bot")
+from config.settings import Settings
+from src.logging_config import get_logger
+
+logger = get_logger("news_bot.usecase.article")
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 DATA_DIR = BASE_DIR / "data"
 CACHE_DIR = DATA_DIR / "cache"
-VERIFIED_PATH = DATA_DIR / "verified_news.json"
-OUTPUT_PATH = DATA_DIR / "generated_articles.json"
-TEMPLATE_NAME = "plantilla_periodico.html"
 
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+_TEMPLATE_PATH = Settings.BASE_DIR.parent / "news_bot" / "templates" / "plantilla_periodico.html"
+if not _TEMPLATE_PATH.exists():
+    _TEMPLATE_PATH = Settings.BASE_DIR / "templates" / "plantilla_periodico.html"
 
 
 def get_domain(url: str) -> str:
     try:
         return urlparse(url).netloc or url
-    except:
+    except Exception:
         return url
 
 
-def abort(reason: str):
-    logger.error(f"ERROR: {reason}")
-    raise RuntimeError(reason)
+def _load_template_content() -> Optional[str]:
+    """Load template from disk. Returns None if not found."""
+    try:
+        if _TEMPLATE_PATH.exists():
+            return _TEMPLATE_PATH.read_text(encoding="utf-8")
+    except Exception:
+        pass
+    return None
 
 
 def slugify(text: str) -> str:
@@ -46,19 +50,34 @@ def _limpiar_html(html: str) -> str:
     if not html:
         return html
 
+    # Remove markdown code fences
     html = re.sub(r"```html", "", html)
     html = re.sub(r"```", "", html)
-    html = re.sub(r"`", "", html)
 
+    # Remove markdown bold/italic (**, *, __, _)
+    html = re.sub(r"\*\*(.+?)\*\*", r"\1", html)
+    html = re.sub(r"\*(.+?)\*", r"\1", html)
+    html = re.sub(r"__(.+?)__", r"\1", html)
+    html = re.sub(r"(?<!\w)_(.+?)_(?!\w)", r"\1", html)
+
+    # Remove markdown links [text](url) → text
+    html = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", html)
+
+    # Remove markdown headers (# ## ###)
+    html = re.sub(r"^#{1,6}\s+", "", html, flags=re.MULTILINE)
+
+    # Remove <h1> tags
     html = re.sub(r"<h1>.*?</h1>", "", html, flags=re.DOTALL)
 
+    # Remove <div> tags
     html = re.sub(r"<div.*?>", "", html)
     html = re.sub(r"</div>", "", html)
 
+    # Normalize whitespace
     html = re.sub(r"\n+", "\n", html)
-
     html = re.sub(r" +", " ", html)
 
+    # Fix HTML entities
     html = re.sub(r"&lt;", "<", html)
     html = re.sub(r"&gt;", ">", html)
     html = re.sub(r"&amp;", "&", html)
@@ -87,12 +106,13 @@ class ArticleUseCase:
         use_ai: bool = True,
         ai_config: Optional[dict] = None,
         ai_model=None,
-        model_provider: str = "openrouter",
+        model_provider: str = "gemini",
     ):
         self.use_ai = use_ai
         self.ai_config = ai_config or {}
         self.ai_model = ai_model
         self.model_provider = model_provider
+        self._template_renderer = None
 
     def _get_ai_model(self):
         """Obtiene el modelo de IA (lazy loading)."""
@@ -103,6 +123,19 @@ class ArticleUseCase:
             self.ai_model = get_ai_adapter(provider, self.ai_config)
             logger.info(f"[ARTICLE] Adapter '{provider}' instanciado")
         return self.ai_model
+
+    def _get_template_renderer(self):
+        """Obtiene el renderer de plantillas (lazy loading)."""
+        if self._template_renderer is None:
+            from src.news.domain.services.template_renderer import TemplateRenderer
+
+            template_content = _load_template_content()
+            if template_content:
+                self._template_renderer = TemplateRenderer(template_content)
+            else:
+                # Fallback: pass-through renderer (no template)
+                self._template_renderer = None
+        return self._template_renderer
 
     def _generate_article_body(self, news_item: Dict, mode: str = "news") -> str:
         if self.use_ai:
@@ -278,6 +311,38 @@ class ArticleUseCase:
                 continue
 
             payload = self.make_payload(item, body_html)
+
+            # Render with newspaper template
+            try:
+                renderer = self._get_template_renderer()
+                if renderer is None:
+                    # No template available, use body as-is
+                    logger.info(f"[ARTICLE] Sin plantilla, usando contenido directo: {payload['title']}")
+                else:
+                    category = item.get("tema", "Noticias")
+                    if category in ("Video", "Política", "Política internacional"):
+                        category = "Noticias"
+                    category_slug = category.lower().replace(" ", "-")
+
+                    rendered = renderer.render(
+                        article_body_html=body_html,
+                        title=payload["title"],
+                        source_url=item.get("url", ""),
+                        category=category,
+                        category_slug=category_slug,
+                        image_url=payload.get("image_url", ""),
+                        slug=payload["slug"],
+                        excerpt=payload.get("excerpt", ""),
+                    )
+
+                    payload["content"] = rendered["content"]
+                    if rendered["image_url"]:
+                        payload["image_url"] = rendered["image_url"]
+
+                    logger.info(f"[ARTICLE] ✅ Plantilla aplicada: {payload['title']}")
+            except Exception as e:
+                logger.warning(f"[ARTICLE] Error aplicando plantilla: {e}")
+
             generated.append(payload)
             logger.info(f"[ARTICLE] ✅ Artículo generado: {payload.get('title')}")
 
@@ -324,7 +389,7 @@ def run(
     use_gemini: bool = True,
     ai_config: Optional[dict] = None,
     mode: str = "news",
-    model_provider: str = "openrouter",
+    model_provider: str = "gemini",
 ) -> List[Dict]:
     logger.info(f"[ARTICLE] Ejecutando (provider: {model_provider})")
     use_case = ArticleUseCase(

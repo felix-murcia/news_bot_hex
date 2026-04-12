@@ -15,6 +15,7 @@ _PROVIDER_MAP = {
     "openrouter": "src.shared.adapters.ai.openrouter_adapter.OpenRouterAdapter",
     "local": "src.shared.adapters.ai.local_adapter.LocalAdapter",
     "mock": "src.shared.adapters.ai.local_adapter.MockAdapter",
+    "groq": "src.shared.adapters.ai.groq_adapter.GroqAdapter",
 }
 
 

@@ -1,17 +1,13 @@
 import os
-import logging
 import requests
 import random
 import re
 from dotenv import load_dotenv
 
 from config.settings import Settings
+from src.logging_config import get_logger
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("news_bot")
+logger = get_logger("news_bot")
 
 load_dotenv()
 

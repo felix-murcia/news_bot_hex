@@ -1,15 +1,11 @@
 import os
-import logging
-from typing import Optional, Dict, Any
+from typing import Optional
 from dotenv import load_dotenv
+from src.logging_config import get_logger
 
 load_dotenv()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("news_bot")
+logger = get_logger("news_bot")
 
 
 def get_gemini_client(config: Optional[dict] = None) -> "GeminiClient":

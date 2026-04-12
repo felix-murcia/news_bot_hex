@@ -77,6 +77,11 @@ class Settings:
     OPENROUTER_APP_TITLE = os.getenv("OPENROUTER_APP_TITLE", "news_bot")
     WHISPER_MODEL = os.getenv("WHISPER_MODEL", "medium")
 
+    # === Groq Transcription Configuration ===
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+    GROQ_API_URL = os.getenv("GROQ_API_URL", "https://api.groq.com/openai/v1/audio/transcriptions")
+    GROQ_TRANSCRIBE_MODEL = os.getenv("GROQ_TRANSCRIBE_MODEL", "whisper-large-v3-turbo")
+
     # === Local Model Configuration ===
     LOCAL_MODEL_PATH = os.getenv("LOCAL_MODEL_PATH", str(BASE_DIR / "models" / "Llama-3.2-8B-Instruct-Q4_K_M.gguf"))
     LOCAL_MODEL_N_CTX = int(os.getenv("LOCAL_MODEL_N_CTX", "3072"))
@@ -84,21 +89,9 @@ class Settings:
     LOCAL_MODEL_N_BATCH = int(os.getenv("LOCAL_MODEL_N_BATCH", "64"))
 
     # === Fake News Detection Model ===
-    # External path for Docker volume mounts (e.g. /mnt/DATA1_256GB/llama-models)
-    # Inside Docker, the volume is mounted at /app/models, so we detect this automatically.
-    _RAW_MODELS_LOCATION = os.getenv("MODELS_LOCATION", str(BASE_DIR / "models"))
-    # If running in Docker, /app/models exists and is the mounted volume
-    _DOCKER_MODELS_DIR = Path("/app/models")
-    if _DOCKER_MODELS_DIR.is_dir():
-        MODELS_EXTERNAL_DIR = _DOCKER_MODELS_DIR
-    else:
-        MODELS_EXTERNAL_DIR = Path(_RAW_MODELS_LOCATION)
-
-    FAKE_NEWS_MODEL_PATH = os.getenv(
-        "FAKE_NEWS_MODEL_PATH",
-        str(MODELS_EXTERNAL_DIR / "fake_news_roberta"),
-    )
-    FAKE_NEWS_MODEL_ENABLED = os.getenv("FAKE_NEWS_MODEL_ENABLED", "true").lower() == "true"
+    # Path for pre-trained classic validator model (TF-IDF + LogisticRegression)
+    # Falls back to heuristic rules if no model is found
+    FAKE_NEWS_MODEL_DIR = BASE_DIR / "models" / "news_validator"
 
     # === Model Parameters ===
     MODEL_PARAMS_CONTENT: Dict[str, Any] = {

@@ -6,7 +6,7 @@ Funciona con cualquier proveedor de IA a través de AIModelPort.
 """
 
 import logging
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from src.shared.adapters.ai.prompt_loader import load_prompt
 

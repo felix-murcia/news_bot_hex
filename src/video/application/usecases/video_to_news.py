@@ -1,16 +1,13 @@
 import os
 import uuid
-import logging
 import json
 import re
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("video_bot")
+from src.logging_config import setup_logging, get_logger
+setup_logging()
+logger = get_logger("video_bot")
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
 DATA_DIR = BASE_DIR / "data"

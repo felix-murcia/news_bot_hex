@@ -18,6 +18,7 @@ services:
       - USE_MONGODB=${USE_MONGODB}
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - LOG_DIR=/app/logs
     env_file:
       - .env
     volumes:

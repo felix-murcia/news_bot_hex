@@ -1,18 +1,14 @@
 import os
 import json
-import logging
+import re
 from pathlib import Path
 from typing import Dict, Any, Optional
 
 from config.settings import Settings
 from src.shared.adapters.translator import translate_text
-from src.news.infrastructure.adapters import JinaContentExtractor
+from src.logging_config import get_logger
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("news_bot")
+logger = get_logger("news_bot.usecase.article_from_news")
 
 DATA_DIR = Settings.DATA_DIR
 CACHE_DIR = Settings.CACHE_DIR
@@ -62,7 +58,6 @@ class ArticleFromNewsUseCase:
         self.model_provider = model_provider
         self.ai_config = ai_config or {}
         self.ai_model = ai_model
-        self.content_extractor = JinaContentExtractor()
 
     def _get_ai_model(self):
         """Obtiene el modelo de IA (lazy loading)."""

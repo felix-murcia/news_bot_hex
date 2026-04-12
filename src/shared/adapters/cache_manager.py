@@ -3,15 +3,11 @@ import json
 import time
 from pathlib import Path
 from typing import Optional, Tuple
-import logging
+from src.logging_config import get_logger
 
 from config.settings import Settings
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("news_bot")
+logger = get_logger("news_bot")
 
 CACHE_DIR = Settings.CACHE_DIR
 CACHE_DIR.mkdir(exist_ok=True, parents=True)

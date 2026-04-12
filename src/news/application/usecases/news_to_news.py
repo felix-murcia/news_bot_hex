@@ -1,17 +1,13 @@
 import json
-import logging
 import re
 from pathlib import Path
 from typing import Dict, Any, Optional
-from datetime import datetime
 
 from config.settings import Settings
+from src.news.domain.ports import ContentExtractor
+from src.logging_config import get_logger
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("news_bot")
+logger = get_logger("news_bot.usecase.news_to_news")
 
 DATA_DIR = Settings.DATA_DIR
 CACHE_DIR = Settings.CACHE_DIR
@@ -38,16 +34,17 @@ class NewsToNewsUseCase:
 
     def __init__(
         self,
+        content_extractor: ContentExtractor,
         use_ai: bool = True,
         model_provider: str = "openrouter",
         ai_config: Optional[dict] = None,
         ai_model=None,
     ):
+        self.content_extractor = content_extractor
         self.use_ai = use_ai
         self.model_provider = model_provider
         self.ai_config = ai_config or {}
         self.ai_model = ai_model
-        self.content_extractor = None
         self.article_generator = None
 
     def _get_ai_model(self):
@@ -59,13 +56,6 @@ class NewsToNewsUseCase:
             self.ai_model = get_ai_adapter(provider, self.ai_config)
             logger.info(f"[NEWS_TO_NEWS] Adapter '{provider}' instanciado")
         return self.ai_model
-
-    def _get_content_extractor(self):
-        if self.content_extractor is None:
-            from src.news.infrastructure.adapters import JinaContentExtractor
-
-            self.content_extractor = JinaContentExtractor()
-        return self.content_extractor
 
     def _get_article_generator(self):
         if self.article_generator is None:
@@ -107,8 +97,7 @@ class NewsToNewsUseCase:
             logger.info("[NEWS_TO_NEWS] Usando contenido desde caché")
             return cached
 
-        extractor = self._get_content_extractor()
-        content, method = extractor.extract(url)
+        content, method = self.content_extractor.extract(url)
 
         if content:
             self._save_to_cache(url, content)
@@ -209,12 +198,14 @@ class NewsToNewsUseCase:
 
 def process_news_url(
     url: str,
+    content_extractor: ContentExtractor,
     model_provider: str = "openrouter",
     use_ai: bool = True,
     ai_config: Optional[dict] = None,
 ) -> Dict[str, Any]:
     """Función principal para procesar URL de noticia."""
     processor = NewsToNewsUseCase(
+        content_extractor=content_extractor,
         model_provider=model_provider,
         use_ai=use_ai,
         ai_config=ai_config,

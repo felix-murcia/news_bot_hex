@@ -1,11 +1,7 @@
 import sys
-import logging
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("video_bot")
+from src.logging_config import setup_logging, get_logger
+setup_logging()
+logger = get_logger("video_bot")
 
 from src.video.entrypoints.cli import (
     main_fetch,

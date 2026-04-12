@@ -1,17 +1,13 @@
 import os
-import logging
 import json
 import re
 from pathlib import Path
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional
 
 from config.settings import Settings
+from src.logging_config import get_logger
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger("audio_bot")
+logger = get_logger("audio_bot.usecase.article_from_audio")
 
 DATA_DIR = Settings.DATA_DIR
 AUDIO_ARTICLES_PATH = DATA_DIR / "generated_audio_articles.json"
