@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from dotenv import load_dotenv
 
-load_dotenv()
+# Override existing env vars with values from .env file
+load_dotenv(override=True)
 
 
 class Settings:
@@ -30,6 +31,10 @@ class Settings:
     WP_API_URL = os.getenv("WP_API_URL", f"{WP_HOSTING_API_BASE}/wp-json/wp/v2")
     WP_DEFAULT_CATEGORY = os.getenv("WP_DEFAULT_CATEGORY", "Noticias")
     WP_DEFAULT_IMAGE_ENDPOINT = os.getenv("WP_DEFAULT_IMAGE_ENDPOINT", "/image-310/")
+    
+    # WordPress credentials for auto token refresh
+    WP_USER = os.getenv("WP_USER", "")
+    WP_PASSWORD = os.getenv("WP_PASSWORD", "")
 
     # === Facebook Configuration ===
     FACEBOOK_PAGE_ID = os.getenv("FACEBOOK_PAGE_ID", "")
@@ -73,7 +78,8 @@ class Settings:
     TWEET_TRUNCATION_BUFFER = int(os.getenv("TWEET_TRUNCATION_BUFFER", "3"))
 
     # === AI Model Configuration ===
-    AI_PROVIDER = os.getenv("AI_PROVIDER", "local").lower()
+    # Default is ALWAYS "local" — no external providers are used unless explicitly configured
+    AI_PROVIDER = (os.getenv("AI_PROVIDER") or "local").lower()
     SUPPORTED_AI_PROVIDERS = ["openrouter", "gemini", "local", "mock"]
     
     AI_ADAPTER_MAP = {
@@ -218,6 +224,13 @@ class Settings:
     MONGO_PASSWORD = os.getenv("MONGO_PASSWORD", "")
     MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "news_bot")
     USE_MONGODB = os.getenv("USE_MONGODB", "true").lower() == "true"
+
+    # === Web Search Configuration ===
+    SERPER_API_KEY = os.getenv("SERPER_API_KEY", "")
+    TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
+
+    # === Logging Configuration ===
+    LOG_DIR = os.getenv("LOG_DIR", "/app/logs")
 
     # === Deep Translator Configuration ===
     DEEP_TRANSLATOR_TARGET_LANG = os.getenv("DEEP_TRANSLATOR_TARGET_LANG", "es")

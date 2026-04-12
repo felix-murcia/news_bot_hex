@@ -5,15 +5,73 @@ from typing import List, Dict, Optional
 from io import BytesIO
 
 from config.settings import Settings
-from src.logging_config import get_logger
+from config.logging_config import get_logger
 
 logger = get_logger("news_bot")
 
 
-def get_headers():
-    """Get authentication headers for WordPress API."""
+def validate_wp_token() -> bool:
+    """
+    Validate WordPress JWT token before starting any pipeline.
+    
+    Returns:
+        True if token is valid, False otherwise.
+        
+    Raises:
+        RuntimeError: If token validation fails.
+    """
     if not Settings.WP_HOSTING_JWT_TOKEN:
-        raise RuntimeError("WP_HOSTING_JWT_TOKEN not found in .env")
+        logger.error("[WP-VALIDATE] WP_HOSTING_JWT_TOKEN not configured")
+        raise RuntimeError("WordPress JWT token not configured")
+    
+    try:
+        headers = {
+            "Authorization": f"Bearer {Settings.WP_HOSTING_JWT_TOKEN}",
+            "User-Agent": "Mozilla/5.0 (compatible; NBESBot/1.0)",
+        }
+        
+        # Test with a simple GET request to verify token
+        resp = requests.get(
+            f"{Settings.WP_API_URL}/posts?per_page=1",
+            headers=headers,
+            timeout=10,
+        )
+        
+        if resp.status_code == 200:
+            logger.info("[WP-VALIDATE] WordPress token is valid")
+            return True
+        elif resp.status_code in (401, 403):
+            error_detail = resp.text[:200] if resp.text else "No details"
+            logger.error(f"[WP-VALIDATE] WordPress token expired or invalid ({resp.status_code}): {error_detail}")
+            raise RuntimeError(
+                f"WordPress JWT token expired or invalid (HTTP {resp.status_code}). "
+                "Please generate a new token from your WordPress admin panel."
+            )
+        else:
+            logger.warning(f"[WP-VALIDATE] Unexpected response: {resp.status_code}")
+            # Don't fail on non-auth errors (could be network issues)
+            return True
+            
+    except requests.exceptions.RequestException as e:
+        logger.error(f"[WP-VALIDATE] Connection error: {e}")
+        raise RuntimeError(f"Cannot connect to WordPress API: {e}")
+
+
+def get_headers():
+    """Get authentication headers for WordPress API. Auto-refreshes token if needed."""
+    if not Settings.WP_HOSTING_JWT_TOKEN:
+        # Try to auto-refresh before failing
+        try:
+            from src.shared.adapters.wordpress_token_manager import get_valid_wp_token
+            get_valid_wp_token()
+            logger.info("[HOSTING] WordPress token auto-refreshed")
+        except Exception as e:
+            logger.warning(f"[HOSTING] Token refresh failed: {e}")
+            raise RuntimeError(
+                "WP_HOSTING_JWT_TOKEN not configured and auto-refresh failed. "
+                "Check WP_USER and WP_PASSWORD in .env"
+            )
+
     return {
         "Authorization": f"Bearer {Settings.WP_HOSTING_JWT_TOKEN}",
         "Content-Type": "application/json",

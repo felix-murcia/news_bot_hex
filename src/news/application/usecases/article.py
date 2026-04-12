@@ -6,7 +6,7 @@ from typing import Dict, Any, List, Optional
 from urllib.parse import urlparse
 
 from config.settings import Settings
-from src.logging_config import get_logger
+from config.logging_config import get_logger
 
 logger = get_logger("news_bot.usecase.article")
 

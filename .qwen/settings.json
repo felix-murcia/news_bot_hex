@@ -26,7 +26,12 @@
       "Bash(.venv/bin/yt-dlp *)",
       "Bash(.venv/bin/pip *)",
       "Bash(ls *)",
-      "Bash(find *)"
+      "Bash(find *)",
+      "Bash(docker compose exec *)",
+      "Bash(source *)",
+      "Bash(pytest *)",
+      "Bash(pip install *)",
+      "Bash(mv *)"
     ]
   },
   "$version": 3

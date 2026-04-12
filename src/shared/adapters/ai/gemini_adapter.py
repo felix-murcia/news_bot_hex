@@ -7,12 +7,12 @@ Implementation of AIModelPort for Google Gemini.
 import os
 import logging
 from typing import Dict, Optional
-
 from dotenv import load_dotenv
 
+from config.settings import Settings
 from src.shared.utils.retry import retry_with_backoff
 
-load_dotenv()
+load_dotenv(override=True)
 
 logger = logging.getLogger(__name__)
 
@@ -39,13 +39,13 @@ class GeminiAdapter:
             validate_on_init: If True, validates API key on initialization
         """
         self.config = config or {}
-        self.api_key = os.getenv("GEMINI_API_KEY")
+        self.api_key = Settings.GEMINI_CONFIG.get("api_key", "")
         self._client = None
 
         if not self.api_key:
             logger.warning("[GEMINI] API key not found in environment")
         else:
-            model_name = self.config.get("model_name", "gemini-2.5-flash")
+            model_name = self.config.get("model_name", Settings.GEMINI_MODEL)
             logger.info(f"[GEMINI] Initialized with model: {model_name}")
             
             if validate_on_init and not self.validate_key():
@@ -84,7 +84,7 @@ class GeminiAdapter:
     ) -> str:
         try:
             client = self._get_client()
-            model_name = self.config.get("model_name", "gemini-2.5-flash")
+            model_name = self.config.get("model_name", "gemini-3.1-flash-lite-preview")
 
             full_prompt = prompt
             if system_prompt:

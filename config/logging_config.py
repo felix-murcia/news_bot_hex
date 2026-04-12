@@ -9,9 +9,11 @@ import logging.handlers
 import os
 import sys
 from pathlib import Path
+from config.settings import Settings
 
 # Log directory: /app/logs inside Docker, falls back to /tmp/logs on host
-LOG_DIR = Path(os.environ.get("LOG_DIR", "/app/logs"))
+log_dir_env = Settings.LOG_DIR or "/app/logs"
+LOG_DIR = Path(log_dir_env)
 if not LOG_DIR.exists():
     # Fallback for non-Docker environments
     LOG_DIR = Path("/tmp/logs")

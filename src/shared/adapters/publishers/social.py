@@ -4,7 +4,7 @@ Publishes articles to Bluesky and Mastodon (real implementations).
 X, LinkedIn and Facebook are simulated for now.
 """
 
-from src.logging_config import get_logger
+from config.logging_config import get_logger
 
 logger = get_logger("news_bot.social")
 

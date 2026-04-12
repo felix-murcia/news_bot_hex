@@ -1,15 +1,16 @@
 import os
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
-from src.logging_config import get_logger
+from config.settings import Settings
+from config.logging_config import get_logger
 
 logger = get_logger("news_bot")
 
-MONGO_HOST = os.getenv("MONGO_HOST", "localhost")
-MONGO_PORT = int(os.getenv("MONGO_PORT", "27017"))
-MONGO_USER = os.getenv("MONGO_USER", "root")
-MONGO_PASSWORD = os.getenv("MONGO_PASSWORD", "rootpassword")
-MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "appdb")
+MONGO_HOST = Settings.MONGO_HOST
+MONGO_PORT = Settings.MONGO_PORT
+MONGO_USER = Settings.MONGO_USER
+MONGO_PASSWORD = Settings.MONGO_PASSWORD
+MONGO_DB_NAME = Settings.MONGO_DB_NAME
 
 
 class MongoDBClient:

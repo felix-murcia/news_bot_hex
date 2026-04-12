@@ -3,7 +3,7 @@ import json
 import time
 from pathlib import Path
 from typing import Optional, Tuple
-from src.logging_config import get_logger
+from config.logging_config import get_logger
 
 from config.settings import Settings
 

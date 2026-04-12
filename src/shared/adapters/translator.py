@@ -3,7 +3,7 @@ import hashlib
 import os
 from typing import List, Optional
 from deep_translator import GoogleTranslator
-from src.logging_config import get_logger
+from config.logging_config import get_logger
 
 logger = get_logger("news_bot")
 

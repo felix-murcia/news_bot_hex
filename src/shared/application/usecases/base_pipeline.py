@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-from src.logging_config import get_logger
+from config.logging_config import get_logger
 
 logger = get_logger("news_bot.base_pipeline")
 
@@ -49,6 +49,16 @@ class BasePipelineUseCase(ABC):
         self._enable_bluesky = enable_bluesky
         self._enable_mastodon = enable_mastodon
         self._temp_files: List[str] = []
+        
+        # Validate WordPress token early (fail fast) - auto-refresh if needed
+        if not no_publish:
+            from src.shared.adapters.wordpress_token_manager import get_valid_wp_token
+            try:
+                get_valid_wp_token()
+                logger.info(f"[{mode.upper()} PIPELINE] WordPress token refreshed and validated")
+            except RuntimeError as e:
+                logger.error(f"[{mode.upper()} PIPELINE] WordPress token refresh failed: {e}")
+                raise
 
     @property
     def image_enricher(self) -> ImageEnricher:

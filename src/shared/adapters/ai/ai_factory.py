@@ -6,15 +6,18 @@ Factory para obtener instancias de adapters de IA.
 
 import logging
 from typing import Dict, Optional
-from src.shared.domain.ports.ai_model_port import AIModelPort
 from config.settings import Settings
+from src.shared.domain.ports.ai_model_port import AIModelPort
 
 
 logger = logging.getLogger(__name__)
 
+# Default provider is ALWAYS local (no external dependencies)
+_DEFAULT_PROVIDER = "local"
+
 
 def get_ai_adapter(
-    provider: str = Settings.AI_PROVIDER,
+    provider: str | None = None,
     config: Optional[Dict] = None,
     validate_key: bool = False,
 ) -> AIModelPort:
@@ -22,7 +25,8 @@ def get_ai_adapter(
     Get an instance of the specified AI adapter.
 
     Args:
-        provider: Provider name ("gemini", "openrouter", "local", "mock", "groq").
+        provider: Provider name. Defaults to Settings.AI_PROVIDER if set,
+                  otherwise falls back to "local".
         config: Optional configuration for the adapter.
         validate_key: If True, validate API key on initialization.
 
@@ -32,6 +36,12 @@ def get_ai_adapter(
     Raises:
         ValueError: If provider is invalid or API key validation fails.
     """
+    from config.settings import Settings
+
+    # Resolve provider at runtime, not import time
+    if provider is None:
+        provider = Settings.AI_PROVIDER or _DEFAULT_PROVIDER
+
     config = config or {}
     provider = provider.lower()
 

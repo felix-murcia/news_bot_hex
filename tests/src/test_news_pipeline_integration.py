@@ -133,9 +133,9 @@ class TestArticleFromNewsUseCase:
             ArticleFromNewsUseCase,
         )
 
-        use_case = ArticleFromNewsUseCase(use_ai=True, model_provider="openrouter")
+        use_case = ArticleFromNewsUseCase(use_ai=True, model_provider="local")
         assert use_case.use_ai == True
-        assert use_case.model_provider == "openrouter"
+        assert use_case.model_provider == "local"
 
     def test_article_from_news_with_ai_disabled(self):
         """Test ArticleFromNewsUseCase with AI disabled."""
@@ -172,16 +172,22 @@ class TestNewsToNewsUseCase:
     def test_news_to_news_init(self):
         """Test NewsToNewsUseCase initialization."""
         from src.news.application.usecases.news_to_news import NewsToNewsUseCase
+        from unittest.mock import Mock
 
-        use_case = NewsToNewsUseCase(use_ai=True, model_provider="openrouter")
+        mock_extractor = Mock()
+        use_case = NewsToNewsUseCase(
+            content_extractor=mock_extractor, use_ai=True, model_provider="local"
+        )
         assert use_case.use_ai == True
-        assert use_case.model_provider == "openrouter"
+        assert use_case.model_provider == "local"
 
     def test_news_to_news_with_ai_disabled(self):
         """Test NewsToNewsUseCase with AI disabled."""
         from src.news.application.usecases.news_to_news import NewsToNewsUseCase
+        from unittest.mock import Mock
 
-        use_case = NewsToNewsUseCase(use_ai=False)
+        mock_extractor = Mock()
+        use_case = NewsToNewsUseCase(content_extractor=mock_extractor, use_ai=False)
         assert use_case.use_ai == False
 
 

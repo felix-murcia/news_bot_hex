@@ -1,9 +1,10 @@
 import os
 from typing import Optional
 from dotenv import load_dotenv
-from src.logging_config import get_logger
+from config.settings import Settings
+from config.logging_config import get_logger
 
-load_dotenv()
+load_dotenv(override=True)
 
 logger = get_logger("news_bot")
 
@@ -18,7 +19,7 @@ class GeminiClient:
 
     def __init__(self, config: dict):
         self.config = config
-        self.api_key = os.getenv("GEMINI_API_KEY")
+        self.api_key = Settings.GEMINI_CONFIG.get("api_key", "")
 
         if not self.api_key:
             logger.warning("[GEMINI] API key not found in environment")
@@ -30,7 +31,12 @@ class GeminiClient:
             from google import genai as google_genai
 
             client = google_genai.Client(api_key=self.api_key)
-            model_name = self.config.get("model_name", "gemini-2.5-flash")
+            # Prefer config, then Settings, then fallback
+            model_name = (
+                self.config.get("model_name")
+                or Settings.GEMINI_MODEL
+                or "gemini-3.1-flash-lite-preview"
+            )
 
             response = client.models.generate_content(
                 model=model_name,

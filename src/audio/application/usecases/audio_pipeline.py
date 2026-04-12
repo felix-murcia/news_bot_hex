@@ -7,7 +7,7 @@ import time
 from typing import Dict, Any, List, Optional
 from config.settings import Settings
 
-from src.logging_config import get_logger
+from config.logging_config import get_logger
 
 logger = get_logger("audio_bot.usecase")
 
@@ -82,8 +82,33 @@ class AudioPipelineUseCase(BasePipelineUseCase):
             if wordpress_url:
                 enriched_article["wp_url"] = wordpress_url
                 logger.info(f"[4/8] Publicado en WordPress en {time.time() - step_start:.1f}s: {wordpress_url}")
+
+                # Replace placeholder URL in tweet with actual WordPress URL
+                if tweet and enriched_article.get("url"):
+                    placeholder_url = enriched_article.get("url", "")
+                    if placeholder_url in tweet:
+                        tweet = tweet.replace(placeholder_url, wordpress_url)
+                    elif "nbes.blog" in tweet:
+                        # Replace any nbes.blog URL with the actual one
+                        import re
+                        tweet = re.sub(r"https?://nbes\.blog/\S+", wordpress_url, tweet)
+                    # Append URL if not present
+                    if wordpress_url not in tweet:
+                        tweet = f"{tweet}\n\nMás info: {wordpress_url}"
+                        # Ensure it fits within limits
+                        if len(tweet) > Settings.POST_LIMITS["x"]:
+                            tweet = tweet[: Settings.POST_LIMITS["x"] - Settings.TWEET_TRUNCATION_BUFFER] + "..."
+                    tweets = [tweet]  # Update tweets list with corrected tweet
             else:
-                logger.warning(f"[4/8] No se obtuvo URL de WordPress")
+                logger.warning(f"[4/8] No se obtuvo URL de WordPress — usando URL fallback")
+                # Fallback: use original audio URL or placeholder article URL
+                fallback_url = enriched_article.get("url") or enriched_article.get("original_url") or url
+                if fallback_url and fallback_url not in tweet:
+                    tweet = f"{tweet}\n\nMás: {fallback_url}"
+                    if len(tweet) > Settings.POST_LIMITS["x"]:
+                        tweet = tweet[: Settings.POST_LIMITS["x"] - Settings.TWEET_TRUNCATION_BUFFER] + "..."
+                    tweets = [tweet]
+                    logger.info(f"[4/8] Tweet con URL fallback: {fallback_url}")
         else:
             logger.info("[4/8] WordPress omitido (no-publish mode)")
 

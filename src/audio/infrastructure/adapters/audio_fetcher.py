@@ -6,7 +6,7 @@ import subprocess
 import json
 from typing import Optional, Dict, Any
 
-from src.logging_config import get_logger
+from config.logging_config import get_logger
 
 logger = get_logger("audio_bot.infra.fetcher")
 

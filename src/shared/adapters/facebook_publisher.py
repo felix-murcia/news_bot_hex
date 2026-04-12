@@ -6,11 +6,11 @@ from datetime import datetime
 from typing import List, Dict, Optional
 
 from config.settings import Settings
-from src.logging_config import get_logger
+from config.logging_config import get_logger
 
 logger = get_logger("news_bot")
 
-load_dotenv()
+load_dotenv(override=True)
 
 # Use Settings for all configuration
 PAGE_ID = Settings.FACEBOOK_PAGE_ID

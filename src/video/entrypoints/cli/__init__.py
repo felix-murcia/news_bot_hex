@@ -1,4 +1,4 @@
-from src.logging_config import setup_logging, get_logger
+from config.logging_config import setup_logging, get_logger
 setup_logging()
 logger = get_logger("video_bot")
 from src.video.infrastructure.adapters.video_fetcher import VideoFetcher, download_video

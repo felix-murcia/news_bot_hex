@@ -61,6 +61,7 @@ class ArticleFromContentAgent:
         self,
         content: str,
         tema: str = "General",
+        web_context: str = "",
         temperature: float = 0.3,
         max_tokens: int = 4096,
         **kwargs,
@@ -71,6 +72,7 @@ class ArticleFromContentAgent:
         Args:
             content: Contenido base (transcripción, texto, etc.).
             tema: Tema o categoría del artículo.
+            web_context: Contexto adicional obtenido de búsqueda web (opcional).
             temperature: Temperatura de generación (0.0-1.0).
             max_tokens: Máximo número de tokens.
             **kwargs: Argumentos adicionales pasados al adapter.
@@ -81,6 +83,9 @@ class ArticleFromContentAgent:
         logger.info(f"[ARTICLE_FROM_CONTENT] Generating from {self.source_type}: {tema}")
 
         full_prompt = f"{self.prompt}\n\nContenido:\n{content}\n\nTema: {tema}"
+
+        if web_context:
+            full_prompt += f"\n\nContexto adicional de búsqueda web:\n{web_context}"
 
         result = self.ai_client.generate(
             prompt=full_prompt,

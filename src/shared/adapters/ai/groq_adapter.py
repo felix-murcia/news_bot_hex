@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 from src.shared.utils.retry import retry_with_backoff
 from config.settings import Settings
 
-load_dotenv()
+load_dotenv(override=True)
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ class GroqAdapter:
             validate_on_init: If True, validates API key on initialization
         """
         self.config = config or {}
-        self.api_key = os.getenv("GROQ_API_KEY")
+        self.api_key = Settings.GROQ_API_KEY
         self.api_url = self.config.get(
             "api_url", Settings.GROQ_API_URL
         )

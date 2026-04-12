@@ -14,9 +14,9 @@ import requests
 from dotenv import load_dotenv
 
 from config.settings import Settings
-from src.logging_config import get_logger
+from config.logging_config import get_logger
 
-load_dotenv()
+load_dotenv(override=True)
 
 logger = get_logger("audio_bot.infra.transcriber")
 

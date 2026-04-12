@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional
 
 from config.settings import Settings
 from src.news.domain.ports import ContentExtractor
-from src.logging_config import get_logger
+from config.logging_config import get_logger
 
 logger = get_logger("news_bot.usecase.news_to_news")
 

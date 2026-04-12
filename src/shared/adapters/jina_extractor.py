@@ -1,7 +1,7 @@
 import requests
 import time
 from typing import Tuple, Optional
-from src.logging_config import get_logger
+from config.logging_config import get_logger
 
 logger = get_logger("news_bot")
 

@@ -6,8 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
-from config.settings import Settings
-from src.logging_config import get_logger
+from config.logging_config import get_logger
 
 logger = get_logger("video_bot.api.router")
 
@@ -19,8 +18,15 @@ router = APIRouter()
 # ============================================================
 class VideoRequest(BaseModel):
     url: str
-    model: str = Settings.AI_PROVIDER
+    provider: str | None = None
     tema: str = "Noticias"
+
+    def get_model_provider(self) -> str:
+        """Resolve model provider at runtime (not import time)."""
+        if self.provider:
+            return self.provider
+        from config.settings import Settings
+        return Settings.AI_PROVIDER
 
 
 class PipelineResponse(BaseModel):
@@ -38,7 +44,8 @@ def video_process(req: VideoRequest):
     try:
         from src.video.application.usecases.video_to_news import process_video_url
 
-        result = process_video_url(url=req.url, model_provider=req.model, use_ai=True)
+        model_provider = req.get_model_provider()
+        result = process_video_url(url=req.url, model_provider=model_provider, use_ai=True)
         return PipelineResponse(
             status="ok",
             message="Video processed successfully",
@@ -50,4 +57,32 @@ def video_process(req: VideoRequest):
         )
     except Exception as e:
         logger.error(f"Error processing video: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class PipelineRequest(BaseModel):
+    url: str
+    tema: str
+    no_publish: bool = False
+
+
+@router.post("/pipeline", response_model=PipelineResponse)
+def video_pipeline(req: PipelineRequest):
+    """Execute the complete video pipeline: fetch → transcribe → article → publish."""
+    try:
+        from src.video.application.usecases.video_pipeline import VideoPipelineUseCase
+
+        usecase = VideoPipelineUseCase(no_publish=req.no_publish)
+        result = usecase.run(url=req.url, tema=req.tema)
+
+        return PipelineResponse(
+            status="ok",
+            message="Video pipeline executed successfully",
+            data={
+                "wordpress_url": result.get("wordpress_url", "N/A"),
+                "social_platforms": len(result.get("social_results", [])),
+            },
+        )
+    except Exception as e:
+        logger.error(f"Error executing video pipeline: {e}")
         raise HTTPException(status_code=500, detail=str(e))

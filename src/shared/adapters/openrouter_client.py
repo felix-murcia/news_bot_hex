@@ -3,9 +3,9 @@ import requests
 from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 from config.settings import Settings
-from src.logging_config import get_logger
+from config.logging_config import get_logger
 
-load_dotenv()
+load_dotenv(override=True)
 
 logger = get_logger("news_bot")
 
@@ -26,7 +26,7 @@ class OpenRouterClient:
 
     def __init__(self, config: dict):
         self.config = config
-        self.api_key = os.getenv("OPENROUTER_API_KEY")
+        self.api_key = Settings.API_KEYS.get("openrouter", "")
 
         if not self.api_key:
             logger.warning("[OPENROUTER] API key not found in environment")

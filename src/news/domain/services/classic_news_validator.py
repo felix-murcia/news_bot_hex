@@ -9,7 +9,7 @@ import re
 import string
 from typing import Tuple, Optional, List
 from config.settings import Settings
-from src.logging_config import get_logger
+from config.logging_config import get_logger
 
 logger = get_logger("news_bot.validator")
 

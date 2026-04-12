@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Dict, Any
 
 from config.settings import Settings
-from src.logging_config import get_logger
+from config.logging_config import get_logger
 
 logger = get_logger("video_bot.usecase.article_from_video")
 
@@ -61,24 +61,69 @@ class ArticleFromVideoUseCase:
         """Genera artículo desde transcripción de video usando agentes centralizados."""
         from src.shared.adapters.ai.agents import ArticleFromContentAgent
         from src.shared.adapters.translator import translate_text
+        from src.shared.adapters.web_search import enriquecer_con_contexto
 
         transcerpt_es = translate_text(transcript[:10000], target_lang="es")
+
+        # Enriquecer con búsqueda web si está disponible
+        web_context = enriquecer_con_contexto(transcript, tema)
+        if web_context:
+            logger.info(f"[ARTICLE_VIDEO] Contexto web añadido: {len(web_context)} chars")
 
         model = self._get_ai_model()
         agent = ArticleFromContentAgent(model, source_type="video")
 
-        content = agent.generate(transcript[:10000], tema=tema)
+        content = agent.generate(transcript[:10000], tema=tema, web_context=web_context)
 
         title_match = re.search(r"<h1>(.*?)</h1>", content, re.DOTALL)
         title = title_match.group(1).strip() if title_match else f"Video: {tema}"
 
         return self._build_article_response(content, title, url, tema)
 
+    def _generate_unique_slug(self, title: str, content: str, tema: str) -> str:
+        """Generate a unique, SEO-friendly slug from title and content."""
+        # Extract first 150 chars of content for additional keywords
+        text_only = re.sub(r"<[^>]+>", " ", content)[:150]
+        
+        # Combine title and content snippet
+        combined = f"{title} {text_only}".lower()
+        
+        # Remove common generic prefixes like "video:", "audio:", etc.
+        combined = re.sub(r"^(video|audio|podcast|noticia)[:\s]+", "", combined)
+        
+        # Extract meaningful words (3+ chars, no stopwords)
+        stopwords_es = {
+            "el", "la", "los", "las", "un", "una", "de", "del", "en", "y", "o",
+            "que", "es", "son", "ser", "por", "para", "con", "sin", "se", "su",
+            "sus", "al", "lo", "le", "les", "como", "más", "pero", "este", "esta",
+            "todo", "todos", "ya", "muy", "también", "no", "si", "cuando", "donde",
+            "the", "and", "for", "are", "but", "not", "you", "all", "can", "had",
+            "her", "was", "one", "our", "out", "has", "have", "been", "from",
+        }
+        
+        words = re.findall(r'[a-záéíóúñü]{4,}', combined)
+        meaningful = [w for w in words if w not in stopwords_es]
+        
+        # Take first 5-6 meaningful words for slug
+        slug_words = meaningful[:6] if len(meaningful) >= 5 else meaningful[:4]
+        
+        # Fallback: use tema + first few words
+        if len(slug_words) < 3:
+            slug_words = [slugify(tema)] + words[:4]
+        
+        slug = "-".join(slug_words)[:80]  # Max 80 chars for SEO
+        
+        # Ensure slug is clean
+        slug = re.sub(r'-+', '-', slug).strip('-')
+        
+        return slug or slugify(f"{tema}-{title[:30]}")
+
     def _build_article_response(
         self, content: str, title: str, url: str, tema: str
     ) -> Dict[str, Any]:
         """Construye la respuesta del artículo."""
-        slug = slugify(title[:50])
+        # Generate a more descriptive and unique slug
+        slug = self._generate_unique_slug(title, content, tema)
 
         content_clean = content
         content_clean = re.sub(r"^```html\s*", "", content_clean, flags=re.MULTILINE)

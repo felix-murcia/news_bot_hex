@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from config.settings import Settings
 
-from src.logging_config import setup_logging, get_logger
+from config.logging_config import setup_logging, get_logger
 setup_logging()
 logger = get_logger("audio_bot")
 
@@ -44,6 +44,33 @@ class AudioToNewsUseCase:
         self.model_provider = model_provider
         self.ai_config = ai_config or {}
         self.ai_model = ai_model
+
+    def _generate_unique_slug(self, title: str, content: str, tema: str) -> str:
+        """Generate a unique, SEO-friendly slug from title and content."""
+        text_only = re.sub(r"<[^>]+>", " ", content)[:150]
+        combined = f"{title} {text_only}".lower()
+        combined = re.sub(r"^(video|audio|podcast|noticia)[:\s]+", "", combined)
+        
+        stopwords_es = {
+            "el", "la", "los", "las", "un", "una", "de", "del", "en", "y", "o",
+            "que", "es", "son", "ser", "por", "para", "con", "sin", "se", "su",
+            "sus", "al", "lo", "le", "les", "como", "más", "pero", "este", "esta",
+            "todo", "todos", "ya", "muy", "también", "no", "si", "cuando", "donde",
+            "the", "and", "for", "are", "but", "not", "you", "all", "can", "had",
+            "her", "was", "one", "our", "out", "has", "have", "been", "from",
+        }
+        
+        words = re.findall(r'[a-záéíóúñü]{4,}', combined)
+        meaningful = [w for w in words if w not in stopwords_es]
+        slug_words = meaningful[:6] if len(meaningful) >= 5 else meaningful[:4]
+        
+        if len(slug_words) < 3:
+            slug_words = [slugify(tema)] + words[:4]
+        
+        slug = "-".join(slug_words)[:80]
+        slug = re.sub(r'-+', '-', slug).strip('-')
+        
+        return slug or slugify(f"{tema}-{title[:30]}")
 
     def _get_ai_model(self):
         """Obtiene el modelo de IA (lazy loading)."""
@@ -102,7 +129,7 @@ class AudioToNewsUseCase:
             title_match = re.search(r"<h1>(.*?)</h1>", content, re.DOTALL)
             title = title_match.group(1).strip() if title_match else f"Audio: {tema}"
 
-            slug = slugify(title[:50])
+            slug = self._generate_unique_slug(title, content, tema)
 
             article = {
                 "title": title,

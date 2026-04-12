@@ -14,7 +14,7 @@ from src.news.domain.ports import (
     ScoringConfigRepository,
 )
 
-from src.logging_config import get_logger
+from config.logging_config import get_logger
 
 logger = get_logger("news_bot.infra.news_adapters")
 

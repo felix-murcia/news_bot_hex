@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional
 
 from config.settings import Settings
 from src.shared.adapters.translator import translate_text
-from src.logging_config import get_logger
+from config.logging_config import get_logger
 
 logger = get_logger("news_bot.usecase.article_from_news")
 

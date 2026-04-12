@@ -6,8 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
-from config.settings import Settings
-from src.logging_config import get_logger
+from config.logging_config import get_logger
 
 logger = get_logger("news_bot.api.router")
 
@@ -19,8 +18,15 @@ router = APIRouter()
 # ============================================================
 class ProcessUrlRequest(BaseModel):
     url: str
-    model: str = Settings.AI_PROVIDER
+    provider: str | None = None
     use_ai: bool = True
+
+    def get_model_provider(self) -> str:
+        """Resolve model provider at runtime (not import time)."""
+        if self.provider:
+            return self.provider
+        from config.settings import Settings
+        return Settings.AI_PROVIDER
 
 
 class PipelineResponse(BaseModel):
@@ -39,10 +45,11 @@ def news_process_url(req: ProcessUrlRequest):
         from src.news.application.usecases.news_to_news import process_news_url
         from src.news.infrastructure.adapters import JinaContentExtractor
 
+        model_provider = req.get_model_provider()
         result = process_news_url(
             url=req.url,
             content_extractor=JinaContentExtractor(),
-            model_provider=req.model,
+            model_provider=model_provider,
             use_ai=req.use_ai,
         )
         return PipelineResponse(
@@ -103,12 +110,14 @@ def news_soft():
 
 
 @router.post("/article", response_model=PipelineResponse)
-def news_article(model: str = Settings.AI_PROVIDER, limit: int = 1):
+def news_article(provider: str | None = None, limit: int = 1):
     """Generate professional articles from verified news."""
     try:
         from src.news.application.usecases.article import run
+        from config.settings import Settings
 
-        results = run(limit=limit, use_gemini=True, model_provider=model)
+        model_provider = provider or Settings.AI_PROVIDER
+        results = run(limit=limit, use_gemini=True, model_provider=model_provider)
         return PipelineResponse(
             status="ok",
             message=f"Generated {len(results)} article(s)",
@@ -120,12 +129,14 @@ def news_article(model: str = Settings.AI_PROVIDER, limit: int = 1):
 
 
 @router.post("/content", response_model=PipelineResponse)
-def news_content(network: str = "bluesky", model: str = Settings.AI_PROVIDER):
+def news_content(network: str = "bluesky", provider: str | None = None):
     """Generate social media posts (tweets) from verified news."""
     try:
         from src.news.application.usecases.content import run_content
+        from config.settings import Settings
 
-        results = run_content(network=network, use_gemini=True, model_provider=model)
+        model_provider = provider or Settings.AI_PROVIDER
+        results = run_content(network=network, use_gemini=True, model_provider=model_provider)
         return PipelineResponse(
             status="ok",
             message=f"Generated {len(results)} post(s)",

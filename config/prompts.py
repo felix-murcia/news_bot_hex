@@ -4,12 +4,12 @@ import re
 from dotenv import load_dotenv
 from bs4 import BeautifulSoup
 import html
-from modules.logging.logging_config import setup_logging
+from .logging_config import setup_logging
 
 logger = setup_logging("news_bot")
 
 # Cargar variables desde .env
-load_dotenv()
+load_dotenv(override=True)
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 

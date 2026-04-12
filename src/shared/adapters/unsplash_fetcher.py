@@ -5,11 +5,11 @@ import re
 from dotenv import load_dotenv
 
 from config.settings import Settings
-from src.logging_config import get_logger
+from config.logging_config import get_logger
 
 logger = get_logger("news_bot")
 
-load_dotenv()
+load_dotenv(override=True)
 
 UNSPLASH_ACCESS_KEY = Settings.UNSPLASH_ACCESS_KEY
 if not UNSPLASH_ACCESS_KEY:

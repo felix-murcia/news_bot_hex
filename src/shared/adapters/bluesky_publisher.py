@@ -7,13 +7,14 @@ from atproto import Client, models
 from dotenv import load_dotenv
 from typing import List, Dict, Optional
 import regex
-from src.logging_config import get_logger
+from config.settings import Settings
+from config.logging_config import get_logger
 
 logger = get_logger("news_bot")
 
-load_dotenv()
-HANDLE = os.getenv("BLUESKY_HANDLE")
-PASSWORD = os.getenv("BLUESKY_PASSWORD")
+load_dotenv(override=True)
+HANDLE = Settings.BLUESKY_HANDLE
+PASSWORD = Settings.BLUESKY_APP_PASSWORD
 
 POST_LIMITS = {
     "bluesky": 300,

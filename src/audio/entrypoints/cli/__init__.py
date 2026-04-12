@@ -1,4 +1,4 @@
-from src.logging_config import setup_logging, get_logger
+from config.logging_config import setup_logging, get_logger
 setup_logging()
 logger = get_logger("audio_bot")
 from src.audio.infrastructure.adapters.audio_fetcher import AudioFetcher, download_audio

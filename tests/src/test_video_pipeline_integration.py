@@ -98,10 +98,10 @@ class TestVideoPipelinePorts:
         assert VideoTranscriber is not None
 
     def test_video_domain_imports(self):
-        """Test video domain can be imported."""
-        from src.video import domain
+        """Test video application modules can be imported."""
+        from src.video.application import usecases
 
-        assert domain is not None
+        assert usecases is not None
 
 
 class TestVideoAIProviders:

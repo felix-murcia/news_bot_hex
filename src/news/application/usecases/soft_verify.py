@@ -12,7 +12,7 @@ from src.shared.adapters.cache_manager import (
     clear_old_cache,
 )
 
-from src.logging_config import get_logger
+from config.logging_config import get_logger
 
 logger = get_logger("news_bot.usecase.soft_verify")
 
