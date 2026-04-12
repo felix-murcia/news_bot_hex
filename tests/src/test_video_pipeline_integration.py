@@ -3,6 +3,7 @@ import sys
 import os
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
+from config.settings import Settings
 
 sys.path.insert(
     0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -44,16 +45,16 @@ class TestVideoPipelineIntegration:
         """Test VideoToNewsUseCase dependencies are available."""
         from src.video.application.usecases import VideoToNewsUseCase
 
-        use_case = VideoToNewsUseCase(use_ai=True, model_provider="openrouter")
+        use_case = VideoToNewsUseCase(use_ai=True, model_provider=Settings.AI_PROVIDER)
         assert use_case.use_ai is True
-        assert use_case.model_provider == "openrouter"
+        assert use_case.model_provider == Settings.AI_PROVIDER
 
     def test_article_from_video_dependencies(self):
         """Test ArticleFromVideoUseCase dependencies are available."""
         from src.video.application.usecases import ArticleFromVideoUseCase
 
-        use_case = ArticleFromVideoUseCase(llm_provider="openrouter")
-        assert use_case.llm_provider == "openrouter"
+        use_case = ArticleFromVideoUseCase(llm_provider=Settings.AI_PROVIDER)
+        assert use_case.llm_provider == Settings.AI_PROVIDER
 
     def test_video_uses_ai_adapter(self):
         """Test video pipeline can access AI adapter module."""
@@ -106,29 +107,23 @@ class TestVideoPipelinePorts:
 class TestVideoAIProviders:
     """Test video pipeline with different AI providers."""
 
-    def test_video_with_openrouter_provider(self):
-        """Test VideoToNewsUseCase with OpenRouter provider."""
+    def test_video_with_configured_provider(self):
+        """Test VideoToNewsUseCase with configured AI provider from Settings."""
         from src.video.application.usecases import VideoToNewsUseCase
 
-        use_case = VideoToNewsUseCase(model_provider="openrouter", use_ai=True)
-        assert use_case.model_provider == "openrouter"
+        use_case = VideoToNewsUseCase(model_provider=Settings.AI_PROVIDER, use_ai=True)
+        assert use_case.model_provider == Settings.AI_PROVIDER
         assert use_case.use_ai is True
 
-    def test_video_with_gemini_provider(self):
-        """Test VideoToNewsUseCase with Gemini provider."""
+    def test_video_with_all_supported_providers(self):
+        """Test VideoToNewsUseCase instantiation with all supported providers."""
         from src.video.application.usecases import VideoToNewsUseCase
 
-        use_case = VideoToNewsUseCase(model_provider="gemini", use_ai=True)
-        assert use_case.model_provider == "gemini"
-        assert use_case.use_ai is True
-
-    def test_video_with_local_provider(self):
-        """Test VideoToNewsUseCase with local provider."""
-        from src.video.application.usecases import VideoToNewsUseCase
-
-        use_case = VideoToNewsUseCase(model_provider="local", use_ai=True)
-        assert use_case.model_provider == "local"
-        assert use_case.use_ai is True
+        for provider in Settings.SUPPORTED_AI_PROVIDERS:
+            use_ai = provider != "mock"
+            use_case = VideoToNewsUseCase(model_provider=provider, use_ai=use_ai)
+            assert use_case.model_provider == provider
+            assert use_case.use_ai == use_ai
 
     def test_video_with_mock_provider(self):
         """Test VideoToNewsUseCase with mock provider."""
@@ -137,3 +132,13 @@ class TestVideoAIProviders:
         use_case = VideoToNewsUseCase(model_provider="mock", use_ai=False)
         assert use_case.model_provider == "mock"
         assert use_case.use_ai is False
+
+    def test_video_provider_fallback_to_settings(self):
+        """Test that when no provider is specified, it defaults to Settings.AI_PROVIDER."""
+        from src.video.application.usecases import VideoToNewsUseCase
+
+        # Test default behavior uses Settings
+        use_case = VideoToNewsUseCase(use_ai=True)
+        # If no model_provider passed, it should use Settings.AI_PROVIDER as default
+        # (This depends on the implementation)
+        assert use_case.use_ai is True

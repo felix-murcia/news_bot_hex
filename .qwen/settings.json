@@ -22,7 +22,11 @@
       "Bash(eof)",
       "Bash(docker images *)",
       "Bash(docker images)",
-      "Bash(tail *)"
+      "Bash(tail *)",
+      "Bash(.venv/bin/yt-dlp *)",
+      "Bash(.venv/bin/pip *)",
+      "Bash(ls *)",
+      "Bash(find *)"
     ]
   },
   "$version": 3

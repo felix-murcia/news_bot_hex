@@ -5,6 +5,7 @@ from src.video.infrastructure.adapters.video_fetcher import VideoFetcher, downlo
 from src.video.application.usecases.video_to_news import process_video_url
 from src.video.application.usecases.article_from_video import run_from_video
 from src.video.application.usecases.video_pipeline import VideoPipelineUseCase
+from config.settings import Settings
 
 
 def main_fetch():
@@ -71,12 +72,12 @@ def main_article_from_video():
 
     if len(sys.argv) < 3:
         print(
-            "Uso: python -m src.video.entrypoints.cli article <transcript_file> [--llm gemini|openrouter]"
+            f"Uso: python -m src.video.entrypoints.cli article <transcript_file> [--llm {'|'.join(Settings.SUPPORTED_AI_PROVIDERS)}]"
         )
         return
 
     transcript_file = sys.argv[2]
-    llm_provider = "openrouter"
+    llm_provider = Settings.AI_PROVIDER
 
     for i, arg in enumerate(sys.argv[3:]):
         if arg == "--llm" and i + 3 < len(sys.argv):
@@ -141,7 +142,7 @@ def main_full_pipeline():
         return
 
     url = sys.argv[2]
-    llm_provider = "openrouter"
+    llm_provider = Settings.AI_PROVIDER
 
     for i, arg in enumerate(sys.argv):
         if arg == "--llm" and i + 1 < len(sys.argv):
@@ -220,7 +221,7 @@ def main_pipeline():
         return
 
     url = sys.argv[2]
-    llm_provider = "openrouter"
+    llm_provider = Settings.AI_PROVIDER
 
     for i, arg in enumerate(sys.argv):
         if arg == "--llm" and i + 1 < len(sys.argv):

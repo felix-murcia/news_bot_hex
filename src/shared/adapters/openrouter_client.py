@@ -2,17 +2,18 @@ import os
 import requests
 from typing import Optional, Dict, Any
 from dotenv import load_dotenv
+from config.settings import Settings
 from src.logging_config import get_logger
 
 load_dotenv()
 
 logger = get_logger("news_bot")
 
-DEFAULT_MODEL = "openrouter/free"
-DEFAULT_TEMPERATURE = 0.3
-DEFAULT_MAX_TOKENS = 2048
-REFERER = "http://nbes.blog"
-APP_TITLE = "nbes.blog"
+DEFAULT_MODEL = Settings.OPENROUTER_MODEL
+DEFAULT_TEMPERATURE = Settings.MODEL_PARAMS_CONTENT["temperature"]
+DEFAULT_MAX_TOKENS = Settings.MODEL_PARAMS_CONTENT.get("max_tokens", 2048)
+REFERER = Settings.OPENROUTER_REFERER
+APP_TITLE = Settings.OPENROUTER_APP_TITLE
 
 
 def get_openrouter_client(config: Optional[dict] = None) -> "OpenRouterClient":

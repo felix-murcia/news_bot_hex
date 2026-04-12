@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+from config.settings import Settings
 from src.logging_config import setup_logging, get_logger
 setup_logging()
 logger = get_logger("video_bot")
@@ -26,8 +27,7 @@ def slugify(text: str) -> str:
 
 def check_copyright(url: str) -> bool:
     """Verifica riesgo de copyright."""
-    copyright_domains = ["youtube.com", "youtu.be", "tiktok.com", "instagram.com"]
-    return any(domain in url.lower() for domain in copyright_domains)
+    return any(domain in url.lower() for domain in Settings.VIDEO_COPYRIGHT_DOMAINS)
 
 
 def validate_video(video_path: Path) -> bool:
@@ -53,7 +53,7 @@ class VideoToNewsUseCase:
     def __init__(
         self,
         use_ai: bool = True,
-        model_provider: str = "openrouter",
+        model_provider: str = Settings.AI_PROVIDER,
         ai_config: dict = None,
         ai_model=None,
     ):
@@ -84,9 +84,10 @@ class VideoToNewsUseCase:
 
         if not video_path.exists():
             logger.info(f"[VIDEO] Descargando video: {url}")
-            video_path = download_video(url)
-            if not video_path:
+            downloaded_path = download_video(url)
+            if not downloaded_path:
                 raise ValueError(f"No se pudo descargar el video: {url}")
+            video_path = Path(downloaded_path)
 
         if not validate_video(video_path):
             raise ValueError(
@@ -164,8 +165,8 @@ class VideoToNewsUseCase:
         agent = TweetAgent(model)
         tweet = agent.generate(f"Video: {title[:100]}")
 
-        if len(tweet) > 280:
-            tweet = tweet[:277] + "..."
+        if len(tweet) > Settings.POST_LIMITS["x"]:
+            tweet = tweet[: Settings.POST_LIMITS["x"] - Settings.TWEET_TRUNCATION_BUFFER] + "..."
         tweet = tweet.strip()
 
         if not tweet:
@@ -236,7 +237,7 @@ class VideoToNewsUseCase:
 
 def process_video_url(
     url: str,
-    model_provider: str = "openrouter",
+    model_provider: str = Settings.AI_PROVIDER,
     use_ai: bool = True,
     ai_config: dict = None,
 ) -> Dict[str, Any]:
@@ -257,8 +258,8 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        default="openrouter",
-        choices=["gemini", "openrouter", "local", "mock"],
+        default=Settings.AI_PROVIDER,
+        choices=Settings.SUPPORTED_AI_PROVIDERS,
         help="Modelo de IA a usar",
     )
     parser.add_argument("--local", action="store_true", help="Usar solo modelo local")

@@ -109,7 +109,7 @@ GEMINI_RETRY_ATTEMPTS=2
 
 #### Local Model
 ```env
-LOCAL_MODEL_PATH=/path/to/models/Llama-3.2-8B-Instruct-Q4_K_M.gguf
+LOCAL_MODEL_PATH=/path/to/models/qwen2-7b-q4_k_m.gguf
 LOCAL_MODEL_N_CTX=3072
 LOCAL_MODEL_N_GPU_LAYERS=26
 LOCAL_MODEL_N_BATCH=64

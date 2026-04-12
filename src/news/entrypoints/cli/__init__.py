@@ -1,4 +1,5 @@
 from src.logging_config import setup_logging, get_logger
+from config.settings import Settings
 
 setup_logging()
 logger = get_logger("news_bot.pipeline")
@@ -158,8 +159,8 @@ def main_provider():
     parser.add_argument(
         "--model",
         type=str,
-        default="openrouter",
-        choices=["gemini", "openrouter", "local", "mock"],
+        default=Settings.AI_PROVIDER,
+        choices=Settings.SUPPORTED_AI_PROVIDERS,
         help="Modelo de IA a usar",
     )
 

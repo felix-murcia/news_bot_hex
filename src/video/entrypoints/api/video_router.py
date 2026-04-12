@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
+from config.settings import Settings
 from src.logging_config import get_logger
 
 logger = get_logger("video_bot.api.router")
@@ -18,8 +19,8 @@ router = APIRouter()
 # ============================================================
 class VideoRequest(BaseModel):
     url: str
-    model: str = "openrouter"
-    tema: str = "Videos"
+    model: str = Settings.AI_PROVIDER
+    tema: str = "Noticias"
 
 
 class PipelineResponse(BaseModel):

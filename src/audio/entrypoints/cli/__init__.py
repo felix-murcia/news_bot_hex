@@ -4,6 +4,7 @@ logger = get_logger("audio_bot")
 from src.audio.infrastructure.adapters.audio_fetcher import AudioFetcher, download_audio
 from src.audio.application.usecases.audio_to_news import process_audio_url
 from src.audio.application.usecases.article_from_audio import run_from_audio
+from config.settings import Settings
 
 
 def main_fetch():
@@ -55,8 +56,8 @@ def main_article_from_audio():
     parser.add_argument(
         "--model",
         type=str,
-        default="openrouter",
-        choices=["gemini", "openrouter", "local", "mock"],
+        default=Settings.AI_PROVIDER,
+        choices=Settings.SUPPORTED_AI_PROVIDERS,
         help="Modelo de IA a usar",
     )
 
@@ -92,9 +93,9 @@ if __name__ == "__main__":
             main_article_from_audio()
         else:
             print(
-                "Usage: python -m src.audio.entrypoints.cli [fetch|process|article] [--model gemini|openrouter|local|mock] <args>"
+                f"Usage: python -m src.audio.entrypoints.cli [fetch|process|article] [--model {'|'.join(Settings.SUPPORTED_AI_PROVIDERS)}] <args>"
             )
     else:
         print(
-            "Usage: python -m src.audio.entrypoints.cli [fetch|process|article] [--model gemini|openrouter|local|mock] <args>"
+            f"Usage: python -m src.audio.entrypoints.cli [fetch|process|article] [--model {'|'.join(Settings.SUPPORTED_AI_PROVIDERS)}] <args>"
         )

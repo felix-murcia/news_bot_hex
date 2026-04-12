@@ -62,13 +62,28 @@ class Settings:
 
     # === Social Media Limits ===
     POST_LIMITS: Dict[str, int] = {
-        "x": int(os.getenv("X_POST_LIMIT", "260")),
+        "x": int(os.getenv("X_POST_LIMIT", "280")),
+        "twitter": int(os.getenv("TWITTER_POST_LIMIT", "280")),
         "bluesky": int(os.getenv("BLUESKY_POST_LIMIT", "250")),
-        "mastodon": int(os.getenv("MASTODON_POST_LIMIT", "450")),
+        "mastodon": int(os.getenv("MASTODON_POST_LIMIT", "500")),
+        "facebook": int(os.getenv("FACEBOOK_POST_LIMIT", "63206")),
     }
+    
+    # Tweet truncation buffer (chars to reserve for URL/hashtags)
+    TWEET_TRUNCATION_BUFFER = int(os.getenv("TWEET_TRUNCATION_BUFFER", "3"))
 
     # === AI Model Configuration ===
-    AI_PROVIDER = os.getenv("AI_PROVIDER", "openrouter").lower()
+    AI_PROVIDER = os.getenv("AI_PROVIDER", "local").lower()
+    SUPPORTED_AI_PROVIDERS = ["openrouter", "gemini", "local", "mock"]
+    
+    AI_ADAPTER_MAP = {
+        "gemini": "src.shared.adapters.ai.gemini_adapter.GeminiAdapter",
+        "openrouter": "src.shared.adapters.ai.openrouter_adapter.OpenRouterAdapter",
+        "local": "src.shared.adapters.ai.local_adapter.LocalAdapter",
+        "mock": "src.shared.adapters.ai.local_adapter.MockAdapter",
+        "groq": "src.shared.adapters.ai.groq_adapter.GroqAdapter",
+    }
+    
     GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
     OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openrouter/free")
     OPENROUTER_API_URL = os.getenv("OPENROUTER_API_URL", "https://openrouter.ai/api/v1/chat/completions")
@@ -83,7 +98,7 @@ class Settings:
     GROQ_TRANSCRIBE_MODEL = os.getenv("GROQ_TRANSCRIBE_MODEL", "whisper-large-v3-turbo")
 
     # === Local Model Configuration ===
-    LOCAL_MODEL_PATH = os.getenv("LOCAL_MODEL_PATH", str(BASE_DIR / "models" / "Llama-3.2-8B-Instruct-Q4_K_M.gguf"))
+    LOCAL_MODEL_PATH = MODELS_DIR / os.getenv("LOCAL_MODEL", "qwen2-7b-q4_k_m.gguf")
     LOCAL_MODEL_N_CTX = int(os.getenv("LOCAL_MODEL_N_CTX", "3072"))
     LOCAL_MODEL_N_GPU_LAYERS = int(os.getenv("LOCAL_MODEL_N_GPU_LAYERS", "26"))
     LOCAL_MODEL_N_BATCH = int(os.getenv("LOCAL_MODEL_N_BATCH", "64"))

@@ -38,7 +38,7 @@ class ArticleFromVideoUseCase:
 
     def __init__(
         self,
-        llm_provider: str = "openrouter",
+        llm_provider: str = Settings.AI_PROVIDER,
         llm_config: dict = None,
     ):
         self.llm_provider = llm_provider
@@ -133,15 +133,15 @@ class ArticleFromVideoUseCase:
             context=context[:200],
         )
 
-        tweet = tweet.strip()[:280]
+        tweet = tweet.strip()[: Settings.POST_LIMITS["x"]]
 
         # Limpieza de patrones no deseados
         tweet = re.sub(r"\[HASHTAGS\]", "", tweet, flags=re.IGNORECASE)
         tweet = re.sub(r"^\s*#\w+\s*$", "", tweet, flags=re.MULTILINE)
         tweet = tweet.strip()
 
-        if len(tweet) > 280:
-            tweet = tweet[:277] + "..."
+        if len(tweet) > Settings.POST_LIMITS["x"]:
+            tweet = tweet[: Settings.POST_LIMITS["x"] - Settings.TWEET_TRUNCATION_BUFFER] + "..."
 
         if not tweet:
             logger.error(
@@ -159,7 +159,7 @@ def run_from_video(
     transcript: str,
     url: str = "",
     tema: str = "Videos",
-    llm_provider: str = "openrouter",
+    llm_provider: str = Settings.AI_PROVIDER,
     llm_config: Dict = None,
 ) -> Dict[str, Any]:
     """Función principal."""
@@ -186,8 +186,8 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        default="openrouter",
-        choices=["gemini", "openrouter", "local", "mock"],
+        default=Settings.AI_PROVIDER,
+        choices=Settings.SUPPORTED_AI_PROVIDERS,
         help="Modelo de IA a usar",
     )
 

@@ -27,7 +27,7 @@ class TweetAgent:
         from src.shared.adapters.ai.ai_factory import get_ai_adapter
         from src.shared.adapters.ai.agents.tweet_agent import TweetAgent
 
-        ai = get_ai_adapter(provider="openrouter")
+        ai = get_ai_adapter(provider=Settings.AI_PROVIDER)
         agent = TweetAgent(ai)
         tweet = agent.generate("Noticia sobre inflación")
     """

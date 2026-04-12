@@ -37,7 +37,7 @@ class ArticleFromAudioUseCase:
         use_gemini: bool = True,
         gemini_config: Optional[Dict] = None,
         ai_model=None,
-        model_provider: str = "openrouter",
+        model_provider: str = Settings.AI_PROVIDER,
     ):
         self.use_gemini = use_gemini
         self.gemini_config = gemini_config or {}
@@ -119,8 +119,8 @@ class ArticleFromAudioUseCase:
         tweet = f"🎙️ {title[:200]}\n\n#{tema.replace(' ', '')}"
         if url:
             tweet = f"{tweet}\n{url}"
-        if len(tweet) > 280:
-            tweet = tweet[:277] + "..."
+        if len(tweet) > Settings.POST_LIMITS["x"]:
+            tweet = tweet[: Settings.POST_LIMITS["x"] - Settings.TWEET_TRUNCATION_BUFFER] + "..."
 
         parrafos = content.count("<p>")
         subtitulos = content.count("<h2>")
@@ -178,7 +178,7 @@ def run_from_audio(
     use_gemini: bool = True,
     ai_model=None,
     gemini_config: Optional[Dict] = None,
-    model_provider: str = "openrouter",
+    model_provider: str = Settings.AI_PROVIDER,
 ) -> Dict[str, Any]:
     """Función principal."""
     logger.info(f"[ARTICLE_AUDIO] Ejecutando (provider: {model_provider})")
@@ -207,8 +207,8 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        default="openrouter",
-        choices=["gemini", "openrouter", "local", "mock"],
+        default=Settings.AI_PROVIDER,
+        choices=Settings.SUPPORTED_AI_PROVIDERS,
         help="Modelo de IA a usar",
     )
 

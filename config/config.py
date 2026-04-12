@@ -5,7 +5,7 @@ from config.settings import Settings
 
 # Re-export for backward compatibility
 BASE_DIR = Settings.BASE_DIR
-MODEL_PATH = Settings.MODELS_DIR / "Llama-3.2-8B-Instruct-Q4_K_M.gguf"
+MODEL_PATH = Settings.LOCAL_MODEL_PATH
 
 MODEL_PARAMS_CONTENT = Settings.MODEL_PARAMS_CONTENT
 MODEL_PARAMS_ARTICLE = Settings.MODEL_PARAMS_ARTICLE

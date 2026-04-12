@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
+from config.settings import Settings
 from src.logging_config import get_logger
 
 logger = get_logger("news_bot.api.router")
@@ -18,7 +19,7 @@ router = APIRouter()
 # ============================================================
 class ProcessUrlRequest(BaseModel):
     url: str
-    model: str = "openrouter"
+    model: str = Settings.AI_PROVIDER
     use_ai: bool = True
 
 
@@ -102,7 +103,7 @@ def news_soft():
 
 
 @router.post("/article", response_model=PipelineResponse)
-def news_article(model: str = "openrouter", limit: int = 1):
+def news_article(model: str = Settings.AI_PROVIDER, limit: int = 1):
     """Generate professional articles from verified news."""
     try:
         from src.news.application.usecases.article import run
@@ -119,7 +120,7 @@ def news_article(model: str = "openrouter", limit: int = 1):
 
 
 @router.post("/content", response_model=PipelineResponse)
-def news_content(network: str = "bluesky", model: str = "openrouter"):
+def news_content(network: str = "bluesky", model: str = Settings.AI_PROVIDER):
     """Generate social media posts (tweets) from verified news."""
     try:
         from src.news.application.usecases.content import run_content

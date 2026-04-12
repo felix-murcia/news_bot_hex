@@ -95,8 +95,21 @@ def _send_to_groq(wav_path: str) -> str:
         )
 
     resp.raise_for_status()
-    result = resp.json()
-    text = result.get("text", "").strip()
+    
+    # When response_format="text", Groq returns plain text, not JSON
+    content_type = resp.headers.get("content-type", "")
+    try:
+        if "application/json" in content_type:
+            result = resp.json()
+            text = result.get("text", "").strip()
+        else:
+            # Plain text response
+            text = resp.text.strip()
+    except (ValueError, KeyError) as e:
+        logger.error(f"[TRANSCRIBER] Error parsing Groq response: {e}")
+        logger.debug(f"[TRANSCRIBER] Response content-type: {content_type}")
+        logger.debug(f"[TRANSCRIBER] Response body (first 500 chars): {resp.text[:500]}")
+        raise RuntimeError(f"Failed to parse Groq response: {e}")
 
     if not text:
         logger.warning("[TRANSCRIBER] Transcripción vacía")

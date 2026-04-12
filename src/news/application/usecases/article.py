@@ -106,7 +106,7 @@ class ArticleUseCase:
         use_ai: bool = True,
         ai_config: Optional[dict] = None,
         ai_model=None,
-        model_provider: str = "gemini",
+        model_provider: str = Settings.AI_PROVIDER,
     ):
         self.use_ai = use_ai
         self.ai_config = ai_config or {}
@@ -373,7 +373,7 @@ class ArticleGeminiUseCase(ArticleUseCase):
         use_gemini: bool = True,
         gemini_config: Optional[dict] = None,
         ai_model=None,
-        model_provider: str = "openrouter",
+        model_provider: str = Settings.AI_PROVIDER,
         **kwargs,
     ):
         super().__init__(
@@ -391,7 +391,7 @@ def run(
     use_gemini: bool = True,
     ai_config: Optional[dict] = None,
     mode: str = "news",
-    model_provider: str = "gemini",
+    model_provider: str = Settings.AI_PROVIDER,
 ) -> List[Dict]:
     logger.info(f"[ARTICLE] Ejecutando (provider: {model_provider})")
     use_case = ArticleUseCase(
@@ -411,8 +411,8 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        default="openrouter",
-        choices=["gemini", "openrouter", "local", "mock"],
+        default=Settings.AI_PROVIDER,
+        choices=Settings.SUPPORTED_AI_PROVIDERS,
         help="Modelo de IA a usar",
     )
 

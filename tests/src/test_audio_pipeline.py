@@ -3,6 +3,7 @@ import sys
 import os
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
+from config.settings import Settings
 
 sys.path.insert(
     0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -59,8 +60,8 @@ class TestAudioToNewsUseCase:
         """Test AudioToNewsUseCase initialization."""
         from src.audio.application.usecases import AudioToNewsUseCase
 
-        use_case = AudioToNewsUseCase(model_provider="openrouter")
-        assert use_case.model_provider == "openrouter"
+        use_case = AudioToNewsUseCase(model_provider=Settings.AI_PROVIDER)
+        assert use_case.model_provider == Settings.AI_PROVIDER
 
 
 class TestArticleFromAudioUseCase:
@@ -70,8 +71,8 @@ class TestArticleFromAudioUseCase:
         """Test ArticleFromAudioUseCase initialization."""
         from src.audio.application.usecases import ArticleFromAudioUseCase
 
-        use_case = ArticleFromAudioUseCase(model_provider="openrouter")
-        assert use_case.model_provider == "openrouter"
+        use_case = ArticleFromAudioUseCase(model_provider=Settings.AI_PROVIDER)
+        assert use_case.model_provider == Settings.AI_PROVIDER
 
 
 class TestAudioTranscriber:
@@ -96,7 +97,7 @@ class TestAudioPipeline:
         use_case = AudioToNewsUseCase(use_ai=False)
         assert use_case is not None
 
-        article_use_case = ArticleFromAudioUseCase(model_provider="openrouter")
+        article_use_case = ArticleFromAudioUseCase(model_provider=Settings.AI_PROVIDER)
         assert article_use_case is not None
 
 

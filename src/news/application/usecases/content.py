@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
+from config.settings import Settings
 from src.logging_config import get_logger
 
 logger = get_logger("news_bot.usecase.content")
@@ -27,7 +28,7 @@ class ContentUseCase:
         network: str = "bluesky",
         use_ai: bool = True,
         ai_config: Optional[dict] = None,
-        model_provider: str = "openrouter",
+        model_provider: str = Settings.AI_PROVIDER,
         ai_model=None,
         mode: str = "news",
     ):
@@ -179,7 +180,7 @@ class ContentGeminiUseCase(ContentUseCase):
         mode: str = "news",
         **kwargs,
     ):
-        model_provider = "openrouter" if use_gemini else "mock"
+        model_provider = Settings.AI_PROVIDER if use_gemini else "mock"
         super().__init__(
             network=network,
             use_ai=use_gemini,
@@ -196,7 +197,7 @@ def run_content(
     use_gemini: bool = True,
     gemini_config: Optional[Dict] = None,
     mode: str = "news",
-    model_provider: str = "openrouter",
+    model_provider: str = Settings.AI_PROVIDER,
 ) -> List[Dict]:
     """Función principal para generar tweets."""
     logger.info(f"[CONTENT] Ejecutando (provider: {model_provider}, red: {network})")
@@ -227,8 +228,8 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        default="openrouter",
-        choices=["gemini", "openrouter", "local", "mock"],
+        default=Settings.AI_PROVIDER,
+        choices=Settings.SUPPORTED_AI_PROVIDERS,
         help="Modelo de IA a usar",
     )
 

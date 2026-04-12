@@ -3,6 +3,7 @@ import sys
 import os
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
+from config.settings import Settings
 
 sys.path.insert(
     0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -27,9 +28,9 @@ class TestVideoToNewsUseCase:
         """Test VideoToNewsUseCase initialization."""
         from src.video.application.usecases import VideoToNewsUseCase
 
-        use_case = VideoToNewsUseCase(use_ai=True, model_provider="openrouter")
+        use_case = VideoToNewsUseCase(use_ai=True, model_provider=Settings.AI_PROVIDER)
         assert use_case.use_ai is True
-        assert use_case.model_provider == "openrouter"
+        assert use_case.model_provider == Settings.AI_PROVIDER
 
     def test_check_copyright(self):
         """Test copyright check function."""

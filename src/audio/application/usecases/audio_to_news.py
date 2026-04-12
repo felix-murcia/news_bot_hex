@@ -4,6 +4,7 @@ import json
 import re
 from pathlib import Path
 from typing import Dict, Any, Optional
+from config.settings import Settings
 
 from src.logging_config import setup_logging, get_logger
 setup_logging()
@@ -26,8 +27,7 @@ def slugify(text: str) -> str:
 
 def check_copyright(url: str) -> bool:
     """Verifica riesgo de copyright."""
-    copyright_domains = ["youtube.com", "youtu.be", "spotify.com", "apple.com"]
-    return any(domain in url.lower() for domain in copyright_domains)
+    return any(domain in url.lower() for domain in Settings.VIDEO_COPYRIGHT_DOMAINS)
 
 
 class AudioToNewsUseCase:
@@ -36,7 +36,7 @@ class AudioToNewsUseCase:
     def __init__(
         self,
         use_ai: bool = True,
-        model_provider: str = "openrouter",
+        model_provider: str = Settings.AI_PROVIDER,
         ai_config: Optional[dict] = None,
         ai_model=None,
     ):
@@ -149,8 +149,8 @@ class AudioToNewsUseCase:
         agent = TweetAgent(model)
         tweet = agent.generate(f"Audio/Podcast: {title[:100]}")
 
-        if len(tweet) > 280:
-            tweet = tweet[:277] + "..."
+        if len(tweet) > Settings.POST_LIMITS["x"]:
+            tweet = tweet[: Settings.POST_LIMITS["x"] - Settings.TWEET_TRUNCATION_BUFFER] + "..."
         tweet = tweet.strip()
 
         if not tweet:
@@ -216,7 +216,7 @@ class AudioToNewsUseCase:
 
 def process_audio_url(
     url: str,
-    model_provider: str = "openrouter",
+    model_provider: str = Settings.AI_PROVIDER,
     use_ai: bool = True,
     ai_config: Optional[dict] = None,
 ) -> Dict[str, Any]:
@@ -237,8 +237,8 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        default="openrouter",
-        choices=["gemini", "openrouter", "local", "mock"],
+        default=Settings.AI_PROVIDER,
+        choices=Settings.SUPPORTED_AI_PROVIDERS,
         help="Modelo de IA a usar",
     )
     parser.add_argument("--local", action="store_true", help="Usar solo modelo local")

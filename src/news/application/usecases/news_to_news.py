@@ -36,7 +36,7 @@ class NewsToNewsUseCase:
         self,
         content_extractor: ContentExtractor,
         use_ai: bool = True,
-        model_provider: str = "openrouter",
+        model_provider: str = Settings.AI_PROVIDER,
         ai_config: Optional[dict] = None,
         ai_model=None,
     ):
@@ -125,8 +125,8 @@ class NewsToNewsUseCase:
         agent = TweetGeopoliticsAgent(model)
         tweet = agent.generate(title=title, tema=tema, context=desc)
 
-        if len(tweet) > 280:
-            tweet = tweet[:277] + "..."
+        if len(tweet) > Settings.POST_LIMITS["x"]:
+            tweet = tweet[: Settings.POST_LIMITS["x"] - Settings.TWEET_TRUNCATION_BUFFER] + "..."
         tweet = tweet.strip()
 
         if not tweet:
@@ -203,7 +203,7 @@ class NewsToNewsUseCase:
 def process_news_url(
     url: str,
     content_extractor: ContentExtractor,
-    model_provider: str = "openrouter",
+    model_provider: str = Settings.AI_PROVIDER,
     use_ai: bool = True,
     ai_config: Optional[dict] = None,
 ) -> Dict[str, Any]:
@@ -230,8 +230,8 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        default="openrouter",
-        choices=["gemini", "openrouter", "local", "mock"],
+        default=Settings.AI_PROVIDER,
+        choices=Settings.SUPPORTED_AI_PROVIDERS,
         help="Modelo de IA a usar",
     )
     parser.add_argument("--local", action="store_true", help="Usar solo modelo local")

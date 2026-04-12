@@ -50,7 +50,7 @@ class ArticleFromNewsUseCase:
     def __init__(
         self,
         use_ai: bool = True,
-        model_provider: str = "openrouter",
+        model_provider: str = Settings.AI_PROVIDER,
         ai_config: Optional[dict] = None,
         ai_model=None,
     ):
@@ -204,7 +204,7 @@ Requisitos:
         url = news_item.get("url", "https://nbes.blog")
         tema = news_item.get("tema", "Noticias")
         tweet = f"📰 {title[:200]}\n\nLeer más: {url}"
-        if len(tweet) > 280:
+        if len(tweet) > Settings.POST_LIMITS["x"]:
             tweet = f"📰 {title[:200]}... {url}"
         return tweet
 
@@ -236,7 +236,7 @@ def run_from_news(
     url: str = "",
     tema: str = "Noticias",
     use_gemini: bool = True,
-    model_provider: str = "openrouter",
+    model_provider: str = Settings.AI_PROVIDER,
     ai_config: Optional[dict] = None,
 ) -> Dict[str, Any]:
     """Función de compatibilidad para pipeline existente."""
@@ -271,8 +271,8 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        default="openrouter",
-        choices=["gemini", "openrouter", "local", "mock"],
+        default=Settings.AI_PROVIDER,
+        choices=Settings.SUPPORTED_AI_PROVIDERS,
         help="Modelo de IA a usar",
     )
 

@@ -5,6 +5,7 @@ FastAPI Router for Audio Pipeline.
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
+from config.settings import Settings
 
 from src.logging_config import get_logger
 
@@ -18,7 +19,7 @@ router = APIRouter()
 # ============================================================
 class AudioRequest(BaseModel):
     url: str
-    model: str = "openrouter"
+    model: str = Settings.AI_PROVIDER
     tema: str = "Audios"
 
 

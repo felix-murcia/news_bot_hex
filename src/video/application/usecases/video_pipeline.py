@@ -9,6 +9,7 @@ import os
 import time
 from typing import Dict, Any, List, Optional
 
+from config.settings import Settings
 from src.logging_config import get_logger
 
 logger = get_logger("video_bot.usecase")
@@ -57,7 +58,7 @@ class VideoPipelineUseCase(BasePipelineUseCase):
         logger.info("[2/4] Generando artículo y posts con IA...")
         try:
             result = run_from_video(
-                transcript=transcript, url=url, tema=tema, llm_provider="openrouter"
+                transcript=transcript, url=url, tema=tema, llm_provider=Settings.AI_PROVIDER
             )
             logger.info(f"[2/4] Artículo generado en {time.time() - step_start:.1f}s")
         except Exception as e:

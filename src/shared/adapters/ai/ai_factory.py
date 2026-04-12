@@ -7,20 +7,14 @@ Factory para obtener instancias de adapters de IA.
 import logging
 from typing import Dict, Optional
 from src.shared.domain.ports.ai_model_port import AIModelPort
+from config.settings import Settings
+
 
 logger = logging.getLogger(__name__)
 
-_PROVIDER_MAP = {
-    "gemini": "src.shared.adapters.ai.gemini_adapter.GeminiAdapter",
-    "openrouter": "src.shared.adapters.ai.openrouter_adapter.OpenRouterAdapter",
-    "local": "src.shared.adapters.ai.local_adapter.LocalAdapter",
-    "mock": "src.shared.adapters.ai.local_adapter.MockAdapter",
-    "groq": "src.shared.adapters.ai.groq_adapter.GroqAdapter",
-}
-
 
 def get_ai_adapter(
-    provider: str = "gemini",
+    provider: str = Settings.AI_PROVIDER,
     config: Optional[Dict] = None,
     validate_key: bool = False,
 ) -> AIModelPort:
@@ -28,7 +22,7 @@ def get_ai_adapter(
     Get an instance of the specified AI adapter.
 
     Args:
-        provider: Provider name ("gemini", "openrouter", "local", "mock").
+        provider: Provider name ("gemini", "openrouter", "local", "mock", "groq").
         config: Optional configuration for the adapter.
         validate_key: If True, validate API key on initialization.
 
@@ -41,13 +35,13 @@ def get_ai_adapter(
     config = config or {}
     provider = provider.lower()
 
-    if provider not in _PROVIDER_MAP:
-        available = ", ".join(_PROVIDER_MAP.keys())
+    if provider not in Settings.AI_ADAPTER_MAP:
+        available = ", ".join(Settings.AI_ADAPTER_MAP.keys())
         raise ValueError(f"Proveedor '{provider}' no válido. Disponibles: {available}")
 
     import importlib
 
-    module_path = _PROVIDER_MAP[provider]
+    module_path = Settings.AI_ADAPTER_MAP[provider]
     module_name, class_name = module_path.rsplit(".", 1)
 
     try:
@@ -65,7 +59,7 @@ def get_ai_adapter(
 
 def list_providers() -> list:
     """Lista todos los proveedores disponibles."""
-    return list(_PROVIDER_MAP.keys())
+    return list(Settings.AI_ADAPTER_MAP.keys())
 
 
 # Alias para compatibilidad
