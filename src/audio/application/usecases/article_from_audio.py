@@ -63,7 +63,7 @@ class ArticleFromAudioUseCase:
             model = self._get_ai_model()
             agent = ArticleFromContentAgent(model, source_type="transcript")
 
-            content = agent.generate(transcript[:4000], tema=tema)
+            content = agent.generate(transcript[:10000], tema=tema)
 
             title_match = re.search(r"<h1>(.*?)</h1>", content, re.DOTALL)
             title = title_match.group(1).strip() if title_match else f"Audio: {tema}"

@@ -182,7 +182,9 @@ class ArticleUseCase:
             if not raw_content:
                 raw_content = news_item.get("content", news_item.get("desc", ""))
 
-            content_limitado = raw_content[:3500] if raw_content else ""
+            # Allow up to 10000 chars of source content so the AI has enough material
+            # for a professional 800+ word article
+            content_limitado = raw_content[:10000] if raw_content else ""
             try:
                 content_es = translate_text(content_limitado, target_lang="es")
             except Exception as e:
@@ -191,7 +193,7 @@ class ArticleUseCase:
 
             agent = ArticleAgent(model)
             result = agent.generate(
-                topic_or_news=f"Título: {title}\nTema: {tema}\nContenido: {content_es}"
+                topic_or_news=f"Título: {title}\nTema: {tema}\n\nContenido informativo:\n{content_es}"
             )
             return _limpiar_html(result)
         except Exception as e:

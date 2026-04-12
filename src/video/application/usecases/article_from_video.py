@@ -62,12 +62,12 @@ class ArticleFromVideoUseCase:
         from src.shared.adapters.ai.agents import ArticleFromContentAgent
         from src.shared.adapters.translator import translate_text
 
-        transcerpt_es = translate_text(transcript[:3000], target_lang="es")
+        transcerpt_es = translate_text(transcript[:10000], target_lang="es")
 
         model = self._get_ai_model()
         agent = ArticleFromContentAgent(model, source_type="video")
 
-        content = agent.generate(transcript[:4000], tema=tema)
+        content = agent.generate(transcript[:10000], tema=tema)
 
         title_match = re.search(r"<h1>(.*?)</h1>", content, re.DOTALL)
         title = title_match.group(1).strip() if title_match else f"Video: {tema}"
