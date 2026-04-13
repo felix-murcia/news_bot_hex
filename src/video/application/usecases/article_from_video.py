@@ -75,7 +75,12 @@ class ArticleFromVideoUseCase:
 
         content = agent.generate(transcript[:10000], tema=tema, web_context=web_context)
 
-        title_match = re.search(r"<h1>(.*?)</h1>", content, re.DOTALL)
+        # Aplicar post-edición automática al artículo
+        from src.shared.utils.content_post_editor import post_edit_content
+        content = post_edit_content(content)
+
+        # El prompt prohibe <h1>, así que extraemos del primer <h2>
+        title_match = re.search(r"<h2>(.*?)</h2>", content, re.DOTALL)
         title = title_match.group(1).strip() if title_match else f"Video: {tema}"
 
         return self._build_article_response(content, title, url, tema)
@@ -130,6 +135,16 @@ class ArticleFromVideoUseCase:
         content_clean = re.sub(r"^```\s*$", "", content_clean, flags=re.MULTILINE)
         content_clean = content_clean.strip()
 
+        # Remover el primer <h2> si coincide con el título extraído
+        # (porque será usado como <h1> por WordPress)
+        first_h2_match = re.search(r"^<h2[^>]*>(.*?)</h2>", content_clean, re.DOTALL | re.IGNORECASE)
+        if first_h2_match:
+            first_h2_content = first_h2_match.group(1).strip()
+            # Comparar los primeros 80 caracteres para tolerancia
+            if first_h2_content[:80].lower() == title[:80].lower():
+                content_clean = re.sub(r"^<h2[^>]*>.*?</h2>\s*", "", content_clean, flags=re.DOTALL | re.IGNORECASE)
+                logger.info(f"[ARTICLE_VIDEO] Primer <h2> removido (será usado como <h1>): {title[:50]}...")
+
         text_only = re.sub(r"<[^>]+>", " ", content_clean)
         first_p = text_only.split("\n")[0][:160] if text_only else ""
 
@@ -178,15 +193,20 @@ class ArticleFromVideoUseCase:
             context=context[:200],
         )
 
-        tweet = tweet.strip()[: Settings.POST_LIMITS["x"]]
-
+        tweet = tweet.strip()
+        
         # Limpieza de patrones no deseados
         tweet = re.sub(r"\[HASHTAGS\]", "", tweet, flags=re.IGNORECASE)
         tweet = re.sub(r"^\s*#\w+\s*$", "", tweet, flags=re.MULTILINE)
         tweet = tweet.strip()
 
-        if len(tweet) > Settings.POST_LIMITS["x"]:
-            tweet = tweet[: Settings.POST_LIMITS["x"] - Settings.TWEET_TRUNCATION_BUFFER] + "..."
+        from src.shared.utils.tweet_truncation import truncate_social_post
+
+        tweet = truncate_social_post(tweet)
+
+        # Aplicar post-edición automática
+        from src.shared.utils.content_post_editor import post_edit_content
+        tweet = post_edit_content(tweet)
 
         if not tweet:
             logger.error(

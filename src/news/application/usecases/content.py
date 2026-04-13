@@ -105,9 +105,14 @@ class ContentUseCase:
         agent = TweetGeopoliticsAgent(model)
         tweet = agent.generate(title=title, tema=tema, context=desc)
 
-        if len(tweet) > self.MAX_CHARS:
-            tweet = tweet[: self.MAX_CHARS - 3] + "..."
+        from src.shared.utils.tweet_truncation import truncate_social_post
+
+        tweet = truncate_social_post(tweet, limit=self.MAX_CHARS)
         tweet = tweet.strip()
+
+        # Aplicar post-edición automática
+        from src.shared.utils.content_post_editor import post_edit_content
+        tweet = post_edit_content(tweet)
 
         if not tweet:
             logger.error(

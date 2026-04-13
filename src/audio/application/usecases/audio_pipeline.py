@@ -95,9 +95,8 @@ class AudioPipelineUseCase(BasePipelineUseCase):
                     # Append URL if not present
                     if wordpress_url not in tweet:
                         tweet = f"{tweet}\n\nMás info: {wordpress_url}"
-                        # Ensure it fits within limits
-                        if len(tweet) > Settings.POST_LIMITS["x"]:
-                            tweet = tweet[: Settings.POST_LIMITS["x"] - Settings.TWEET_TRUNCATION_BUFFER] + "..."
+                        from src.shared.utils.tweet_truncation import truncate_social_post
+                        tweet = truncate_social_post(tweet)
                     tweets = [tweet]  # Update tweets list with corrected tweet
             else:
                 logger.warning(f"[4/8] No se obtuvo URL de WordPress — usando URL fallback")
@@ -105,8 +104,8 @@ class AudioPipelineUseCase(BasePipelineUseCase):
                 fallback_url = enriched_article.get("url") or enriched_article.get("original_url") or url
                 if fallback_url and fallback_url not in tweet:
                     tweet = f"{tweet}\n\nMás: {fallback_url}"
-                    if len(tweet) > Settings.POST_LIMITS["x"]:
-                        tweet = tweet[: Settings.POST_LIMITS["x"] - Settings.TWEET_TRUNCATION_BUFFER] + "..."
+                    from src.shared.utils.tweet_truncation import truncate_social_post
+                    tweet = truncate_social_post(tweet)
                     tweets = [tweet]
                     logger.info(f"[4/8] Tweet con URL fallback: {fallback_url}")
         else:

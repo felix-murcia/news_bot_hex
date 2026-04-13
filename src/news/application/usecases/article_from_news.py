@@ -101,6 +101,10 @@ class ArticleFromNewsUseCase:
             logger.error("[ARTICLE_NEWS] No se generó contenido para el artículo")
             raise RuntimeError("No se pudo generar el artículo desde noticia")
 
+        # Aplicar post-edición automática al artículo
+        from src.shared.utils.content_post_editor import post_edit_content
+        article_body = post_edit_content(article_body)
+
         parrafos = article_body.count("<p>")
         subtitulos = article_body.count("<h2>")
         logger.info(
@@ -130,6 +134,9 @@ class ArticleFromNewsUseCase:
 
         tweet_text = self._generate_tweet(news_item)
         logger.info(f"[ARTICLE_NEWS] Tweet generado: {tweet_text[:100]}...")
+
+        # Aplicar post-edición automática al tweet
+        tweet_text = post_edit_content(tweet_text)
 
         post = build_article_post(news_item, payload, tweet_text, "news_man")
         save_payloads(payload, post)
@@ -204,8 +211,10 @@ Requisitos:
         url = news_item.get("url", "https://nbes.blog")
         tema = news_item.get("tema", "Noticias")
         tweet = f"📰 {title[:200]}\n\nLeer más: {url}"
-        if len(tweet) > Settings.POST_LIMITS["x"]:
-            tweet = f"📰 {title[:200]}... {url}"
+
+        from src.shared.utils.tweet_truncation import truncate_social_post
+
+        tweet = truncate_social_post(tweet)
         return tweet
 
     def _generate_slug(self, title: str) -> str:

@@ -125,9 +125,9 @@ class NewsToNewsUseCase:
         agent = TweetGeopoliticsAgent(model)
         tweet = agent.generate(title=title, tema=tema, context=desc)
 
-        if len(tweet) > Settings.POST_LIMITS["x"]:
-            tweet = tweet[: Settings.POST_LIMITS["x"] - Settings.TWEET_TRUNCATION_BUFFER] + "..."
-        tweet = tweet.strip()
+        from src.shared.utils.tweet_truncation import truncate_social_post
+
+        tweet = truncate_social_post(tweet)
 
         if not tweet:
             logger.error(

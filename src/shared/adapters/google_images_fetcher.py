@@ -35,10 +35,18 @@ GOOGLE_SYNONYMS = {
 }
 
 
-def clean_title(title: str) -> str:
-    title = re.sub(r"\b(LIVE|BREAKING|UPDATE)\b[:\-–]*", "", title, flags=re.IGNORECASE)
-    title = re.sub(r"[^\w\s]", "", title)
-    return title.strip()
+# ============================================================
+# Nuevo sistema de generación de queries para imágenes
+# (Importamos la lógica compartida de unsplash_fetcher)
+# ============================================================
+
+from src.shared.adapters.unsplash_fetcher import (
+    clean_title,
+    extraer_entidades_imagen,
+    extraer_concepto_visual_principal,
+    generar_query_imagen,
+    enrich_image_query,
+)
 
 
 def fallback_google_query(query: str) -> str:
@@ -138,7 +146,12 @@ class GoogleImagesFetcher:
             if not title:
                 continue
 
-            query = clean_title(title)[:100]
+            # Get theme if available for better query enrichment
+            theme = post.get("tema") or post.get("theme") or post.get("category")
+            content = post.get("content") or post.get("article") or ""
+
+            # Enrich query for better image results
+            query = enrich_image_query(title, theme, content)
             result = search_google_images(query, used_ids)
 
             if result:

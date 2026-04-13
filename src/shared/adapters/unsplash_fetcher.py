@@ -31,10 +31,181 @@ UNSPLASH_SYNONYMS = {
 }
 
 
+# ============================================================
+# Nuevo sistema de generación de queries para imágenes
+# ============================================================
+
+STOPWORDS = {
+    "el", "la", "los", "las", "un", "una", "unos", "unas", "de", "del", "en", "y", "o",
+    "que", "es", "son", "se", "con", "por", "para", "sin", "sobre", "bajo", "entre",
+    "hacia", "desde", "esta", "este", "estos", "estas", "ese", "esa", "esos", "esas",
+    "aquel", "aquella", "como", "cuando", "donde", "más", "pero", "si", "no", "ya",
+    "también", "muy", "todo", "todos", "todas", "al", "lo", "le", "les", "su", "sus",
+    "ser", "estar", "hay", "tener", "hacer", "decir", "poder", "deber", "querer",
+    "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with",
+    "by", "from", "is", "are", "was", "were", "be", "been", "being", "have", "has",
+    "had", "do", "does", "did", "will", "would", "could", "should", "may", "might",
+    "can", "shall", "it", "its", "this", "that", "these", "those", "not", "no",
+}
+
+
 def clean_title(title: str) -> str:
-    title = re.sub(r"\b(LIVE|BREAKING|UPDATE)\b[:\-–]*", "", title, flags=re.IGNORECASE)
-    title = re.sub(r"[^\w\s]", "", title)
-    return title.strip()
+    """Limpia el título de palabras sensacionalistas y caracteres especiales."""
+    title = re.sub(r"\b(LIVE|BREAKING|UPDATE|EXCLUSIVE|URGENT)\b[:\-–]*", "", title, flags=re.IGNORECASE)
+    title = re.sub(r"[^\w\sáéíóúñü]", " ", title)
+    title = re.sub(r"\s+", " ", title).strip()
+    return title
+
+
+def extraer_entidades_imagen(texto: str, max_entidades: int = 4) -> list:
+    """
+    Extrae entidades relevantes para búsqueda de imágenes.
+    Prioriza nombres propios, lugares y conceptos visuales.
+    """
+    entidades = []
+
+    # 1. Nombres propios (palabras que empiezan con mayúscula, >2 letras)
+    #    Excluir palabras vacías en inglés que suelen ir capitalizadas
+    articulos = {
+        "El", "La", "Los", "Las", "Un", "Una", "De", "En", "Por", "Para", "Con", "Sin",
+        "The", "And", "For", "Of", "In", "To", "Is", "Are", "Was", "Were", "Be", "Been",
+        "Have", "Has", "Had", "Do", "Does", "Did", "Will", "Would", "Could", "Should",
+        "From", "With", "By", "At", "Or", "But", "Not", "You", "All", "Can", "Her",
+        "Was", "One", "Our", "Out", "Has", "This", "That", "These", "Those", "It",
+        "Hours", "Before", "News", "After", "What", "When", "Where", "Why", "How",
+    }
+    nombres_propios = re.findall(r'\b[A-Z][a-záéíóúñü]{2,}\b', texto)
+    nombres_filtrados = [n for n in nombres_propios if n not in articulos]
+    entidades.extend(nombres_filtrados[:3])
+
+    # 2. Lugares y organizaciones conocidas (visualmente reconocibles)
+    lugares_visuales = [
+        "Rusia", "Ucrania", "Estados Unidos", "Washington", "Moscú", "Kiev",
+        "China", "Pekín", "Europa", "Irán", "Teherán", "Israel", "Jerusalén",
+        "Gaza", "Oriente Medio", "Casa Blanca", "Kremlin", "Pentágono",
+        "OTAN", "ONU", "Naciones Unidas", "Congreso", "Parlamento",
+    ]
+    texto_lower = texto.lower()
+    for lugar in lugares_visuales:
+        if lugar.lower() in texto_lower and lugar not in entidades:
+            entidades.append(lugar)
+
+    # 3. Conceptos visuales específicos (eventos, objetos, lugares)
+    conceptos_visuales = [
+        "refinería", "fábrica", "edificio", "iglesia", "catedral", "mezquita",
+        "manifestación", "protesta", "marcha", "conferencia", "cumbre", "reunión",
+        "hospital", "escuela", "universidad", "estadio", "puerto", "aeropuerto",
+        "misil", "cohetes", "tanque", "avión", "barco", "submarino",
+        "presidente", "ministro", "papa", "pope", "líder", "general",
+        "terremoto", "inundación", "incendio", "tormenta", "huracán",
+    ]
+    for concepto in conceptos_visuales:
+        if concepto in texto_lower and concepto not in [e.lower() for e in entidades]:
+            entidades.append(concepto.capitalize())
+            if len(entidades) >= max_entidades:
+                break
+
+    return list(dict.fromkeys(entidades))[:max_entidades]
+
+
+def extraer_concepto_visual_principal(texto: str):
+    """
+    Extrae el concepto visual principal del texto.
+    Retorna una palabra que represente mejor la imagen buscada.
+    """
+    texto_lower = texto.lower()
+
+    eventos_visuales = {
+        "manifestación": "protest",
+        "protesta": "protest",
+        "marcha": "march",
+        "reunión": "meeting",
+        "cumbre": "summit",
+        "conferencia": "conference",
+        "ataque": "conflict",
+        "guerra": "war",
+        "conflicto": "conflict",
+        "terremoto": "earthquake",
+        "inundación": "flood",
+        "incendio": "fire",
+        "elección": "election",
+        "elecciones": "election",
+    }
+
+    for palabra, concepto in eventos_visuales.items():
+        if palabra in texto_lower:
+            return concepto
+
+    return None
+
+
+def generar_query_imagen(title: str, content: str = "", theme: str = "") -> str:
+    """
+    Genera una query optimizada para búsqueda de imágenes.
+
+    Estrategia:
+    1. Extraer entidades (nombres propios, lugares, conceptos visuales)
+    2. Identificar el concepto visual principal
+    3. Combinar de forma coherente, evitando palabras vacías o abstractas
+    4. Limitar a 3-4 elementos máximo para precisión
+    """
+    # Limpiar título
+    clean = clean_title(title)
+
+    # Combinar título y contenido para análisis (primeros 300 chars del contenido)
+    texto_completo = f"{clean} {content[:300]}" if content else clean
+
+    # Extraer entidades
+    entidades = extraer_entidades_imagen(texto_completo, max_entidades=4)
+
+    # Extraer concepto visual principal
+    concepto_principal = extraer_concepto_visual_principal(texto_completo)
+
+    # Construir query
+    query_parts = []
+
+    # 1. Añadir concepto visual si existe (prioridad máxima)
+    if concepto_principal:
+        query_parts.append(concepto_principal)
+
+    # 2. Añadir entidades que sean visualmente descriptivas
+    #    Filtrar palabras abstractas o verbos que no son buenos para imágenes
+    palabras_no_visuales = {
+        "accelerate", "demand", "claim", "state", "say", "tell", "report",
+        "announce", "declare", "propose", "consider", "discuss", "analyze",
+        "acelerar", "demandar", "afirmar", "decir", "informar", "anunciar",
+        "declarar", "proponer", "considerar", "discutir", "analizar",
+        "strong", "issues", "rebuke", "criticism", "decision", "action",
+        "fuerte", "crítica", "decisión", "acción", "cuestión", "tema",
+    }
+    if entidades:
+        entidades_visuales = [
+            e for e in entidades[:3]
+            if e.lower() not in palabras_no_visuales
+        ]
+        query_parts.extend(entidades_visuales)
+
+    # Si no hay entidades ni concepto, usar palabras significativas del título
+    if not query_parts:
+        palabras = re.findall(r'\b[a-záéíóúñü]{4,}\b', clean.lower())
+        palabras_filtradas = [p for p in palabras if p not in STOPWORDS]
+        query_parts = palabras_filtradas[:3]
+
+    # Si todavía está vacío, fallback al tema
+    if not query_parts and theme:
+        return theme.lower()
+
+    # Unir y limitar longitud
+    query = " ".join(query_parts[:4])
+    return query[:100]
+
+
+def enrich_image_query(title: str, theme: str = None, content: str = None) -> str:
+    """
+    Wrapper para mantener compatibilidad con código antiguo.
+    Usa la nueva función generar_query_imagen.
+    """
+    return generar_query_imagen(title, content or "", theme or "")
 
 
 def fallback_unsplash_query(query: str) -> str:
@@ -136,7 +307,12 @@ class UnsplashFetcher:
             if not title:
                 continue
 
-            query = clean_title(title)[:100]
+            # Get theme if available for better query enrichment
+            theme = post.get("tema") or post.get("theme") or post.get("category")
+            content = post.get("content") or post.get("article") or ""
+
+            # Enrich query for better image results
+            query = enrich_image_query(title, theme, content)
             result = search_unsplash(query, used_ids)
 
             if result:

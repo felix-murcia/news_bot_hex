@@ -31,7 +31,8 @@
       "Bash(source *)",
       "Bash(pytest *)",
       "Bash(pip install *)",
-      "Bash(mv *)"
+      "Bash(mv *)",
+      "Read(//tmp/logs/news_bot.log/**)"
     ]
   },
   "$version": 3

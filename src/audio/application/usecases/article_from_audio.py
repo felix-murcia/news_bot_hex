@@ -92,6 +92,10 @@ class ArticleFromAudioUseCase:
 
             content = agent.generate(transcript[:10000], tema=tema)
 
+            # Aplicar post-edición automática al artículo
+            from src.shared.utils.content_post_editor import post_edit_content
+            content = post_edit_content(content)
+
             title_match = re.search(r"<h1>(.*?)</h1>", content, re.DOTALL)
             title = title_match.group(1).strip() if title_match else f"Audio: {tema}"
 
@@ -146,8 +150,14 @@ class ArticleFromAudioUseCase:
         tweet = f"🎙️ {title[:200]}\n\n#{tema.replace(' ', '')}"
         if url:
             tweet = f"{tweet}\n{url}"
-        if len(tweet) > Settings.POST_LIMITS["x"]:
-            tweet = tweet[: Settings.POST_LIMITS["x"] - Settings.TWEET_TRUNCATION_BUFFER] + "..."
+
+        from src.shared.utils.tweet_truncation import truncate_social_post
+
+        tweet = truncate_social_post(tweet)
+
+        # Aplicar post-edición automática
+        from src.shared.utils.content_post_editor import post_edit_content
+        tweet = post_edit_content(tweet)
 
         parrafos = content.count("<p>")
         subtitulos = content.count("<h2>")

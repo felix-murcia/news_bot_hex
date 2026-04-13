@@ -36,6 +36,35 @@ class TestContentUseCaseDetailed:
             assert use_case.MAX_CHARS == limit
 
 
+class TestTweetTruncationHelper:
+    def test_removes_extra_hashtags_before_truncating(self):
+        from src.shared.utils.tweet_truncation import truncate_social_post
+
+        tweet = "Una frase muy larga que necesita recorte #uno #dos #tres"
+        result = truncate_social_post(tweet, limit=55)
+
+        assert len(result) <= 55
+        assert "#uno" in result
+        assert "#tres" not in result
+
+    def test_preserves_single_hashtag_and_truncates_text(self):
+        from src.shared.utils.tweet_truncation import truncate_social_post
+
+        tweet = "Un texto inicialmente demasiado largo para caber #hashtag"
+        result = truncate_social_post(tweet, limit=25)
+
+        assert len(result) <= 25
+        assert result.endswith("#hashtag")
+
+    def test_truncates_without_hashtags(self):
+        from src.shared.utils.tweet_truncation import truncate_social_post
+
+        result = truncate_social_post("Texto sin hashtags muy largo", limit=10)
+
+        assert len(result) <= 10
+        assert result.endswith("...")
+
+
 class TestClassicNewsValidator:
     """Test ClassicNewsValidatorAdapter."""
 
@@ -432,3 +461,72 @@ class TestNewsValidatorAdapterDetailed:
 
         adapter = ClassicNewsValidatorAdapter()
         assert hasattr(adapter, 'predict')
+
+
+class TestContentPostEditor:
+    """Test ContentPostEditor for automatic post-editing."""
+
+    def test_default_replacements(self):
+        from src.shared.utils.content_post_editor import ContentPostEditor
+
+        editor = ContentPostEditor()
+        assert "Papa Francisco" in editor.replacements
+        assert editor.replacements["Papa Francisco"] == "Papa León XIII"
+
+    def test_post_edit_pope_francisco(self):
+        from src.shared.utils.content_post_editor import post_edit_content
+
+        text = "El Papa Francisco visitó Roma ayer."
+        result = post_edit_content(text)
+        assert "Papa León XIII" in result
+        assert "Papa Francisco" not in result
+
+    def test_post_edit_trump_ex_president(self):
+        from src.shared.utils.content_post_editor import post_edit_content
+
+        text = "El expresidente Donald Trump declaró hoy."
+        result = post_edit_content(text)
+        assert "presidente Donald Trump" in result
+        assert "expresidente" not in result
+
+    def test_post_edit_case_insensitive(self):
+        from src.shared.utils.content_post_editor import post_edit_content
+
+        text = "papa francisco dijo algo importante."
+        result = post_edit_content(text)
+        assert "Papa León XIII" in result
+
+    def test_post_edit_multiple_replacements(self):
+        from src.shared.utils.content_post_editor import post_edit_content
+
+        text = "Papa Francisco y expresidente Trump hablaron."
+        result = post_edit_content(text)
+        assert "Papa León XIII" in result
+        assert "presidente Trump" in result
+        assert "Papa Francisco" not in result
+        assert "expresidente" not in result
+
+    def test_post_edit_empty_content(self):
+        from src.shared.utils.content_post_editor import post_edit_content
+
+        result = post_edit_content("")
+        assert result == ""
+
+    def test_custom_replacements(self):
+        from src.shared.utils.content_post_editor import ContentPostEditor
+
+        custom_replacements = {"test": "replaced"}
+        editor = ContentPostEditor(replacements=custom_replacements)
+        result = editor.post_edit("This is a test text.")
+        assert "replaced" in result
+        assert "test" not in result
+
+    def test_add_and_remove_replacement(self):
+        from src.shared.utils.content_post_editor import ContentPostEditor
+
+        editor = ContentPostEditor()
+        editor.add_replacement("new_key", "new_value")
+        assert editor.replacements["new_key"] == "new_value"
+
+        editor.remove_replacement("new_key")
+        assert "new_key" not in editor.replacements

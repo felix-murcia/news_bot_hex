@@ -192,9 +192,13 @@ class VideoToNewsUseCase:
         agent = TweetAgent(model)
         tweet = agent.generate(f"Video: {title[:100]}")
 
-        if len(tweet) > Settings.POST_LIMITS["x"]:
-            tweet = tweet[: Settings.POST_LIMITS["x"] - Settings.TWEET_TRUNCATION_BUFFER] + "..."
-        tweet = tweet.strip()
+        from src.shared.utils.tweet_truncation import truncate_social_post
+
+        tweet = truncate_social_post(tweet)
+
+        # Aplicar post-edición automática
+        from src.shared.utils.content_post_editor import post_edit_content
+        tweet = post_edit_content(tweet)
 
         if not tweet:
             logger.error(

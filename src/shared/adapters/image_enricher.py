@@ -112,12 +112,22 @@ class ImageEnricher:
         changed = 0
 
         for post in posts:
+            # Si ya tiene imagen válida (no fallback), no sobrescribir
+            if post.get("image_url") and "nbes.blog" not in post.get("image_url", ""):
+                logger.info(
+                    f"[IMAGES] {post.get('title', '')[:40]}: ya tiene imagen → {post.get('image_url', 'fallback')[:50]}"
+                )
+                continue
+
             image_urls = get_image_urls(post)
             assigned = False
 
             for url in image_urls:
                 if url:
                     post["image_url"] = url
+                    post["image_credit"] = post.get("image_credit") or "Unsplash"
+                    post["alt_text"] = post.get("alt_text") or post.get("title", "")[:100]
+                    post["image_path"] = None
                     assigned = True
                     changed += 1
                     break
@@ -128,6 +138,9 @@ class ImageEnricher:
                     extracted = extract_image(orig_url)
                     if extracted:
                         post["image_url"] = extracted
+                        post["image_credit"] = "Sitio web original"
+                        post["alt_text"] = post.get("alt_text") or post.get("title", "")[:100]
+                        post["image_path"] = None
                         assigned = True
                         changed += 1
 
@@ -167,11 +180,64 @@ class ImageEnricher:
             logger.error(f"[IMAGES] Error enrich from MongoDB: {e}")
             return 0
 
+    def enrich_articles_from_mongo(self) -> int:
+        """Enriquece también los artículos generados con imágenes."""
+        try:
+            from src.shared.adapters.mongo_db import get_database
+
+            db = get_database()
+            articles_coll = db["generated_articles"]
+            posts_coll = db["generated_posts"]
+            
+            articles = list(articles_coll.find({}))
+
+            if not articles:
+                logger.warning("[IMAGES] No hay artículos para enriquecer")
+                return 0
+
+            # Primero, intentar heredar imágenes de posts que tengan el mismo original_url
+            for article in articles:
+                original_url = article.get("original_url")
+                if original_url:
+                    # Buscar si hay un post con la misma URL original
+                    matching_post = posts_coll.find_one({"original_url": original_url})
+                    if not matching_post:
+                        # También buscar por url
+                        matching_post = posts_coll.find_one({"url": original_url})
+                    
+                    if matching_post:
+                        # Heredar campos de imagen del post
+                        if matching_post.get("image_url"):
+                            article["image_url"] = matching_post["image_url"]
+                            article["image_credit"] = matching_post.get("image_credit", "Unsplash")
+                            article["alt_text"] = matching_post.get("alt_text") or article.get("title", "")[:100]
+                            article["image_path"] = None
+                            logger.info(f"[IMAGES] Imagen heredada del post para: {article.get('title', '')[:50]}")
+                            continue
+
+            # Luego, enriquecer los que aún no tengan imagen
+            self.enrich(articles)
+
+            for article in articles:
+                article_id = article.get("_id")
+                if article_id:
+                    article.pop("_id", None)
+                    articles_coll.update_one({"_id": article_id}, {"$set": article})
+
+            return len(articles)
+
+        except Exception as e:
+            logger.error(f"[IMAGES] Error enrich articles from MongoDB: {e}")
+            return 0
+
 
 def run(mode: str = "news") -> int:
     logger.info(f"[IMAGES] Ejecutando enrich_with_images (modo: {mode})")
     enricher = ImageEnricher(mode=mode)
-    return enricher.enrich_from_mongo()
+    posts_count = enricher.enrich_from_mongo()
+    articles_count = enricher.enrich_articles_from_mongo()
+    logger.info(f"[IMAGES] Enriquecimiento completado: {posts_count} posts, {articles_count} artículos")
+    return posts_count + articles_count
 
 
 if __name__ == "__main__":

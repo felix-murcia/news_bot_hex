@@ -129,18 +129,62 @@ def buscar_en_internet(query: str, num_results: int = 5) -> str:
 def extraer_palabras_clave(texto: str, max_palabras: int = 5) -> list[str]:
     """
     Extrae las palabras más relevantes de un texto para usar como query.
+    Filtra estrictamente stopwords en español e inglés y palabras sin valor semántico.
     """
     stopwords = {
-        "el", "la", "los", "las", "de", "en", "y", "que", "es", "son",
+        # Español básico
+        "el", "la", "los", "las", "de", "del", "en", "y", "que", "es", "son",
         "se", "un", "una", "unos", "unas", "con", "por", "para", "sin",
         "sobre", "bajo", "entre", "hacia", "desde", "esta", "este", "estos",
+        "estas", "ese", "esa", "esos", "esas", "aquel", "aquella", "al",
+        "lo", "le", "les", "su", "sus", "como", "cuando", "donde", "más",
+        "pero", "si", "no", "ya", "también", "muy", "todo", "todos",
+        "todas", "otro", "otra", "otros", "otras", "mismo", "misma",
+        # Español verbos comunes
+        "ser", "estar", "hay", "tener", "hacer", "decir", "poder", "deber",
+        "querer", "saber", "ir", "venir", "dar", "ver", "pasar", "llevar",
+        "dejar", "seguir", "creer", "hablar", "tratar", "volver", "sentir",
+        "estamos", "están", "estoy", "estás", "estoy", "estuvo", "fue",
+        "son", "somos", "soy", "eres", "es", "tiene", "tienen", "tengo",
+        # Pronombres y demostrativos
+        "esto", "eso", "aquello", "nosotros", "nosotras", "vosotros",
+        "ellos", "ellas", "usted", "ustedes", "yo", "tu", "él", "ella",
+        # Inglés básico
         "the", "and", "for", "are", "but", "not", "you", "all", "can",
         "her", "was", "one", "our", "out", "has", "have", "been", "from",
-        "también", "puede", "tiene", "hace", "dice", "como", "cuando",
+        "this", "that", "these", "those", "will", "would", "could", "should",
+        "may", "might", "shall", "does", "did", "what", "when", "where",
+        "who", "whom", "which", "how", "why", "about", "before", "after",
+        "above", "below", "between", "into", "through", "during", "against",
+        "same", "each", "such", "only", "own", "just", "very", "too",
+        "we", "they", "them", "our", "your", "his", "its",
+        # Palabras de cortesía/sin valor semántico
+        "gracias", "gracias", "thanks", "thank", "please", "por favor",
+        "bien", "buen", "buena", "bueno", "buena", "mal", "mejor", "peor",
+        "ahora", "hoy", "siempre", "nunca", "aquí", "allí", "entonces",
+        "because", "however", "therefore", "moreover", "although", "while",
+        # Palabras genéricas de medios
+        "noticia", "noticias", "news", "video", "audio", "report", "said",
+        "says", "according", "según", "dice", "dijo", "afirmó", "declaró",
+        "canal", "channel", "página", "page", "sitio", "site",
+        # Conectores
+        "además", "también", "incluso", "mientras", "aunque", "porque",
+        "pues", "puesto", "mediante", "tras", "ante", "bajo",
+        # Palabras de relleno
+        "hablar", "sobre", "últimos", "últimas", "acontecimientos",
+        "situación", "compleja", "afecta", "mundo", "importa",
+        "importa", "puede", "debe", "sido", "tiene", "cada",
     }
 
     palabras = texto.lower().split()
-    palabras_filtradas = [p for p in palabras if len(p) > 4 and p not in stopwords and p.isalpha()]
+    # Filtrar: longitud > 4, no stopwords, alfabético, no solo vocales
+    palabras_filtradas = [
+        p for p in palabras
+        if len(p) > 4
+        and p not in stopwords
+        and p.isalpha()
+        and not all(c in 'aeiouáéíóú' for c in p)
+    ]
 
     contador = Counter(palabras_filtradas)
     return [palabra for palabra, _ in contador.most_common(max_palabras)]
@@ -149,21 +193,48 @@ def extraer_palabras_clave(texto: str, max_palabras: int = 5) -> list[str]:
 def extraer_entidades(texto: str) -> list[str]:
     """
     Extrae nombres propios, lugares y organizaciones del texto.
+    Filtra palabras vacías capitalizadas y prioriza entidades con valor semántico.
     """
     entidades = []
 
-    # Nombres propios (palabras que empiezan con mayúscula)
-    nombres_propios = re.findall(r'\b[A-Z][a-z]{2,}\b', texto)
-    articulos = {"El", "La", "Los", "Las", "Un", "Una", "De", "En", "Por", "Para"}
-    nombres_filtrados = [n for n in nombres_propios if n not in articulos]
+    # Palabras capitalizadas sin valor de entidad
+    palabras_vacias = {
+        "El", "La", "Los", "Las", "Un", "Una", "De", "En", "Por", "Para",
+        "The", "And", "For", "Of", "In", "To", "Is", "Are", "Was", "Were",
+        "Be", "Been", "Have", "Has", "Had", "Do", "Does", "Did", "Will",
+        "Would", "Could", "Should", "From", "With", "By", "At", "Or", "But",
+        "Not", "You", "All", "Can", "Her", "One", "Our", "Out", "This",
+        "That", "These", "Those", "It", "Its",
+        "Hours", "Before", "News", "After", "What", "When", "Where", "Why",
+        "How", "More", "Very", "Just", "Only", "Also", "Some", "Than",
+        "Then", "Now", "Here", "There", "Much", "Many",
+        "Hoy", "Ayer", "Mañana", "Today", "Yesterday", "Tomorrow",
+        "Gracias", "Thanks", "Thank", "Please", "Según", "According",
+        "Said", "Says", "Report", "Video", "Audio",
+        "Breaking", "Update", "Live", "Exclusive",
+    }
+
+    # Nombres propios (palabras que empiezan con mayúscula, 3+ letras)
+    nombres_propios = re.findall(r'\b[A-Z][a-záéíóúñü]{2,}\b', texto)
+    nombres_filtrados = [n for n in nombres_propios if n not in palabras_vacias]
     entidades.extend(nombres_filtrados[:3])
 
-    # Lugares y organizaciones conocidas
+    # Lugares y organizaciones conocidas (visualmente reconocibles)
     lugares_orgs = [
-        "Rusia", "Ucrania", "Estados Unidos", "EEUU", "China", "Europa", "OTAN", "ONU",
-        "Washington", "Moscú", "Kiev", "Trump", "Biden", "Putin", "Zelensky", "UE",
-        "Casa Blanca", "Kremlin", "Congreso", "Senado", "Gobierno", "Irán", "Israel",
-        "Oriente Medio", "Hamas", "Gaza", "Cisjordania", "Pentágono", "Naciones Unidas",
+        "Rusia", "Ucrania", "Estados Unidos", "EEUU", "China", "Europa",
+        "OTAN", "ONU", "Washington", "Moscú", "Kiev", "Trump", "Biden",
+        "Putin", "Zelensky", "UE", "Casa Blanca", "Kremlin", "Congreso",
+        "Senado", "Gobierno", "Irán", "Israel", "Oriente Medio", "Hamas",
+        "Gaza", "Cisjordania", "Pentágono", "Naciones Unidas", "Teherán",
+        "Pekín", "Londres", "París", "Berlín", "Roma", "Madrid", "Bruselas",
+        "Vaticano", "Tokio", "Seúl", "Pyongyang", "Nueva York", "Canadá",
+        "Japón", "Corea", "India", "Brasil", "Argentina", "México", "Cuba",
+        "Venezuela", "Colombia", "Perú", "Chile", "Polonia", "Alemania",
+        "Francia", "Italia", "Reino Unido", "Australia", "Pakistán",
+        "Afganistán", "Turquía", "Arabia Saudí", "Egipto", "Siria", "Líbano",
+        "Yemen", "Iraq", "Jordania", "Emiratos", "Qatar", "Kuwait",
+        "Papa", "Pope", "Presidente", "Ministro", "Primer Ministro",
+        "Canciller", "Embajador", "General", "Almirante",
     ]
 
     texto_lower = texto.lower()
@@ -171,13 +242,15 @@ def extraer_entidades(texto: str) -> list[str]:
         if lugar.lower() in texto_lower and lugar not in entidades:
             entidades.append(lugar)
 
-    return list(set(entidades))[:4]
+    # Eliminar duplicados manteniendo orden, máximo 4
+    return list(dict.fromkeys(entidades))[:4]
 
 
 def generar_query(transcripcion: str) -> str:
     """
     Genera una query de búsqueda optimizada a partir de una transcripción.
-    Combina entidades nombradas + palabras clave.
+    Prioriza entidades nombradas y keywords relevantes, evitando mezclar
+    palabras inconexas que produzcan queries sin sentido.
     """
     contenido = transcripcion[:1500]  # Limitar para eficiencia
 
@@ -185,24 +258,37 @@ def generar_query(transcripcion: str) -> str:
     entidades = extraer_entidades(contenido)
     keywords = extraer_palabras_clave(contenido, max_palabras=3)
 
-    # Combinar para crear query
-    elementos = entidades[:2] + keywords[:3]
+    # ESTRATEGIA: Preferir entidades (nombres propios, lugares, orgs)
+    # Si hay suficientes entidades, usar solo ellas (máx 3)
+    if len(entidades) >= 2:
+        # Usar las 2-3 entidades principales
+        elementos = entidades[:3]
+    elif entidades and keywords:
+        # Combinar 1-2 entidades con 1-2 keywords
+        elementos = entidades[:2] + keywords[:2]
+    else:
+        # Fallback: usar solo keywords
+        elementos = keywords[:3]
 
-    if len(elementos) < 2:
-        # Fallback: usar palabras más largas
+    if not elementos:
+        # Fallback último: usar palabras más largas
         palabras = re.findall(r'\b[a-záéíóúñ]{6,}\b', contenido.lower())
         elementos = list(set(palabras))[:3]
 
     if not elementos:
         return ""
 
-    query = " ".join(elementos[:4])
+    # Unir elementos con + para búsqueda más precisa (evita mezclas incoherentes)
+    query = " + ".join(elementos[:4])
     return query
 
 
 def enriquecer_con_contexto(transcripcion: str, tema: str = "") -> Optional[str]:
     """
     Busca noticias relacionadas con la transcripción y devuelve contexto formateado.
+
+    Usa el modelo de IA para generar una query coherente en vez de
+    heurística con palabras sueltas.
 
     Args:
         transcripcion: Texto de la transcripción del video/audio
@@ -215,14 +301,20 @@ def enriquecer_con_contexto(transcripcion: str, tema: str = "") -> Optional[str]
         logger.debug("[WEB_SEARCH] Transcripción demasiado corta para enriquecer")
         return None
 
-    # Generar query de búsqueda
-    query = generar_query(transcripcion)
+    # Estrategia principal: LLM genera la query
+    from src.shared.adapters.web_search_query_gen import generar_query_con_llm
+
+    query = generar_query_con_llm(transcripcion, tema)
+
+    # Fallback a heurística si LLM falla
+    if not query:
+        logger.warning("[WEB_SEARCH] LLM falló, usando fallback heurístico")
+        query = generar_query(transcripcion)
+        if query and tema and tema not in ("General", "Noticias", "Videos"):
+            query = f"{query} {tema}"
+
     if not query:
         return None
-
-    # Añadir tema si está disponible
-    if tema:
-        query = f"{query} {tema}"
 
     logger.info(f"[WEB_SEARCH] Enriqueciendo artículo con búsqueda: '{query}'")
 
