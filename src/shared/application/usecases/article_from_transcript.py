@@ -170,8 +170,23 @@ class ArticleFromTranscriptUseCase:
             "original_url": url,
         }
 
+        # Count paragraphs: prefer <p> tags, fallback to text blocks
         parrafos = len(re.findall(r"<p>", content))
+        if parrafos == 0:
+            # LLM didn't use <p> tags — count text blocks instead
+            text_blocks = [
+                b.strip() for b in re.sub(r"<[^>]+>", "\n", content).split("\n")
+                if b.strip()
+            ]
+            parrafos = len(text_blocks)
+
         subtitulos = len(re.findall(r"<h2>", content))
+        word_count = len(re.sub(r"<[^>]+>", " ", content).split())
+
+        logger.info(
+            f"[ARTICLE_TRANSCRIPT] Artículo: {word_count} palabras, "
+            f"{parrafos} párrafos, {subtitulos} subtítulos"
+        )
 
         return {
             "article": article,

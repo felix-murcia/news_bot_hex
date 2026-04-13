@@ -114,16 +114,31 @@ class ImageEnricher:
         for post in posts:
             # Si ya tiene imagen válida (no fallback), no sobrescribir
             if post.get("image_url") and "nbes.blog" not in post.get("image_url", ""):
-                logger.info(
-                    f"[IMAGES] {post.get('title', '')[:40]}: ya tiene imagen → {post.get('image_url', 'fallback')[:50]}"
-                )
-                continue
+                # Verificar que la imagen sea accesible (no 403 de sitios con protección)
+                current_url = post.get("image_url", "")
+                if not self._is_accessible_image(current_url):
+                    logger.warning(
+                        f"[IMAGES] Imagen actual no accesible (403): {current_url[:60]}... "
+                        f"Buscando alternativa"
+                    )
+                    post.pop("image_url", None)
+                else:
+                    logger.info(
+                        f"[IMAGES] {post.get('title', '')[:40]}: ya tiene imagen → {current_url[:50]}"
+                    )
+                    continue
 
             image_urls = get_image_urls(post)
             assigned = False
 
-            for url in image_urls:
-                if url:
+            # Priorizar Unsplash sobre Google Images (Google suele dar 403)
+            # Reordenar: unsplash primero, google después
+            unsplash_urls = [u for u in image_urls if "unsplash" in (u or "").lower()]
+            other_urls = [u for u in image_urls if "unsplash" not in (u or "").lower()]
+            priority_urls = unsplash_urls + other_urls
+
+            for url in priority_urls:
+                if url and self._is_accessible_image(url):
                     post["image_url"] = url
                     post["image_credit"] = post.get("image_credit") or "Unsplash"
                     post["alt_text"] = post.get("alt_text") or post.get("title", "")[:100]
@@ -131,12 +146,14 @@ class ImageEnricher:
                     assigned = True
                     changed += 1
                     break
+                elif url:
+                    logger.debug(f"[IMAGES] Imagen no accesible, saltando: {url[:60]}...")
 
             if not assigned:
                 orig_url = post.get("url") or post.get("original_url")
                 if orig_url:
                     extracted = extract_image(orig_url)
-                    if extracted:
+                    if extracted and self._is_accessible_image(extracted):
                         post["image_url"] = extracted
                         post["image_credit"] = "Sitio web original"
                         post["alt_text"] = post.get("alt_text") or post.get("title", "")[:100]
@@ -153,6 +170,27 @@ class ImageEnricher:
 
         logger.info(f"[IMAGES] {changed} posts enriched")
         return posts
+
+    def _is_accessible_image(self, url: str, timeout: int = 8) -> bool:
+        """Verifica que la URL de imagen sea realmente accesible y descargable.
+
+        Hace GET con Range header para descargar solo los primeros bytes,
+        evitando falsos positivos de HEAD con redirects que luego dan 403.
+        """
+        if not url:
+            return False
+        try:
+            # GET parcial: descargar solo primeros 1KB para validar
+            headers = {"Range": "bytes=0-1023"}
+            resp = requests.get(url, headers=headers, timeout=timeout, stream=True)
+            # 206 = Partial Content (éxito), 200 = OK completo
+            if resp.status_code in (200, 206):
+                # Verificar que es realmente una imagen
+                content_type = resp.headers.get("Content-Type", "")
+                return "image" in content_type or resp.status_code == 206
+            return False
+        except Exception:
+            return False
 
     def enrich_from_mongo(self) -> int:
         try:

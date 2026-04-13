@@ -159,10 +159,10 @@ class GoogleImagesFetcher:
                 img_id = result.get("id")
                 post["google_image"] = img_url
                 post["google_image_url"] = img_url
-                post["image_credit"] = "Google Images"
-                post["alt_text"] = title[:200]
-                if not post.get("image_url") or post.get("image_url") == fallback_url:
-                    post["image_url"] = img_url
+                # NO establecer image_url aquí — el ImageEnricher lo hará
+                # después de validar que la imagen es realmente accesible
+                post["image_credit"] = post.get("image_credit") or "Google Images"
+                post["alt_text"] = post.get("alt_text") or title[:200]
                 if img_id:
                     add_used_id(img_id)
                 changed += 1
