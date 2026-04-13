@@ -32,7 +32,16 @@
       "Bash(pytest *)",
       "Bash(pip install *)",
       "Bash(mv *)",
-      "Read(//tmp/logs/news_bot.log/**)"
+      "Read(//tmp/logs/news_bot.log/**)",
+      "Bash(file *)",
+      "Bash(which *)",
+      "Bash(yt-dlp *)",
+      "Bash(pip3 list)",
+      "Bash(pip3 install *)",
+      "Bash(head *)",
+      "Bash(/usr/local/bin/python3.12 *)",
+      "Bash(tr *)",
+      "Bash(ss *)"
     ]
   },
   "$version": 3

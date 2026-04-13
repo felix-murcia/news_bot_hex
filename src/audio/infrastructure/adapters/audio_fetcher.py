@@ -75,16 +75,29 @@ def _download_direct(url: str, output_dir: str, audio_id: str) -> Optional[str]:
             "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept": "audio/mpeg, audio/*,*/*",
             "Accept-Language": "es-ES,es;q=0.9",
-            "Referer": "https://www.rtve.es/",
         }
         logger.info(f"[AUDIO] Descarga directa: {url[:80]}...")
-        response = requests.get(url, headers=headers, timeout=60, stream=True)
 
-        # Manejar específicamente errores de token expirado
+        # HEAD request primero para validar Content-Type
+        head_resp = requests.head(url, headers=headers, timeout=15, allow_redirects=True)
+        if head_resp.status_code in (200, 206):
+            content_type = head_resp.headers.get("Content-Type", "").lower()
+            # Si claramente no es audio, abortar inmediatamente
+            if any(ct in content_type for ct in ("text/html", "text/plain", "application/json")):
+                logger.warning(
+                    f"[AUDIO] Content-Type no es audio: {content_type[:60]}"
+                )
+                return None
+            # Si es audio, extraer extensión correcta
+            if "mpeg" in content_type or "mp3" in content_type:
+                output_path = os.path.join(output_dir, f"{audio_id}.mp3")
+            elif "mp4" in content_type or "m4a" in content_type:
+                output_path = os.path.join(output_dir, f"{audio_id}.m4a")
+
+        response = requests.get(url, headers=headers, timeout=120, stream=True)
+
         if response.status_code in (400, 401, 403, 410):
-            logger.warning(
-                f"[AUDIO] Error {response.status_code} - Token probablemente expirado"
-            )
+            logger.warning(f"[AUDIO] Error {response.status_code} - Token expirado o no autorizado")
             return None
 
         response.raise_for_status()
@@ -93,22 +106,23 @@ def _download_direct(url: str, output_dir: str, audio_id: str) -> Optional[str]:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
 
-        if os.path.exists(output_path) and os.path.getsize(output_path) > 1024:
+        # Validar tamaño mínimo (1MB = al menos ~1 min de audio)
+        min_size = 500 * 1024  # 500KB mínimo
+        if os.path.exists(output_path) and os.path.getsize(output_path) > min_size:
             logger.info(f"[AUDIO] ✅ Descarga directa completada: {output_path}")
             return output_path
         else:
-            logger.error(f"[AUDIO] Archivo vacío o no encontrado tras descarga directa")
+            actual_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
+            logger.warning(
+                f"[AUDIO] Archivo demasiado pequeño ({actual_size} bytes < {min_size} bytes)"
+            )
             if os.path.exists(output_path):
                 os.remove(output_path)
             return None
 
     except requests.exceptions.HTTPError as e:
         if e.response.status_code in (400, 401, 403, 410):
-            logger.warning(
-                f"[AUDIO] HTTP {e.response.status_code} - Token expirado, se usará yt-dlp"
-            )
-        else:
-            logger.error(f"[AUDIO] Error HTTP en descarga directa: {e}")
+            logger.warning(f"[AUDIO] HTTP {e.response.status_code} - No autorizado")
         return None
     except Exception as e:
         logger.error(f"[AUDIO] Error en descarga directa: {e}")
@@ -118,25 +132,40 @@ def _download_direct(url: str, output_dir: str, audio_id: str) -> Optional[str]:
 def _download_with_ytdlp(
     url: str, output_dir: str, audio_id: str, max_duration: int
 ) -> Optional[str]:
-    """Descarga usando yt-dlp como método principal (no fallback)."""
-    import yt_dlp
-
+    """Descarga usando yt-dlp o descarga directa según tipo de URL."""
     output_path = os.path.join(output_dir, f"{audio_id}.mp3")
 
-    # Si ya existe en caché, devolverlo
+    # Si ya existe en caché, validarlo
     if os.path.exists(output_path):
-        logger.info(f"[AUDIO] Audio ya existe: {output_path}")
-        return output_path
+        if os.path.getsize(output_path) > 1024 and has_audio_stream(output_path):
+            logger.info(f"[AUDIO] Audio ya existe y es válido: {output_path}")
+            return output_path
+        else:
+            logger.warning(f"[AUDIO] Cache inválido, eliminando: {output_path}")
+            os.remove(output_path)
+
+    # ============================================================
+    # Si es URL directa de audio (mp3, m4a, etc.), descargar directamente
+    # yt-dlp no es necesario y puede fallar con URLs de CDN con tokens
+    # ============================================================
+    if is_direct_audio_url(url):
+        logger.info("[AUDIO] URL directa detectada, usando descarga directa")
+        return _download_direct(url, output_dir, audio_id)
+
+    # ============================================================
+    # Para URLs de plataforma (YouTube, podcast, etc.), usar yt-dlp
+    # ============================================================
+    import yt_dlp
 
     outtmpl = os.path.join(output_dir, f"{audio_id}.%(ext)s")
 
     ydl_opts: Dict[str, Any] = {
         "outtmpl": outtmpl,
         "format": "bestaudio/best",
-        "quiet": False,  # Cambiar a False para debug, True en producción
-        "no_warnings": False,
-        "extractor_retries": 5,
-        "fragment_retries": 5,
+        "quiet": True,
+        "no_warnings": True,
+        "extractor_retries": 3,
+        "fragment_retries": 3,
         "ignoreerrors": False,
         "postprocessors": [
             {
@@ -207,7 +236,13 @@ def download_audio(
     audio_id: Optional[str] = None,
     max_duration: int = MAX_DURATION,
 ) -> Optional[str]:
-    """Descarga el audio desde la URL."""
+    """Descarga el audio desde cualquier tipo de URL.
+
+    Estrategia genérica:
+    1. Descarga directa con requests (funciona para URLs directas, CDN con tokens, etc.)
+    2. Si falla o el archivo no es válido, intenta yt-dlp
+    3. Valida siempre que el resultado sea un audio real
+    """
     import time
     step_start = time.time()
 
@@ -220,80 +255,51 @@ def download_audio(
 
     output_path_mp3 = os.path.join(output_dir, f"{audio_id}.mp3")
 
-    # Verificar caché
+    # Verificar caché válido
     if os.path.exists(output_path_mp3):
-        logger.info(f"Audio cache hit: {os.path.basename(output_path_mp3)}")
-        return output_path_mp3
+        if os.path.getsize(output_path_mp3) > 1024 and has_audio_stream(output_path_mp3):
+            logger.info(f"Audio cache hit: {os.path.basename(output_path_mp3)}")
+            return output_path_mp3
+        else:
+            logger.warning(f"Caché inválido, eliminando: {output_path_mp3}")
+            os.remove(output_path_mp3)
 
     logger.info(f"Audio download started: {url[:80]}...")
 
     # ============================================================
-    # CASO 1: URL directa de audio (ej: https://ejemplo.com/audio.mp3)
+    # ESTRATEGIA 1: Descarga directa con requests
+    # Funciona para URLs directas (.mp3, .m4a), CDN con tokens, etc.
     # ============================================================
-    if is_direct_audio_url(url):
-        logger.info("Direct audio URL detected")
-        result = _download_direct(url, output_dir, audio_id)
-        if result:
-            logger.info(f"Direct download completed in {time.time() - step_start:.1f}s")
-            return result
-        logger.warning("Direct download failed, falling back to yt-dlp")
-        return _download_with_ytdlp(url, output_dir, audio_id, max_duration)
+    result = _download_direct(url, output_dir, audio_id)
+    if result and has_audio_stream(result):
+        logger.info(f"Direct download completed in {time.time() - step_start:.1f}s")
+        return result
 
-    # ============================================================
-    # CASO 2: URL de página (YouTube, RTVE, podcast, etc.)
-    # ============================================================
-
-    if _is_rtve_url(url):
-        logger.info("RTVE URL detected, using yt-dlp directly")
-        return _download_with_ytdlp(url, output_dir, audio_id, max_duration)
-
-    # Para otras plataformas, intentar extraer URL de audio primero
-    try:
-        import yt_dlp
-
-        ydl_opts_info: Dict[str, Any] = {
-            "quiet": True,
-            "no_warnings": True,
-            "extractor_retries": 3,
-            "format": "bestaudio/best",
-        }
-
+    if result:
+        logger.warning("Downloaded file is not valid audio, cleaning up")
         try:
-            with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:  # type: ignore[arg-type]
-                info = ydl.extract_info(url, download=False)
-        except Exception as info_err:
-            logger.debug(f"Metadata extraction failed (expected for some URLs): {info_err}")
-            info = None
+            os.remove(result)
+        except OSError:
+            pass
 
-        if info:
-            duration = info.get("duration")
-            if duration and duration > max_duration:
-                raise ValueError(
-                    f"El audio dura {duration / 60:.1f} minutos, supera el límite de {max_duration / 60} minutos."
-                )
+    # ============================================================
+    # ESTRATEGIA 2: yt-dlp (para YouTube, podcasts, páginas web)
+    # ============================================================
+    logger.info("Direct download failed, trying yt-dlp...")
+    result = _download_with_ytdlp(url, output_dir, audio_id, max_duration)
+    if result and has_audio_stream(result):
+        logger.info(f"yt-dlp download completed in {time.time() - step_start:.1f}s")
+        return result
 
-            if not _is_rtve_url(url):
-                formats: list = info.get("formats") or []
-                audio_formats = [
-                    f for f in formats if f.get("vcodec") == "none" and f.get("acodec")
-                ]
+    if result:
+        logger.warning("yt-dlp downloaded invalid file")
+        try:
+            os.remove(result)
+        except OSError:
+            pass
 
-                if audio_formats:
-                    best_audio = audio_formats[0]
-                    url_to_download = best_audio.get("url")
-                    if url_to_download:
-                        result = _download_direct(url_to_download, output_dir, audio_id)
-                        if result:
-                            logger.info(f"Extracted URL download completed in {time.time() - step_start:.1f}s")
-                            return result
-                        logger.warning("Direct download from extracted URL failed")
-
-    except Exception as e:
-        logger.debug(f"Metadata extraction error (non-critical): {e}")
-
-    # Fallback final: usar yt-dlp para la descarga completa
-    logger.info("Falling back to yt-dlp full download")
-    return _download_with_ytdlp(url, output_dir, audio_id, max_duration)
+    logger.error(f"Audio download failed: {url}")
+    return None
 
 
 def has_audio_stream(audio_path: str) -> bool:

@@ -11,7 +11,7 @@ from config.logging_config import get_logger
 
 logger = get_logger("audio_bot.usecase")
 
-from src.audio.application.usecases.article_from_audio import run_from_audio
+from src.shared.application.usecases.article_from_transcript import run_from_transcript
 from src.shared.application.usecases.base_pipeline import BasePipelineUseCase
 
 
@@ -36,8 +36,10 @@ class AudioPipelineUseCase(BasePipelineUseCase):
 
         try:
             audio_path = download_audio(url)
-            if not audio_path or not has_audio_stream(audio_path):
-                raise RuntimeError(f"Audio without valid stream: {url}")
+            if not audio_path:
+                raise RuntimeError(f"Failed to download audio: {url}")
+            if not has_audio_stream(audio_path):
+                raise RuntimeError(f"Downloaded file is not valid audio: {audio_path}")
 
             self._track_temp_file(audio_path)
             transcript = transcribe_audio(audio_path)
@@ -53,8 +55,9 @@ class AudioPipelineUseCase(BasePipelineUseCase):
         step_start = time.time()
         logger.info("[2/4] Generando artículo y posts con IA...")
         try:
-            result = run_from_audio(
-                transcript=transcript, url=url, tema=tema, llm_provider=Settings.AI_PROVIDER
+            result = run_from_transcript(
+                transcript=transcript, url=url, tema=tema,
+                llm_provider=Settings.AI_PROVIDER, source_type="audio"
             )
             logger.info(f"[2/4] Artículo generado en {time.time() - step_start:.1f}s")
         except Exception as e:

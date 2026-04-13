@@ -3,7 +3,7 @@ setup_logging()
 logger = get_logger("audio_bot")
 from src.audio.infrastructure.adapters.audio_fetcher import AudioFetcher, download_audio
 from src.audio.application.usecases.audio_to_news import process_audio_url
-from src.audio.application.usecases.article_from_audio import run_from_audio
+from src.shared.application.usecases.article_from_transcript import run_from_transcript
 from config.settings import Settings
 
 
@@ -66,12 +66,12 @@ def main_article_from_audio():
     with open(args.transcript_file, "r", encoding="utf-8") as f:
         transcript = f.read()
 
-    result = run_from_audio(
+    result = run_from_transcript(
         transcript=transcript,
         url=args.url,
         tema=args.tema,
-        use_gemini=not args.local,
-        model_provider=args.model,
+        llm_provider=args.model,
+        source_type="audio",
     )
 
     logger.info(f"[ARTICLE_AUDIO] Artículo generado")

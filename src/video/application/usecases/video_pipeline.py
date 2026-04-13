@@ -14,9 +14,7 @@ from config.logging_config import get_logger
 
 logger = get_logger("video_bot.usecase")
 
-from src.video.application.usecases.article_from_video import (
-    run_from_video,
-)
+from src.shared.application.usecases.article_from_transcript import run_from_transcript
 from src.shared.application.usecases.base_pipeline import BasePipelineUseCase
 
 
@@ -64,8 +62,9 @@ class VideoPipelineUseCase(BasePipelineUseCase):
         step_start = time.time()
         logger.info("[2/4] Generando artículo y posts con IA...")
         try:
-            result = run_from_video(
-                transcript=transcript, url=url, tema=tema, llm_provider=Settings.AI_PROVIDER
+            result = run_from_transcript(
+                transcript=transcript, url=url, tema=tema,
+                llm_provider=Settings.AI_PROVIDER, source_type="video"
             )
             logger.info(f"[2/4] Artículo generado en {time.time() - step_start:.1f}s")
         except Exception as e:

@@ -21,26 +21,41 @@ load_dotenv(override=True)
 logger = get_logger("audio_bot.infra.transcriber")
 
 
-def _convert_to_wav(input_path: str) -> str:
-    """Convert audio to 16kHz mono WAV for Groq API."""
+def _convert_to_wav(input_path: str, max_duration: int = 300) -> str:
+    """Convert audio to 16kHz mono WAV for Groq API.
+    
+    Limita la duración para evitar 'Request Entity Too Large'.
+    Groq tiene un límite de ~25MB por request (~15 min a 16kHz mono).
+    """
     output_path = tempfile.mktemp(suffix=".wav")
+    
+    # Obtener duración real del audio
+    actual_duration = max_duration
     try:
-        subprocess.run(
-            [
-                "ffmpeg",
-                "-y",
-                "-i", input_path,
-                "-ar", "16000",
-                "-ac", "1",
-                "-f", "wav",
-                output_path,
-            ],
-            check=True,
-            capture_output=True,
-            timeout=120,
+        probe = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", input_path],
+            capture_output=True, text=True, timeout=10,
         )
+        import json as _json
+        actual_duration = float(_json.loads(probe.stdout)["format"]["duration"])
+        actual_duration = min(actual_duration, max_duration)
+    except Exception:
+        pass
+    
+    try:
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-i", input_path,
+            "-t", str(int(actual_duration)),
+            "-ar", "16000",
+            "-ac", "1",
+            "-f", "wav",
+            output_path,
+        ]
+        subprocess.run(cmd, check=True, capture_output=True, timeout=300)
         size = os.path.getsize(output_path)
-        logger.info(f"[TRANSCRIBER] Audio convertido a WAV: {size} bytes")
+        logger.info(f"[TRANSCRIBER] Audio convertido a WAV: {size/1024/1024:.1f}MB ({actual_duration:.0f}s)")
         return output_path
     except subprocess.CalledProcessError as e:
         logger.error(f"[TRANSCRIBER] FFmpeg falló: {e.stderr.decode()}")
@@ -56,6 +71,9 @@ def _send_to_groq(wav_path: str) -> str:
     if not api_key:
         raise RuntimeError("GROQ_API_KEY no configurada en .env")
 
+    file_size = os.path.getsize(wav_path)
+    logger.info(f"[TRANSCRIBER] Enviando a Groq: {file_size/1024/1024:.1f}MB")
+
     with open(wav_path, "rb") as f:
         resp = requests.post(
             Settings.GROQ_API_URL,
@@ -69,9 +87,22 @@ def _send_to_groq(wav_path: str) -> str:
             timeout=300,
         )
 
-    resp.raise_for_status()
-    result = resp.json()
-    text = result.get("text", "").strip()
+    # Log raw response for debugging
+    logger.info(f"[TRANSCRIBER] Groq HTTP {resp.status_code}")
+    
+    if resp.status_code != 200:
+        error_text = resp.text[:500] if resp.text else "No response body"
+        logger.error(f"[TRANSCRIBER] Groq error response: {error_text}")
+        raise RuntimeError(f"Groq API returned {resp.status_code}: {error_text[:200]}")
+
+    # Groq con response_format="text" devuelve texto plano, no JSON
+    content_type = resp.headers.get("Content-Type", "")
+    if "application/json" in content_type:
+        result = resp.json()
+        text = result.get("text", "").strip()
+    else:
+        # Texto plano directo
+        text = resp.text.strip()
 
     if not text:
         logger.warning("[TRANSCRIBER] Transcripción vacía")

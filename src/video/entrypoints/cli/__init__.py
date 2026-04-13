@@ -3,8 +3,8 @@ setup_logging()
 logger = get_logger("video_bot")
 from src.video.infrastructure.adapters.video_fetcher import VideoFetcher, download_video
 from src.video.application.usecases.video_to_news import process_video_url
-from src.video.application.usecases.article_from_video import run_from_video
 from src.video.application.usecases.video_pipeline import VideoPipelineUseCase
+from src.shared.application.usecases.article_from_transcript import run_from_transcript
 from config.settings import Settings
 
 
@@ -86,8 +86,9 @@ def main_article_from_video():
     with open(transcript_file, "r", encoding="utf-8") as f:
         transcript = f.read()
 
-    result = run_from_video(
-        transcript=transcript, url="", tema="Videos", llm_provider=llm_provider
+    result = run_from_transcript(
+        transcript=transcript, url="", tema="Videos",
+        llm_provider=llm_provider, source_type="video"
     )
 
     logger.info(f"[ARTICLE_VIDEO] Artículo generado")
@@ -165,11 +166,12 @@ def main_full_pipeline():
 
     logger.info("[3/10] Generando tweets/posts...")
     tema = result.get("tema", "Videos")
-    article_result = run_from_video(
+    article_result = run_from_transcript(
         transcript=result.get("transcript", ""),
         url=url,
         tema=tema,
         llm_provider=llm_provider,
+        source_type="video",
     )
     logger.info(f"[ARTICLE_VIDEO] Tweet generado: {article_result['tweet'][:50]}...")
 
@@ -244,11 +246,12 @@ def main_pipeline():
 
     logger.info("[3/4] Generando artículo...")
     tema = result.get("tema", "Videos")
-    article_result = run_from_video(
+    article_result = run_from_transcript(
         transcript=result.get("transcript", ""),
         url=url,
         tema=tema,
         llm_provider=llm_provider,
+        source_type="video",
     )
     logger.info("[ARTICLE_VIDEO] Artículo generado")
 
