@@ -148,14 +148,3 @@ class TestAudioToNewsUseCaseMethods:
             assert hasattr(use_case, '_save_outputs')
 
 
-class TestArticleFromAudioMethods:
-    """Test ArticleFromAudioUseCase individual methods."""
-
-    def test_limpiar_text(self):
-        from src.audio.application.usecases.article_from_audio import limpiar
-
-        assert limpiar("  Hello  ") == "Hello"
-        assert limpiar("**Bold**") == "Bold"
-        assert limpiar('"Quoted"') == "Quoted"
-        assert limpiar("") == ""
-        assert limpiar(None) == ""

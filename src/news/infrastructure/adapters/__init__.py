@@ -5,8 +5,6 @@ from src.news.infrastructure.adapters.mongo_repositories import (
     MongoPublishedUrlsRepository,
     MongoKeywordsRepository,
     MongoScoringConfigRepository,
-    BASE_DIR,
-    DATA_DIR,
 )
 from src.news.infrastructure.adapters.rss_fetcher import FeedparserRSSFetcher
 from src.news.infrastructure.adapters.content_extractor import JinaContentExtractor
@@ -24,8 +22,6 @@ from src.news.infrastructure.adapters.date_utils import (
     is_today_or_yesterday,
     get_article_date,
 )
-
-# Infrastructure adapter (ML layer)
 from src.news.infrastructure.adapters.news_validator_adapter import (
     ClassicNewsValidatorAdapter,
 )

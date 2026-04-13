@@ -79,5 +79,6 @@ debug/scraperapi/
 # Ignorar archivos de coverage
 htmlcov/
 .coverage
-
+.pytest_cache/
+.ruffle_cache/
 .qwen/

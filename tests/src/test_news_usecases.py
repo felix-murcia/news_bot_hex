@@ -140,31 +140,18 @@ class TestAudioToNewsUseCase:
 
 
 class TestArticleFromAudioUseCase:
-    """Test ArticleFromAudioUseCase."""
+    """Test ArticleFromAudioUseCase (redirected to shared ArticleFromTranscriptUseCase)."""
 
     def test_init(self):
-        from src.audio.application.usecases.article_from_audio import ArticleFromAudioUseCase
+        from src.audio.application.usecases import ArticleFromAudioUseCase
 
-        use_case = ArticleFromAudioUseCase(use_gemini=False)
-        assert use_case.use_gemini is False
-
-    def test_execute_fallback(self):
-        from src.audio.application.usecases.article_from_audio import ArticleFromAudioUseCase
-
-        use_case = ArticleFromAudioUseCase(use_gemini=False)
-        result = use_case.execute(
-            transcript="Line 1\nLine 2\nLine 3",
-            url="https://example.com",
-            tema="Test"
-        )
-        assert "article" in result
-        assert "post" in result
-        assert "tweet" in result
+        use_case = ArticleFromAudioUseCase(llm_provider="mock")
+        assert use_case.llm_provider == "mock"
 
     def test_slugify(self):
-        from src.audio.application.usecases.article_from_audio import slugify
+        from src.shared.application.usecases.article_from_transcript import _slugify
 
-        assert slugify("Test Audio") == "test-audio"
+        assert _slugify("Test Audio") == "test-audio"
 
 
 class TestAudioPipelineUseCase:

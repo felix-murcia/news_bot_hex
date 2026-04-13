@@ -1,7 +1,8 @@
 import json
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 from datetime import datetime
+
 from src.news.domain.entities.article import Article
 from src.news.domain.entities.verified_article import VerifiedArticle
 from src.news.domain.ports import (
@@ -15,6 +16,11 @@ from src.news.domain.ports import (
     ContentExtractor,
     FakeNewsModel,
 )
+
+# DATA_DIR from settings, not infrastructure
+from config.settings import Settings
+
+# Infrastructure functions used by application layer (acceptable for orchestration)
 from src.news.infrastructure.adapters import (
     parse_date_flexible,
     is_today_or_yesterday,
@@ -25,11 +31,9 @@ from src.news.infrastructure.adapters import (
     is_valid_score,
     sort_verified_news,
     resumir_noticia,
-    DATA_DIR,
 )
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-DATA_DIR = BASE_DIR / "data"
+DATA_DIR = Settings.DATA_DIR
 
 
 class FetchRSSNewsUseCase:
@@ -179,9 +183,6 @@ class FullVerifyNewsUseCase:
         self._limits = self._config.get("limits", {"ttl_days": 30, "max_urls": 1000})
 
     def execute(self) -> dict:
-        from src.news.infrastructure.adapters import compute_score, categorizar_noticia
-        from src.shared.adapters.mongo_db import get_database
-
         config = self._scoring_config_repo.get_scoring_config()
         scoring_rules = config.get("scoring_rules", {})
         source_prioritarias = set(config.get("source_prioritarias", set()))
@@ -281,10 +282,6 @@ class FullVerifyNewsUseCase:
                         limits.get("ttl_days", 30),
                         limits.get("max_urls", 1000),
                     )
-                    db = get_database()
-                    db["raw_news"].update_one(
-                        {"url": url}, {"$set": {"published": True}}
-                    )
         except Exception:
             pass
 
@@ -297,10 +294,3 @@ class FullVerifyNewsUseCase:
             "verified": len(verified),
             "saved": 1,
         }
-
-
-def reload_sources() -> List[dict]:
-    from src.news.infrastructure.adapters import MongoRSSSourceRepository
-
-    repo = MongoRSSSourceRepository()
-    return repo.get_all_sources()

@@ -49,16 +49,21 @@ class BasePipelineUseCase(ABC):
         self._enable_bluesky = enable_bluesky
         self._enable_mastodon = enable_mastodon
         self._temp_files: List[str] = []
-        
-        # Validate WordPress token early (fail fast) - auto-refresh if needed
-        if not no_publish:
-            from src.shared.adapters.wordpress_token_manager import get_valid_wp_token
-            try:
-                get_valid_wp_token()
-                logger.info(f"[{mode.upper()} PIPELINE] WordPress token refreshed and validated")
-            except RuntimeError as e:
-                logger.error(f"[{mode.upper()} PIPELINE] WordPress token refresh failed: {e}")
-                raise
+        self._wp_validated = False
+
+    def _validate_wordpress_token(self) -> None:
+        """Validate WordPress token lazily (fail fast on first publish attempt)."""
+        if self._wp_validated or self.no_publish:
+            return
+        from src.shared.adapters.wordpress_token_manager import get_valid_wp_token
+        try:
+            get_valid_wp_token()
+            logger.info(f"[{self.mode.upper()} PIPELINE] WordPress token validated")
+        except RuntimeError as e:
+            logger.error(f"[{self.mode.upper()} PIPELINE] WordPress token error: {e}")
+            raise
+        finally:
+            self._wp_validated = True
 
     @property
     def image_enricher(self) -> ImageEnricher:
@@ -147,6 +152,8 @@ class BasePipelineUseCase(ABC):
         if self.no_publish:
             logger.info("WordPress publishing skipped (no-publish mode)")
             return None
+
+        self._validate_wordpress_token()
 
         step_start = time.time()
         logger.info(f"WordPress publish started: '{article.get('title', 'Untitled')[:80]}'")

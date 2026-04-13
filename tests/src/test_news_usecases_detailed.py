@@ -209,40 +209,12 @@ class TestAudioToNewsDetailed:
 
 
 class TestArticleFromAudioDetailed:
-    """Test ArticleFromAudioUseCase detailed methods."""
-
-    def test_generate_fallback(self):
-        from src.audio.application.usecases.article_from_audio import ArticleFromAudioUseCase
-
-        use_case = ArticleFromAudioUseCase(use_gemini=False)
-        transcript = "Line1\nLine2\nLine3\nLine4\nLine5\nLine6\n\nLine8"
-        result = use_case._generate_fallback(transcript, "https://example.com", "Test")
-
-        assert "article" in result
-        assert "post" in result
-        assert "stats" in result
-        assert result["stats"]["parrafos"] >= 0
-
-    def test_build_article_response(self):
-        from src.audio.application.usecases.article_from_audio import ArticleFromAudioUseCase
-
-        use_case = ArticleFromAudioUseCase(use_gemini=False)
-        result = use_case._build_article_response(
-            content="<h1>Title</h1><p>Content</p>",
-            title="Test Title",
-            url="https://example.com",
-            tema="Test",
-            mode="local"
-        )
-
-        assert result["article"]["title"] == "Test Title"
-        assert result["article"]["source_type"] == "audio_man"
-        assert "tweet" in result
+    """Test ArticleFromAudioUseCase (redirected to shared ArticleFromTranscriptUseCase)."""
 
     def test_slugify_audio(self):
-        from src.audio.application.usecases.article_from_audio import ArticleFromAudioUseCase
+        from src.audio.application.usecases import ArticleFromAudioUseCase
 
-        use_case = ArticleFromAudioUseCase(use_gemini=False)
+        use_case = ArticleFromAudioUseCase(llm_provider="mock")
         slug = use_case._generate_unique_slug(
             "Audio Podcast Title",
             "<p>Some content for the podcast</p>",
