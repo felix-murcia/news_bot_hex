@@ -139,20 +139,18 @@ def extraer_concepto_visual_principal(texto: str):
     return None
 
 
-def generar_query_imagen(title: str, content: str = "", theme: str = "") -> str:
+def generar_query_imagen(title: str, content: str = "", theme: str = "", use_title_only: bool = False) -> str:
     """
     Genera una query optimizada para búsqueda de imágenes.
-
-    Estrategia:
-    1. Extraer entidades (nombres propios, lugares, conceptos visuales)
-    2. Identificar el concepto visual principal
-    3. Combinar de forma coherente, evitando palabras vacías o abstractas
-    4. Limitar a 3-4 elementos máximo para precisión
+    Si use_title_only es True, usa el título limpio.
     """
     # Limpiar título
     clean = clean_title(title)
 
-    # Combinar título y contenido para análisis (primeros 300 chars del contenido)
+    if use_title_only:
+        return clean[:100]
+
+    # Estrategia original para video/audio
     texto_completo = f"{clean} {content[:300]}" if content else clean
 
     # Extraer entidades
@@ -200,12 +198,12 @@ def generar_query_imagen(title: str, content: str = "", theme: str = "") -> str:
     return query[:100]
 
 
-def enrich_image_query(title: str, theme: str = None, content: str = None) -> str:
+def enrich_image_query(title: str, theme: str = None, content: str = None, use_title_only: bool = False) -> str:
     """
     Wrapper para mantener compatibilidad con código antiguo.
-    Usa la nueva función generar_query_imagen.
+    Usa la función generar_query_imagen.
     """
-    return generar_query_imagen(title, content or "", theme or "")
+    return generar_query_imagen(title, content or "", theme or "", use_title_only=use_title_only)
 
 
 def fallback_unsplash_query(query: str) -> str:
@@ -312,7 +310,8 @@ class UnsplashFetcher:
             content = post.get("content") or post.get("article") or ""
 
             # Enrich query for better image results
-            query = enrich_image_query(title, theme, content)
+            use_title_only = self.mode == "news"
+            query = enrich_image_query(title, theme, content, use_title_only=use_title_only)
             result = search_unsplash(query, used_ids)
 
             if result:

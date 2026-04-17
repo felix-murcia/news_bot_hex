@@ -151,7 +151,8 @@ class GoogleImagesFetcher:
             content = post.get("content") or post.get("article") or ""
 
             # Enrich query for better image results
-            query = enrich_image_query(title, theme, content)
+            use_title_only = self.mode == "news"
+            query = enrich_image_query(title, theme, content, use_title_only=use_title_only)
             result = search_google_images(query, used_ids)
 
             if result:
