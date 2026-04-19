@@ -82,6 +82,7 @@ htmlcov/
 .pytest_cache/
 .ruffle_cache/
 .qwen/
+.kilo/
 
 # Logs de cron/timer
 logs/pipeline_cron.log

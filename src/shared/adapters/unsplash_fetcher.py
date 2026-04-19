@@ -35,23 +35,128 @@ UNSPLASH_SYNONYMS = {
 # Nuevo sistema de generación de queries para imágenes
 # ============================================================
 
+from src.news.domain.services.validation_rules import ImageRelevanceValidator
+
 STOPWORDS = {
-    "el", "la", "los", "las", "un", "una", "unos", "unas", "de", "del", "en", "y", "o",
-    "que", "es", "son", "se", "con", "por", "para", "sin", "sobre", "bajo", "entre",
-    "hacia", "desde", "esta", "este", "estos", "estas", "ese", "esa", "esos", "esas",
-    "aquel", "aquella", "como", "cuando", "donde", "más", "pero", "si", "no", "ya",
-    "también", "muy", "todo", "todos", "todas", "al", "lo", "le", "les", "su", "sus",
-    "ser", "estar", "hay", "tener", "hacer", "decir", "poder", "deber", "querer",
-    "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with",
-    "by", "from", "is", "are", "was", "were", "be", "been", "being", "have", "has",
-    "had", "do", "does", "did", "will", "would", "could", "should", "may", "might",
-    "can", "shall", "it", "its", "this", "that", "these", "those", "not", "no",
+    "el",
+    "la",
+    "los",
+    "las",
+    "un",
+    "una",
+    "unos",
+    "unas",
+    "de",
+    "del",
+    "en",
+    "y",
+    "o",
+    "que",
+    "es",
+    "son",
+    "se",
+    "con",
+    "por",
+    "para",
+    "sin",
+    "sobre",
+    "bajo",
+    "entre",
+    "hacia",
+    "desde",
+    "esta",
+    "este",
+    "estos",
+    "estas",
+    "ese",
+    "esa",
+    "esos",
+    "esas",
+    "aquel",
+    "aquella",
+    "como",
+    "cuando",
+    "donde",
+    "más",
+    "pero",
+    "si",
+    "no",
+    "ya",
+    "también",
+    "muy",
+    "todo",
+    "todos",
+    "todas",
+    "al",
+    "lo",
+    "le",
+    "les",
+    "su",
+    "sus",
+    "ser",
+    "estar",
+    "hay",
+    "tener",
+    "hacer",
+    "decir",
+    "poder",
+    "deber",
+    "querer",
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "but",
+    "in",
+    "on",
+    "at",
+    "to",
+    "for",
+    "of",
+    "with",
+    "by",
+    "from",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "being",
+    "have",
+    "has",
+    "had",
+    "do",
+    "does",
+    "did",
+    "will",
+    "would",
+    "could",
+    "should",
+    "may",
+    "might",
+    "can",
+    "shall",
+    "it",
+    "its",
+    "this",
+    "that",
+    "these",
+    "those",
+    "not",
+    "no",
 }
 
 
 def clean_title(title: str) -> str:
     """Limpia el título de palabras sensacionalistas y caracteres especiales."""
-    title = re.sub(r"\b(LIVE|BREAKING|UPDATE|EXCLUSIVE|URGENT)\b[:\-–]*", "", title, flags=re.IGNORECASE)
+    title = re.sub(
+        r"\b(LIVE|BREAKING|UPDATE|EXCLUSIVE|URGENT)\b[:\-–]*",
+        "",
+        title,
+        flags=re.IGNORECASE,
+    )
     title = re.sub(r"[^\w\sáéíóúñü]", " ", title)
     title = re.sub(r"\s+", " ", title).strip()
     return title
@@ -67,23 +172,100 @@ def extraer_entidades_imagen(texto: str, max_entidades: int = 4) -> list:
     # 1. Nombres propios (palabras que empiezan con mayúscula, >2 letras)
     #    Excluir palabras vacías en inglés que suelen ir capitalizadas
     articulos = {
-        "El", "La", "Los", "Las", "Un", "Una", "De", "En", "Por", "Para", "Con", "Sin",
-        "The", "And", "For", "Of", "In", "To", "Is", "Are", "Was", "Were", "Be", "Been",
-        "Have", "Has", "Had", "Do", "Does", "Did", "Will", "Would", "Could", "Should",
-        "From", "With", "By", "At", "Or", "But", "Not", "You", "All", "Can", "Her",
-        "Was", "One", "Our", "Out", "Has", "This", "That", "These", "Those", "It",
-        "Hours", "Before", "News", "After", "What", "When", "Where", "Why", "How",
+        "El",
+        "La",
+        "Los",
+        "Las",
+        "Un",
+        "Una",
+        "De",
+        "En",
+        "Por",
+        "Para",
+        "Con",
+        "Sin",
+        "The",
+        "And",
+        "For",
+        "Of",
+        "In",
+        "To",
+        "Is",
+        "Are",
+        "Was",
+        "Were",
+        "Be",
+        "Been",
+        "Have",
+        "Has",
+        "Had",
+        "Do",
+        "Does",
+        "Did",
+        "Will",
+        "Would",
+        "Could",
+        "Should",
+        "From",
+        "With",
+        "By",
+        "At",
+        "Or",
+        "But",
+        "Not",
+        "You",
+        "All",
+        "Can",
+        "Her",
+        "Was",
+        "One",
+        "Our",
+        "Out",
+        "Has",
+        "This",
+        "That",
+        "These",
+        "Those",
+        "It",
+        "Hours",
+        "Before",
+        "News",
+        "After",
+        "What",
+        "When",
+        "Where",
+        "Why",
+        "How",
     }
-    nombres_propios = re.findall(r'\b[A-Z][a-záéíóúñü]{2,}\b', texto)
+    nombres_propios = re.findall(r"\b[A-Z][a-záéíóúñü]{2,}\b", texto)
     nombres_filtrados = [n for n in nombres_propios if n not in articulos]
     entidades.extend(nombres_filtrados[:3])
 
     # 2. Lugares y organizaciones conocidas (visualmente reconocibles)
     lugares_visuales = [
-        "Rusia", "Ucrania", "Estados Unidos", "Washington", "Moscú", "Kiev",
-        "China", "Pekín", "Europa", "Irán", "Teherán", "Israel", "Jerusalén",
-        "Gaza", "Oriente Medio", "Casa Blanca", "Kremlin", "Pentágono",
-        "OTAN", "ONU", "Naciones Unidas", "Congreso", "Parlamento",
+        "Rusia",
+        "Ucrania",
+        "Estados Unidos",
+        "Washington",
+        "Moscú",
+        "Kiev",
+        "China",
+        "Pekín",
+        "Europa",
+        "Irán",
+        "Teherán",
+        "Israel",
+        "Jerusalén",
+        "Gaza",
+        "Oriente Medio",
+        "Casa Blanca",
+        "Kremlin",
+        "Pentágono",
+        "OTAN",
+        "ONU",
+        "Naciones Unidas",
+        "Congreso",
+        "Parlamento",
     ]
     texto_lower = texto.lower()
     for lugar in lugares_visuales:
@@ -92,12 +274,41 @@ def extraer_entidades_imagen(texto: str, max_entidades: int = 4) -> list:
 
     # 3. Conceptos visuales específicos (eventos, objetos, lugares)
     conceptos_visuales = [
-        "refinería", "fábrica", "edificio", "iglesia", "catedral", "mezquita",
-        "manifestación", "protesta", "marcha", "conferencia", "cumbre", "reunión",
-        "hospital", "escuela", "universidad", "estadio", "puerto", "aeropuerto",
-        "misil", "cohetes", "tanque", "avión", "barco", "submarino",
-        "presidente", "ministro", "papa", "pope", "líder", "general",
-        "terremoto", "inundación", "incendio", "tormenta", "huracán",
+        "refinería",
+        "fábrica",
+        "edificio",
+        "iglesia",
+        "catedral",
+        "mezquita",
+        "manifestación",
+        "protesta",
+        "marcha",
+        "conferencia",
+        "cumbre",
+        "reunión",
+        "hospital",
+        "escuela",
+        "universidad",
+        "estadio",
+        "puerto",
+        "aeropuerto",
+        "misil",
+        "cohetes",
+        "tanque",
+        "avión",
+        "barco",
+        "submarino",
+        "presidente",
+        "ministro",
+        "papa",
+        "pope",
+        "líder",
+        "general",
+        "terremoto",
+        "inundación",
+        "incendio",
+        "tormenta",
+        "huracán",
     ]
     for concepto in conceptos_visuales:
         if concepto in texto_lower and concepto not in [e.lower() for e in entidades]:
@@ -139,7 +350,9 @@ def extraer_concepto_visual_principal(texto: str):
     return None
 
 
-def generar_query_imagen(title: str, content: str = "", theme: str = "", use_title_only: bool = False) -> str:
+def generar_query_imagen(
+    title: str, content: str = "", theme: str = "", use_title_only: bool = False
+) -> str:
     """
     Genera una query optimizada para búsqueda de imágenes.
     Si use_title_only es True, usa el título limpio.
@@ -169,23 +382,52 @@ def generar_query_imagen(title: str, content: str = "", theme: str = "", use_tit
     # 2. Añadir entidades que sean visualmente descriptivas
     #    Filtrar palabras abstractas o verbos que no son buenos para imágenes
     palabras_no_visuales = {
-        "accelerate", "demand", "claim", "state", "say", "tell", "report",
-        "announce", "declare", "propose", "consider", "discuss", "analyze",
-        "acelerar", "demandar", "afirmar", "decir", "informar", "anunciar",
-        "declarar", "proponer", "considerar", "discutir", "analizar",
-        "strong", "issues", "rebuke", "criticism", "decision", "action",
-        "fuerte", "crítica", "decisión", "acción", "cuestión", "tema",
+        "accelerate",
+        "demand",
+        "claim",
+        "state",
+        "say",
+        "tell",
+        "report",
+        "announce",
+        "declare",
+        "propose",
+        "consider",
+        "discuss",
+        "analyze",
+        "acelerar",
+        "demandar",
+        "afirmar",
+        "decir",
+        "informar",
+        "anunciar",
+        "declarar",
+        "proponer",
+        "considerar",
+        "discutir",
+        "analizar",
+        "strong",
+        "issues",
+        "rebuke",
+        "criticism",
+        "decision",
+        "action",
+        "fuerte",
+        "crítica",
+        "decisión",
+        "acción",
+        "cuestión",
+        "tema",
     }
     if entidades:
         entidades_visuales = [
-            e for e in entidades[:3]
-            if e.lower() not in palabras_no_visuales
+            e for e in entidades[:3] if e.lower() not in palabras_no_visuales
         ]
         query_parts.extend(entidades_visuales)
 
     # Si no hay entidades ni concepto, usar palabras significativas del título
     if not query_parts:
-        palabras = re.findall(r'\b[a-záéíóúñü]{4,}\b', clean.lower())
+        palabras = re.findall(r"\b[a-záéíóúñü]{4,}\b", clean.lower())
         palabras_filtradas = [p for p in palabras if p not in STOPWORDS]
         query_parts = palabras_filtradas[:3]
 
@@ -198,12 +440,16 @@ def generar_query_imagen(title: str, content: str = "", theme: str = "", use_tit
     return query[:100]
 
 
-def enrich_image_query(title: str, theme: str = None, content: str = None, use_title_only: bool = False) -> str:
+def enrich_image_query(
+    title: str, theme: str = None, content: str = None, use_title_only: bool = False
+) -> str:
     """
     Wrapper para mantener compatibilidad con código antiguo.
     Usa la función generar_query_imagen.
     """
-    return generar_query_imagen(title, content or "", theme or "", use_title_only=use_title_only)
+    return generar_query_imagen(
+        title, content or "", theme or "", use_title_only=use_title_only
+    )
 
 
 def fallback_unsplash_query(query: str) -> str:
@@ -218,6 +464,44 @@ def fallback_unsplash_query(query: str) -> str:
         return location
     else:
         return "noticia"
+
+
+def filter_by_relevance(
+    images: list[dict], article_text: str, min_score: float = 0.65
+) -> list[dict]:
+    """
+    Filtra imágenes que no alcanzan el umbral de relevancia mínima.
+    images: lista de dicts con clave 'description' o 'alt'
+    article_text: texto completo del artículo
+    min_score: umbral mínimo (0.65 = 65% de similitud)
+    """
+    if not images or not article_text:
+        return images
+
+    validator = ImageRelevanceValidator()
+    scored_images = []
+    filtered_count = 0
+
+    for img in images:
+        description = img.get("description") or img.get("alt") or ""
+        score = validator.calculate_relevance_score(description, article_text)
+        img["_relevance_score"] = score
+        if score >= min_score:
+            scored_images.append(img)
+        else:
+            filtered_count += 1
+            logger.debug(
+                f"[RELEVANCE] Imagen filtrada (score={score:.2f}): {description[:60]}"
+            )
+
+    scored_images.sort(key=lambda x: x.get("_relevance_score", 0), reverse=True)
+
+    if filtered_count > 0:
+        logger.info(
+            f"[RELEVANCE] {filtered_count} imágenes filtradas por baja relevancia, {len(scored_images)} pasaron"
+        )
+
+    return scored_images
 
 
 def search_unsplash(query: str, used_ids: set) -> dict | None:
@@ -288,7 +572,99 @@ class UnsplashFetcher:
     def __init__(self, mode: str = "news"):
         self.mode = mode
 
+    def _search_images(self, query: str, limit: int = 10) -> list[dict]:
+        """
+        Busca múltiples imágenes en Unsplash.
+        Devuelve una lista de dicts con los datos de cada imagen.
+        """
+        if not UNSPLASH_ACCESS_KEY:
+            return []
+
+        used_ids = get_used_ids()
+        try:
+            headers = {"Authorization": f"Client-ID {UNSPLASH_ACCESS_KEY}"}
+            params = {"query": query, "per_page": limit, "orientation": "landscape"}
+            resp = requests.get(
+                UNSPLASH_API, headers=headers, params=params, timeout=15
+            )
+            if resp.status_code != 200:
+                logger.warning(f"[UNSPLASH] API error: {resp.status_code}")
+                return []
+            data = resp.json().get("results", [])
+            images = []
+            for img in data:
+                img_id = img.get("id")
+                if img_id and img_id not in used_ids:
+                    urls = img.get("urls", {})
+                    images.append(
+                        {
+                            "id": img_id,
+                            "url": urls.get("raw"),
+                            "full_url": urls.get("full"),
+                            "regular_url": urls.get("regular"),
+                            "small_url": urls.get("small"),
+                            "thumb_url": urls.get("thumb"),
+                            "description": img.get("description")
+                            or img.get("alt_description", ""),
+                            "user": img.get("user", {}).get("name", ""),
+                        }
+                    )
+            return images
+        except Exception as e:
+            logger.warning(f"[UNSPLASH] Error en búsqueda múltiple: {e}")
+            return []
+
+    def fetch_relevant_images(
+        self,
+        article_title: str,
+        article_content: str,
+        max_images: int = 3,
+        category: str = None,
+    ) -> list[dict]:
+        """
+        Obtiene imágenes relevantes para un artículo usando filtrado por relevancia.
+
+        Args:
+            article_title: título del artículo
+            article_content: contenido del artículo
+            max_images: número máximo de imágenes a devolver
+            category: categoría/tema del artículo (usado como fallback)
+
+        Returns:
+            Lista de imágenes relevantes ordenadas por score
+        """
+        # Combinar título y contenido
+        article_text = f"{article_title} {article_content}"
+
+        # Inicializar validador (con caché compartido)
+        validator = ImageRelevanceValidator()
+
+        # Extraer keywords visuales con fallback de categoría
+        keywords = validator.extract_visual_keywords(
+            article_content, article_title, fallback_category=category
+        )
+
+        # Si no hay keywords, usar palabras del título como último recurso
+        if not keywords:
+            words = re.findall(r"\b[a-záéíóúñüA-ZÁÉÍÓÚÑÜ]{4,}\b", article_title)
+            keywords = words[:3] if words else ["noticia"]
+
+        # Construir query (máximo 4 palabras)
+        query = " ".join(keywords[:4])
+
+        # Obtener imágenes crudas (hasta 10 para tener margen de filtrado)
+        raw_images = self._search_images(query, limit=10)
+
+        # Filtrar por relevancia
+        relevant_images = filter_by_relevance(raw_images, article_text)
+
+        return relevant_images[:max_images]
+
     def fetch_for_posts(self, posts: list) -> list:
+        """
+        Obtiene imágenes para una lista de posts.
+        Usa el sistema de relevancia con fallback a búsqueda tradicional.
+        """
         changed = 0
         used_ids = get_used_ids()
         fallback_url = Settings.WP_DEFAULT_IMAGE_URL
@@ -305,21 +681,25 @@ class UnsplashFetcher:
             if not title:
                 continue
 
-            # Get theme if available for better query enrichment
+            # Obtener tema/categoría y contenido
             theme = post.get("tema") or post.get("theme") or post.get("category")
             content = post.get("content") or post.get("article") or ""
 
-            # Enrich query for better image results
-            use_title_only = self.mode == "news"
-            query = enrich_image_query(title, theme, content, use_title_only=use_title_only)
-            result = search_unsplash(query, used_ids)
+            # Intentar obtener imágenes relevantes (máximo 1 por post)
+            relevant_images = self.fetch_relevant_images(
+                article_title=title,
+                article_content=content,
+                max_images=1,
+                category=theme,
+            )
 
-            if result:
-                img_id = result.get("id")
-                regular_url = result.get("regular_url") or ""
-                full_url = result.get("full_url") or ""
-                user = result.get("user") or "Unsplash"
-                description = result.get("description") or title
+            if relevant_images:
+                selected = relevant_images[0]
+                img_id = selected.get("id")
+                regular_url = selected.get("regular_url") or selected.get("url") or ""
+                full_url = selected.get("full_url") or regular_url
+                user = selected.get("user") or "Unsplash"
+                description = selected.get("description") or title
 
                 post["unsplash_image"] = regular_url
                 post["unsplash_image_url"] = full_url
@@ -330,9 +710,40 @@ class UnsplashFetcher:
                 if img_id:
                     add_used_id(img_id)
                 changed += 1
-                logger.info(f"[UNSPLASH] ✅ {title[:40]}: {regular_url[:40]}")
+                score = selected.get("_relevance_score", 1.0)
+                logger.info(
+                    f"[UNSPLASH] ✅ {title[:40]}: {regular_url[:40]} (score={score:.2f})"
+                )
             else:
-                logger.warning(f"[UNSPLASH] No encontradas: {title[:40]}")
+                # Fallback: búsqueda tradicional sin filtro de relevancia
+                logger.debug(
+                    f"[UNSPLASH] No hay imágenes relevantes para '{title[:40]}', usando fallback"
+                )
+                query = enrich_image_query(
+                    title, theme, content, use_title_only=self.mode == "news"
+                )
+                result = search_unsplash(query, used_ids)
+                if result:
+                    img_id = result.get("id")
+                    regular_url = result.get("regular_url") or result.get("url", "")
+                    full_url = result.get("full_url") or regular_url
+                    user = result.get("user") or "Unsplash"
+                    description = result.get("description") or title
+
+                    post["unsplash_image"] = regular_url
+                    post["unsplash_image_url"] = full_url
+                    post["unsplash_id"] = img_id
+                    post["image_credit"] = user
+                    post["alt_text"] = description[:200]
+                    post["image_url"] = regular_url
+                    if img_id:
+                        add_used_id(img_id)
+                    changed += 1
+                    logger.info(
+                        f"[UNSPLASH] ⚠️ (fallback) {title[:40]}: {regular_url[:40]}"
+                    )
+                else:
+                    logger.warning(f"[UNSPLASH] No encontradas: {title[:40]}")
 
         logger.info(f"[UNSPLASH] ✅ {changed} imágenes encontradas")
         return posts
