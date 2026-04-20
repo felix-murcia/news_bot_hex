@@ -1,5 +1,6 @@
 """Adaptador para el servicio de Text-to-Speech (Hexagonal Architecture - Adapter)."""
 
+import datetime
 import os
 import time
 from typing import Optional
@@ -92,9 +93,10 @@ class TTSAdapter(TTSPort):
             f.write(response.content)
 
         total_time = time.time() - start_time
+        total_time_str = str(datetime.timedelta(seconds=int(total_time)))
         logger.info(
             f"[TTS] ✅ Audio guardado en: {output_path} "
-            f"(API: {elapsed_time:.2f}s + escritura: {total_time - elapsed_time:.2f}s ≈ {total_time:.2f}s total)"
+            f"(API: {elapsed_time:.2f}s + escritura: {total_time - elapsed_time:.2f}s ≈ {total_time_str} total)"
         )
         return output_path
 
