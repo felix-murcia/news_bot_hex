@@ -13,36 +13,38 @@ logger = get_logger("news_bot")
 def validate_wp_token() -> bool:
     """
     Validate WordPress JWT token before starting any pipeline.
-    
+
     Returns:
         True if token is valid, False otherwise.
-        
+
     Raises:
         RuntimeError: If token validation fails.
     """
     if not Settings.WP_HOSTING_JWT_TOKEN:
         logger.error("[WP-VALIDATE] WP_HOSTING_JWT_TOKEN not configured")
         raise RuntimeError("WordPress JWT token not configured")
-    
+
     try:
         headers = {
             "Authorization": f"Bearer {Settings.WP_HOSTING_JWT_TOKEN}",
             "User-Agent": "Mozilla/5.0 (compatible; NBESBot/1.0)",
         }
-        
+
         # Test with a simple GET request to verify token
         resp = requests.get(
             f"{Settings.WP_API_URL}/posts?per_page=1",
             headers=headers,
             timeout=10,
         )
-        
+
         if resp.status_code == 200:
             logger.info("[WP-VALIDATE] WordPress token is valid")
             return True
         elif resp.status_code in (401, 403):
             error_detail = resp.text[:200] if resp.text else "No details"
-            logger.error(f"[WP-VALIDATE] WordPress token expired or invalid ({resp.status_code}): {error_detail}")
+            logger.error(
+                f"[WP-VALIDATE] WordPress token expired or invalid ({resp.status_code}): {error_detail}"
+            )
             raise RuntimeError(
                 f"WordPress JWT token expired or invalid (HTTP {resp.status_code}). "
                 "Please generate a new token from your WordPress admin panel."
@@ -51,7 +53,7 @@ def validate_wp_token() -> bool:
             logger.warning(f"[WP-VALIDATE] Unexpected response: {resp.status_code}")
             # Don't fail on non-auth errors (could be network issues)
             return True
-            
+
     except requests.exceptions.RequestException as e:
         logger.error(f"[WP-VALIDATE] Connection error: {e}")
         raise RuntimeError(f"Cannot connect to WordPress API: {e}")
@@ -63,6 +65,7 @@ def get_headers():
         # Try to auto-refresh before failing
         try:
             from src.shared.adapters.wordpress_token_manager import get_valid_wp_token
+
             get_valid_wp_token()
             logger.info("[HOSTING] WordPress token auto-refreshed")
         except Exception as e:
@@ -161,6 +164,31 @@ def upload_image_from_url(
             return None
     except Exception as e:
         logger.error(f"[HOSTING] Error subiendo imagen: {e}")
+        return None
+
+
+def upload_audio(audio_path: str) -> Optional[int]:
+    """Sube un archivo de audio a WordPress."""
+    try:
+        headers = get_headers()
+        headers.pop("Content-Type", None)
+        with open(audio_path, "rb") as f:
+            files = {"file": (os.path.basename(audio_path), f, "audio/mpeg")}
+            logger.info(f"[HOSTING] Subiendo audio: {audio_path}")
+            resp = requests.post(
+                rest_url("media"), headers=headers, files=files, timeout=30
+            )
+        if resp.status_code in (200, 201):
+            media_id = resp.json().get("id")
+            logger.info(f"[HOSTING] Audio subido, ID={media_id}")
+            return int(media_id)
+        else:
+            logger.error(
+                f"[HOSTING] Error al subir audio: {resp.status_code} {resp.text}"
+            )
+            return None
+    except Exception as e:
+        logger.error(f"[HOSTING] Excepción en upload_audio: {e}")
         return None
 
 
@@ -410,9 +438,43 @@ class WordPressPublisher:
                     image_url, alt_text=alt_text, credit=image_credit
                 )
 
+            # === TTS Audio Upload ===
+            audio_path = art.get("tts_audio_path")
+            audio_block = ""
+            if audio_path and Path(audio_path).exists():
+                audio_id = upload_audio(audio_path)
+                if audio_id:
+                    # Obtener URL del audio desde WordPress
+                    try:
+                        media_resp = requests.get(
+                            rest_url(f"media/{audio_id}"),
+                            headers=get_headers(),
+                            timeout=15,
+                        )
+                        if media_resp.status_code == 200:
+                            audio_url = media_resp.json().get("source_url", "")
+                            # Crear bloque Gutenberg para audio
+                            audio_block = f"""
+<!-- wp:audio {{"id": {audio_id}}} -->
+<audio controls src="{audio_url}"></audio>
+<!-- /wp:audio -->
+"""
+                            logger.info(
+                                f"[HOSTING] Audio bloque preparado (ID={audio_id})"
+                            )
+                    except Exception as e:
+                        logger.warning(
+                            f"[HOSTING] No se pudo obtener URL del audio: {e}"
+                        )
+
+            # === Prepare content with audio block ===
+            article_content = art.get("content", "")
+            if audio_block:
+                article_content = audio_block + "\n\n" + article_content
+
             post_url = publish_post(
                 title=title,
-                content=art.get("content"),
+                content=article_content,
                 categories=[categoria_id] if categoria_id else None,
                 tags=tag_ids,
                 is_draft=is_draft,

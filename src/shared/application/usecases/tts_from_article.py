@@ -26,6 +26,7 @@ def clean_text_for_tts(text: str) -> str:
     text = re.sub(r"<style.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"<h[12].*?</h[12]>", "\n", text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"<strong.*?</strong>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"Washington", "Wáshington", text, flags=re.DOTALL | re.IGNORECASE)
 
     # Eliminar todas las etiquetas HTML restantes
     text = re.sub(r"<[^>]+>", "", text)
