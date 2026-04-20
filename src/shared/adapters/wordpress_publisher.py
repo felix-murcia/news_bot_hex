@@ -456,7 +456,7 @@ class WordPressPublisher:
                             # Crear bloque Gutenberg para audio
                             audio_block = f"""
 <!-- wp:audio {{"id": {audio_id}}} -->
-<audio controls src="{audio_url}"></audio>
+<audio controls src="{audio_url}" controlsList="nodownload" oncontextmenu="return false"></audio>
 <!-- /wp:audio -->
 """
                             logger.info(
