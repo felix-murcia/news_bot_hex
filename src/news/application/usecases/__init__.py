@@ -285,6 +285,17 @@ class FullVerifyNewsUseCase:
         except Exception:
             pass
 
+        # Si la URL fue seleccionada como top, marcarla como publicada
+        # incluso si la extracción falló, para evitar repeticiones
+        url = top.get("url")
+        if url and url not in published_urls:
+            published_urls.add(url)
+            self._published_urls_repo.save_urls(
+                published_urls,
+                limits.get("ttl_days", 30),
+                limits.get("max_urls", 1000),
+            )
+
         self._verified_repo.delete_all_news()
         self._verified_repo.insert_news([VerifiedArticle.from_dict(top)])
 
