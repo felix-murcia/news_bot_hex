@@ -71,8 +71,13 @@ class TTSAdapter(TTSPort):
         logger.info(f"[TTS] Generando audio con voz '{voice}' y modelo '{model}'")
 
         try:
+            start_time = time.time()
             response = requests.post(endpoint, json=payload, timeout=self.timeout)
+            elapsed_time = time.time() - start_time
             response.raise_for_status()
+            logger.info(
+                f"[TTS] API respondió en {elapsed_time:.2f}s - generando audio..."
+            )
         except requests.RequestException as e:
             logger.error(f"[TTS] Error en la solicitud: {e}")
             raise RuntimeError(f"Error al generar audio TTS: {e}") from e
@@ -86,7 +91,11 @@ class TTSAdapter(TTSPort):
         with open(output_path, "wb") as f:
             f.write(response.content)
 
-        logger.info(f"[TTS] Audio guardado en: {output_path}")
+        total_time = time.time() - start_time
+        logger.info(
+            f"[TTS] ✅ Audio guardado en: {output_path} "
+            f"(API: {elapsed_time:.2f}s + escritura: {total_time - elapsed_time:.2f}s ≈ {total_time:.2f}s total)"
+        )
         return output_path
 
 

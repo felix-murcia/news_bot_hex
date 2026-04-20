@@ -24,8 +24,7 @@ def clean_text_for_tts(text: str) -> str:
     # Eliminar scripts y estilos
     text = re.sub(r"<script.*?</script>", "", text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"<style.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r"<h1.*?</h1>", "", text, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r"<h2.*?</h2>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<h[12].*?</h[12]>", "\n", text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"<strong.*?</strong>", "", text, flags=re.DOTALL | re.IGNORECASE)
 
     # Eliminar todas las etiquetas HTML restantes
