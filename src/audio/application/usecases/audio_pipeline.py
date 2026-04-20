@@ -4,6 +4,7 @@ This use-case orchestrates the complete audio-to-article processing pipeline.
 """
 
 import time
+import random
 from typing import Dict, Any, List, Optional
 from config.settings import Settings
 
@@ -56,8 +57,11 @@ class AudioPipelineUseCase(BasePipelineUseCase):
         logger.info("[2/4] Generando artículo y posts con IA...")
         try:
             result = run_from_transcript(
-                transcript=transcript, url=url, tema=tema,
-                llm_provider=Settings.AI_PROVIDER, source_type="audio"
+                transcript=transcript,
+                url=url,
+                tema=tema,
+                llm_provider=Settings.AI_PROVIDER,
+                source_type="audio",
             )
             logger.info(f"[2/4] Artículo generado en {time.time() - step_start:.1f}s")
         except Exception as e:
@@ -74,17 +78,47 @@ class AudioPipelineUseCase(BasePipelineUseCase):
         articles_for_images = [article]
         enriched_articles = self._enrich_with_images(articles_for_images)
         enriched_article = enriched_articles[0]
-        logger.info(f"[3/7] Enriquecimiento completado en {time.time() - step_start:.1f}s")
+        logger.info(
+            f"[3/7] Enriquecimiento completado en {time.time() - step_start:.1f}s"
+        )
 
-        # Step 8: WordPress
+        # Step 4: Text-to-Speech
+        step_start = time.time()
+        logger.info("[4/8] Generando audio TTS del artículo...")
+        try:
+            from src.shared.adapters.tts_adapter import text_to_speech
+            from src.shared.application.usecases.tts_from_article import (
+                clean_text_for_tts,
+            )
+
+            article_text = enriched_article.get("content", "")
+            if article_text:
+                cleaned_text = clean_text_for_tts(article_text)
+                tts_audio_path = text_to_speech(
+                    text=cleaned_text,
+                    voice=Settings.TTS_VOICE,
+                    model=Settings.TTS_MODEL,
+                )
+                enriched_article["tts_audio_path"] = tts_audio_path
+                logger.info(
+                    f"[4/8] Audio TTS generado en {time.time() - step_start:.1f}s: {tts_audio_path}"
+                )
+            else:
+                logger.warning("[4/8] No hay contenido para generar audio TTS")
+        except Exception as e:
+            logger.warning(f"[4/8] Error en generación TTS (no bloquea pipeline): {e}")
+
+        # Step 5: WordPress
         step_start = time.time()
         wordpress_url: Optional[str] = None
         if not self.no_publish:
-            logger.info("[4/8] Publicando en WordPress...")
+            logger.info("[5/9] Publicando en WordPress...")
             wordpress_url = self._publish_to_wordpress(enriched_article, tema)
             if wordpress_url:
                 enriched_article["wp_url"] = wordpress_url
-                logger.info(f"[4/8] Publicado en WordPress en {time.time() - step_start:.1f}s: {wordpress_url}")
+                logger.info(
+                    f"[5/9] Publicado en WordPress en {time.time() - step_start:.1f}s: {wordpress_url}"
+                )
 
                 # Replace placeholder URL in tweet with actual WordPress URL
                 if tweet and enriched_article.get("url"):
@@ -94,34 +128,47 @@ class AudioPipelineUseCase(BasePipelineUseCase):
                     elif "nbes.blog" in tweet:
                         # Replace any nbes.blog URL with the actual one
                         import re
+
                         tweet = re.sub(r"https?://nbes\.blog/\S+", wordpress_url, tweet)
                     # Append URL if not present
                     if wordpress_url not in tweet:
                         tweet = f"{tweet}\n\nMás info: {wordpress_url}"
-                        from src.shared.utils.tweet_truncation import truncate_social_post
+                        from src.shared.utils.tweet_truncation import (
+                            truncate_social_post,
+                        )
+
                         tweet = truncate_social_post(tweet)
                     tweets = [tweet]  # Update tweets list with corrected tweet
             else:
-                logger.warning(f"[4/8] No se obtuvo URL de WordPress — usando URL fallback")
+                logger.warning(
+                    f"[5/9] No se obtuvo URL de WordPress — usando URL fallback"
+                )
                 # Fallback: use original audio URL or placeholder article URL
-                fallback_url = enriched_article.get("url") or enriched_article.get("original_url") or url
+                fallback_url = (
+                    enriched_article.get("url")
+                    or enriched_article.get("original_url")
+                    or url
+                )
                 if fallback_url and fallback_url not in tweet:
                     tweet = f"{tweet}\n\nMás: {fallback_url}"
                     from src.shared.utils.tweet_truncation import truncate_social_post
+
                     tweet = truncate_social_post(tweet)
                     tweets = [tweet]
-                    logger.info(f"[4/8] Tweet con URL fallback: {fallback_url}")
+                    logger.info(f"[5/9] Tweet con URL fallback: {fallback_url}")
         else:
-            logger.info("[4/8] WordPress omitido (no-publish mode)")
+            logger.info("[5/9] WordPress omitido (no-publish mode)")
 
-        # Step 9: Social media
+        # Step 6: Social media
         step_start = time.time()
-        logger.info("[5/9] Publicando en redes sociales...")
+        logger.info("[6/10] Publicando en redes sociales...")
         social_results = self._publish_to_social(enriched_article, tweet, url)
-        logger.info(f"[5/9] Redes sociales procesadas en {time.time() - step_start:.1f}s")
+        logger.info(
+            f"[6/10] Redes sociales procesadas en {time.time() - step_start:.1f}s"
+        )
 
-        # Step 10: Cleanup
-        logger.info("[6/10] Limpiando archivos temporales...")
+        # Step 7: Cleanup
+        logger.info("[7/10] Limpiando archivos temporales...")
         self._cleanup_temp_files()
 
         return self.build_result(

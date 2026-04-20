@@ -5,6 +5,7 @@ loaded from environment variables or config files.
 """
 
 import os
+import random
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from dotenv import load_dotenv
@@ -26,12 +27,14 @@ class Settings:
     # === WordPress Configuration ===
     WP_HOSTING_API_BASE = os.getenv("WP_HOSTING_API_BASE", "https://api.nbes.blog")
     WP_HOSTING_JWT_TOKEN = os.getenv("WP_HOSTING_JWT_TOKEN", "")
-    WP_DEFAULT_IMAGE_URL = os.getenv("WP_DEFAULT_IMAGE_URL", "https://api.nbes.blog/image-310/")
+    WP_DEFAULT_IMAGE_URL = os.getenv(
+        "WP_DEFAULT_IMAGE_URL", "https://api.nbes.blog/image-310/"
+    )
     WP_SITE_URL = os.getenv("WP_SITE_URL", "https://nbes.blog")
     WP_API_URL = os.getenv("WP_API_URL", f"{WP_HOSTING_API_BASE}/wp-json/wp/v2")
     WP_DEFAULT_CATEGORY = os.getenv("WP_DEFAULT_CATEGORY", "Noticias")
     WP_DEFAULT_IMAGE_ENDPOINT = os.getenv("WP_DEFAULT_IMAGE_ENDPOINT", "/image-310/")
-    
+
     # WordPress credentials for auto token refresh
     WP_USER = os.getenv("WP_USER", "")
     WP_PASSWORD = os.getenv("WP_PASSWORD", "")
@@ -42,7 +45,9 @@ class Settings:
     FACEBOOK_APP_ID = os.getenv("FACEBOOK_APP_ID", "")
     FACEBOOK_APP_SECRET = os.getenv("FACEBOOK_APP_SECRET", "")
     FACEBOOK_GRAPH_API_VERSION = os.getenv("FACEBOOK_GRAPH_API_VERSION", "v23.0")
-    FACEBOOK_GRAPH_API_BASE = os.getenv("FACEBOOK_GRAPH_API_BASE", "https://graph.facebook.com")
+    FACEBOOK_GRAPH_API_BASE = os.getenv(
+        "FACEBOOK_GRAPH_API_BASE", "https://graph.facebook.com"
+    )
 
     # === Bluesky Configuration ===
     BLUESKY_HANDLE = os.getenv("BLUESKY_HANDLE", "")
@@ -50,20 +55,28 @@ class Settings:
     BLUESKY_PDS_URL = os.getenv("BLUESKY_PDS_URL", "https://bsky.social")
 
     # === Mastodon Configuration ===
-    MASTODON_INSTANCE_URL = os.getenv("MASTODON_INSTANCE_URL", "https://mastodon.social")
+    MASTODON_INSTANCE_URL = os.getenv(
+        "MASTODON_INSTANCE_URL", "https://mastodon.social"
+    )
     MASTODON_ACCESS_TOKEN = os.getenv("MASTODON_ACCESS_TOKEN", "")
-    MASTODON_API_BASE = os.getenv("MASTODON_API_BASE", None)  # Will be derived from instance URL
+    MASTODON_API_BASE = os.getenv(
+        "MASTODON_API_BASE", None
+    )  # Will be derived from instance URL
 
     # === Unsplash Configuration ===
     UNSPLASH_ACCESS_KEY = os.getenv("UNSPLASH_ACCESS_KEY", "")
-    UNSPLASH_API_URL = os.getenv("UNSPLASH_API_URL", "https://api.unsplash.com/search/photos")
+    UNSPLASH_API_URL = os.getenv(
+        "UNSPLASH_API_URL", "https://api.unsplash.com/search/photos"
+    )
     UNSPLASH_ORIENTATION = os.getenv("UNSPLASH_ORIENTATION", "landscape")
     UNSPLASH_PER_PAGE = int(os.getenv("UNSPLASH_PER_PAGE", "3"))
 
     # === Google Images Configuration ===
     GOOGLE_SEARCH_API_KEY = os.getenv("GOOGLE_SEARCH_API_KEY", "")
     GOOGLE_SEARCH_ENGINE_ID = os.getenv("GOOGLE_SEARCH_ENGINE_ID", "")
-    GOOGLE_API_URL = os.getenv("GOOGLE_API_URL", "https://www.googleapis.com/customsearch/v1")
+    GOOGLE_API_URL = os.getenv(
+        "GOOGLE_API_URL", "https://www.googleapis.com/customsearch/v1"
+    )
 
     # === Social Media Limits ===
     POST_LIMITS: Dict[str, int] = {
@@ -73,7 +86,7 @@ class Settings:
         "mastodon": int(os.getenv("MASTODON_POST_LIMIT", "500")),
         "facebook": int(os.getenv("FACEBOOK_POST_LIMIT", "63206")),
     }
-    
+
     # Tweet truncation buffer (chars to reserve for URL/hashtags)
     TWEET_TRUNCATION_BUFFER = int(os.getenv("TWEET_TRUNCATION_BUFFER", "3"))
 
@@ -81,7 +94,7 @@ class Settings:
     # Default is ALWAYS "local" — no external providers are used unless explicitly configured
     AI_PROVIDER = (os.getenv("AI_PROVIDER") or "local").lower()
     SUPPORTED_AI_PROVIDERS = ["openrouter", "gemini", "local", "mock"]
-    
+
     AI_ADAPTER_MAP = {
         "gemini": "src.shared.adapters.ai.gemini_adapter.GeminiAdapter",
         "openrouter": "src.shared.adapters.ai.openrouter_adapter.OpenRouterAdapter",
@@ -89,18 +102,24 @@ class Settings:
         "mock": "src.shared.adapters.ai.local_adapter.MockAdapter",
         "groq": "src.shared.adapters.ai.groq_adapter.GroqAdapter",
     }
-    
+
     GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
     OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openrouter/free")
-    OPENROUTER_API_URL = os.getenv("OPENROUTER_API_URL", "https://openrouter.ai/api/v1/chat/completions")
-    OPENROUTER_AUTH_URL = os.getenv("OPENROUTER_AUTH_URL", "https://openrouter.ai/api/v1/auth/key")
+    OPENROUTER_API_URL = os.getenv(
+        "OPENROUTER_API_URL", "https://openrouter.ai/api/v1/chat/completions"
+    )
+    OPENROUTER_AUTH_URL = os.getenv(
+        "OPENROUTER_AUTH_URL", "https://openrouter.ai/api/v1/auth/key"
+    )
     OPENROUTER_REFERER = os.getenv("OPENROUTER_REFERER", "http://nbes.blog")
     OPENROUTER_APP_TITLE = os.getenv("OPENROUTER_APP_TITLE", "news_bot")
     WHISPER_MODEL = os.getenv("WHISPER_MODEL", "medium")
 
     # === Groq Transcription Configuration ===
     GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-    GROQ_API_URL = os.getenv("GROQ_API_URL", "https://api.groq.com/openai/v1/audio/transcriptions")
+    GROQ_API_URL = os.getenv(
+        "GROQ_API_URL", "https://api.groq.com/openai/v1/audio/transcriptions"
+    )
     GROQ_TRANSCRIBE_MODEL = os.getenv("GROQ_TRANSCRIBE_MODEL", "whisper-large-v3-turbo")
 
     # === Local Model Configuration ===
@@ -150,8 +169,11 @@ class Settings:
         "temperature": float(os.getenv("GEMINI_TEMPERATURE", "0.7")),
         "top_p": float(os.getenv("GEMINI_TOP_P", "0.9")),
         "max_output_tokens": int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "5000")),
-        "enable_cost_tracking": os.getenv("GEMINI_ENABLE_COST_TRACKING", "true").lower() == "true",
-        "max_cost_per_month_eur": float(os.getenv("GEMINI_MAX_COST_PER_MONTH_EUR", "5.0")),
+        "enable_cost_tracking": os.getenv("GEMINI_ENABLE_COST_TRACKING", "true").lower()
+        == "true",
+        "max_cost_per_month_eur": float(
+            os.getenv("GEMINI_MAX_COST_PER_MONTH_EUR", "5.0")
+        ),
         "timeout": int(os.getenv("GEMINI_TIMEOUT", "30")),
         "retry_attempts": int(os.getenv("GEMINI_RETRY_ATTEMPTS", "2")),
     }
@@ -176,24 +198,40 @@ class Settings:
 
     # === News API Filters ===
     NEWS_FILTERS: Dict[str, Any] = {
-        "exclude_sources": os.getenv("NEWS_EXCLUDE_SOURCES", "el-mundo,el-pais,abc-news-es,la-vanguardia,20-minutos,marca,as,sport,news24").split(","),
+        "exclude_sources": os.getenv(
+            "NEWS_EXCLUDE_SOURCES",
+            "el-mundo,el-pais,abc-news-es,la-vanguardia,20-minutos,marca,as,sport,news24",
+        ).split(","),
         "q": os.getenv("NEWS_QUERY", ""),
         "pageSize": int(os.getenv("NEWS_PAGE_SIZE", "50")),
         "page": int(os.getenv("NEWS_PAGE", "1")),
-        "keywords": os.getenv("NEWS_KEYWORDS", "news,update,international,world,crisis,conflict,violence,economy,politics,population,regulation,wildlife,marine,murder,attack,stock,futures").split(","),
+        "keywords": os.getenv(
+            "NEWS_KEYWORDS",
+            "news,update,international,world,crisis,conflict,violence,economy,politics,population,regulation,wildlife,marine,murder,attack,stock,futures",
+        ).split(","),
     }
 
     # === Trusted Sources ===
-    TRUSTED_SOURCES: List[str] = os.getenv("TRUSTED_SOURCES", "AP News,Reuters,Bloomberg.com,BBC News,NBC News").split(",")
+    TRUSTED_SOURCES: List[str] = os.getenv(
+        "TRUSTED_SOURCES", "AP News,Reuters,Bloomberg.com,BBC News,NBC News"
+    ).split(",")
 
     # === Copyright Risk Domains ===
-    COPYRIGHT_DOMAINS: List[str] = os.getenv("COPYRIGHT_DOMAINS", "elpais.com,elmundo.es,20minutos.es,marca.com,as.com,cincodias.elpais.es,bbc.com").split(",")
+    COPYRIGHT_DOMAINS: List[str] = os.getenv(
+        "COPYRIGHT_DOMAINS",
+        "elpais.com,elmundo.es,20minutos.es,marca.com,as.com,cincodias.elpais.es,bbc.com",
+    ).split(",")
 
     # === Video Copyright Domains ===
-    VIDEO_COPYRIGHT_DOMAINS: List[str] = os.getenv("VIDEO_COPYRIGHT_DOMAINS", "youtube.com,youtu.be,tiktok.com,instagram.com,spotify.com,apple.com").split(",")
+    VIDEO_COPYRIGHT_DOMAINS: List[str] = os.getenv(
+        "VIDEO_COPYRIGHT_DOMAINS",
+        "youtube.com,youtu.be,tiktok.com,instagram.com,spotify.com,apple.com",
+    ).split(",")
 
     # === Video Configuration ===
-    ALLOWED_VIDEO_DOMAINS: List[str] = os.getenv("ALLOWED_VIDEO_DOMAINS", "facebook.com,twitter.com,youtube.com").split(",")
+    ALLOWED_VIDEO_DOMAINS: List[str] = os.getenv(
+        "ALLOWED_VIDEO_DOMAINS", "facebook.com,twitter.com,youtube.com"
+    ).split(",")
 
     # === Cache Configuration ===
     CACHE_MAX_AGE_HOURS = int(os.getenv("CACHE_MAX_AGE_HOURS", "6"))
@@ -238,6 +276,12 @@ class Settings:
 
     # === Spell Checker Configuration ===
     SPELL_CHECKER_LANG = os.getenv("SPELL_CHECKER_LANG", "es")
+
+    # === TTS Configuration ===
+    TTS_MODEL = os.getenv("TTS_MODEL", "speaches-ai/Kokoro-82M-v1.0-ONNX-int8")
+    TTS_VOICE = os.getenv("TTS_VOICE", random.choice(["ef_dora", "em_alex"]))
+    TTS_API_URL = os.getenv("TTS_API_URL", "http://localhost:5005")
+    TTS_TIMEOUT = int(os.getenv("TTS_TIMEOUT", "120"))
 
     @classmethod
     def ensure_directories(cls):

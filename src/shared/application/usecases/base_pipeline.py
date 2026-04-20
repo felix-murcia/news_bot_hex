@@ -56,6 +56,7 @@ class BasePipelineUseCase(ABC):
         if self._wp_validated or self.no_publish:
             return
         from src.shared.adapters.wordpress_token_manager import get_valid_wp_token
+
         try:
             get_valid_wp_token()
             logger.info(f"[{self.mode.upper()} PIPELINE] WordPress token validated")
@@ -156,7 +157,9 @@ class BasePipelineUseCase(ABC):
         self._validate_wordpress_token()
 
         step_start = time.time()
-        logger.info(f"WordPress publish started: '{article.get('title', 'Untitled')[:80]}'")
+        logger.info(
+            f"WordPress publish started: '{article.get('title', 'Untitled')[:80]}'"
+        )
 
         try:
             # Determine category
@@ -227,7 +230,9 @@ class BasePipelineUseCase(ABC):
             if wordpress_url:
                 logger.info(f"WordPress published in {elapsed:.1f}s: {wordpress_url}")
             else:
-                logger.warning(f"WordPress publish failed (no URL returned) after {elapsed:.1f}s")
+                logger.warning(
+                    f"WordPress publish failed (no URL returned) after {elapsed:.1f}s"
+                )
 
             return wordpress_url
 
@@ -288,6 +293,7 @@ class BasePipelineUseCase(ABC):
         tweets: List[str],
         wordpress_url: Optional[str],
         social_results: List[Dict[str, Any]],
+        tts_audio_path: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Build a standardized result dictionary.
 
@@ -299,6 +305,7 @@ class BasePipelineUseCase(ABC):
             tweets: List of generated tweets
             wordpress_url: WordPress post URL
             social_results: Social media publishing results
+            tts_audio_path: Path to generated TTS audio file
 
         Returns:
             Standardized result dictionary
@@ -313,4 +320,5 @@ class BasePipelineUseCase(ABC):
             "wordpress_url": wordpress_url,
             "social_results": social_results,
             "mode": self.mode,
+            "tts_audio_path": tts_audio_path or article.get("tts_audio_path"),
         }

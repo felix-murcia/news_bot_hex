@@ -25,6 +25,7 @@ services:
       - /tmp/logs:/app/logs
       - /tmp/data:/app/data
       - ${MODELS_LOCATION}:/app/models
+      - /tmp/audios:/tmp/audios
     network_mode: host
     deploy:
       resources:

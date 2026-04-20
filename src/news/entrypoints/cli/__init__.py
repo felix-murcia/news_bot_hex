@@ -68,8 +68,8 @@ def main_rss():
         logger.error(f"[RSS] Error: {result['message']}")
         return result
 
-    total = result.get('total_articles', 0)
-    new = result.get('new_articles', 0)
+    total = result.get("total_articles", 0)
+    new = result.get("new_articles", 0)
     existing = total - new
     logger.info(
         f"[RSS] Capturadas {total} noticias ({new} nuevas, {existing} existentes) desde fuentes RSS → MongoDB"
@@ -198,34 +198,43 @@ def main_news_to_news():
 def main_bluesky():
     """Punto de entrada para publicar en Bluesky."""
     result = run_bluesky()
-    logger.info(f"[BLUESKY] Publicación finalizada. Publicados: {result.get('published', 0)}")
+    logger.info(
+        f"[BLUESKY] Publicación finalizada. Publicados: {result.get('published', 0)}"
+    )
     return result
 
 
 def main_facebook():
     """Punto de entrada para publicar en Facebook."""
     result = run_facebook()
-    logger.info(f"[FACEBOOK] Publicación finalizada. Publicados: {result.get('published', 0)}")
+    logger.info(
+        f"[FACEBOOK] Publicación finalizada. Publicados: {result.get('published', 0)}"
+    )
     return result
 
 
 def main_mastodon():
     """Punto de entrada para publicar en Mastodon."""
     result = run_mastodon()
-    logger.info(f"[MASTODON] Publicación finalizada. Publicados: {result.get('published', 0)}")
+    logger.info(
+        f"[MASTODON] Publicación finalizada. Publicados: {result.get('published', 0)}"
+    )
     return result
 
 
 def main_wordpress():
     """Punto de entrada para publicar en WordPress."""
     result = run_wordpress()
-    logger.info(f"[WORDPRESS] Publicación finalizada. Publicados: {result.get('published', 0)}")
+    logger.info(
+        f"[WORDPRESS] Publicación finalizada. Publicados: {result.get('published', 0)}"
+    )
     return result
 
 
 def main_pipeline():
     """Punto de entrada para ejecutar el pipeline completo."""
     import time
+
     pipeline_start = time.time()
 
     logger.info("=" * 60)
@@ -243,41 +252,74 @@ def main_pipeline():
     logger.info("[VERIFIER] Verificación completa finalizada.")
 
     # Step 3: Generate tweets/posts
-    logger.info("[CONTENT] Iniciando generación de tweets/posts desde noticias verificadas...")
+    logger.info(
+        "[CONTENT] Iniciando generación de tweets/posts desde noticias verificadas..."
+    )
     from src.news.application.usecases.content import run_content
+
     posts = run_content(use_gemini=True, mode="news")
     logger.info(f"[CONTENT] Finalizada generación de {len(posts)} post(s).")
 
     # Step 4: Generate articles
-    logger.info("[ARTICLE] Iniciando generación de artículos profesionales en español...")
+    logger.info(
+        "[ARTICLE] Iniciando generación de artículos profesionales en español..."
+    )
     from src.news.application.usecases.article import run as run_article_gemini
+
     articles = run_article_gemini(use_gemini=True)
     logger.info(f"[ARTICLE] Finalizada generación de {len(articles)} artículo(s).")
 
     # Step 5: Unsplash images
     logger.info("[IMAGE] Iniciando búsqueda de imágenes en Unsplash...")
     from src.shared.adapters.unsplash_fetcher import run as run_unsplash
+
     run_unsplash()
     logger.info("[IMAGE] Búsqueda en Unsplash finalizada.")
 
     # Step 6: Google Images
     logger.info("[IMAGE] Iniciando búsqueda de imágenes en Google Images...")
     from src.shared.adapters.google_images_fetcher import run as run_google
+
     run_google()
     logger.info("[IMAGE] Búsqueda en Google Images finalizada.")
 
     # Step 7: Image enrichment
     logger.info("[IMAGE] Iniciando enriquecimiento y selección de imágenes...")
     from src.shared.adapters.image_enricher import run as run_image_enricher
+
     run_image_enricher()
     logger.info("[IMAGE] Enriquecimiento de imágenes finalizado.")
 
-    # Step 8: WordPress
+    # Step 8: Text-to-Speech
+    logger.info("[TTS] Iniciando generación de audio TTS para artículos...")
+    from src.shared.application.usecases.tts_from_article import run_tts_from_articles
+    from src.shared.adapters.mongo_db import get_database
+
+    db = get_database()
+    articles_coll = db["generated_articles"]
+    articles = list(articles_coll.find({}))
+    if articles:
+        updated_articles = run_tts_from_articles(articles)
+        for i, article in enumerate(updated_articles):
+            if article.get("tts_audio_path"):
+                articles_coll.update_one(
+                    {"_id": article["_id"]},
+                    {"$set": {"tts_audio_path": article["tts_audio_path"]}},
+                )
+        logger.info(
+            f"[TTS] Audio TTS generado para {len([a for a in updated_articles if a.get('tts_audio_path')])} artículo(s)"
+        )
+    else:
+        logger.info("[TTS] No hay artículos para generar audio TTS")
+
+    # Step 10: WordPress
     logger.info("[WORDPRESS] Iniciando publicación en WordPress...")
     wp_result = main_wordpress()
-    logger.info(f"[WORDPRESS] Publicación en WordPress finalizada. Publicados: {wp_result.get('published', 0)}")
+    logger.info(
+        f"[WORDPRESS] Publicación en WordPress finalizada. Publicados: {wp_result.get('published', 0)}"
+    )
 
-    # Step 9: Social Media
+    # Step 11: Social Media
     logger.info("[SOCIAL] Iniciando publicación en redes sociales...")
     main_facebook()
     main_bluesky()
