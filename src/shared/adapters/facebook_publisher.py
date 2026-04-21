@@ -22,61 +22,6 @@ if not PAGE_ID or not PAGE_TOKEN:
     raise ValueError("Facebook credentials not found in .env")
 
 
-def validate_token(token: str) -> bool:
-    """Validate Facebook token."""
-    debug_url = f"{Settings.FACEBOOK_GRAPH_API_BASE}/debug_token?input_token={token}&access_token={APP_ID}|{APP_SECRET}"
-    resp = requests.get(debug_url)
-    if resp.status_code != 200:
-        logger.warning(f"[FACEBOOK] Error validating token: {resp.text}")
-        return False
-    data = resp.json().get("data", {})
-    if not data.get("is_valid"):
-        logger.error(f"[FACEBOOK] Invalid or expired token: {data}")
-        return False
-    exp = data.get("expires_at")
-    if exp:
-        exp_date = datetime.fromtimestamp(exp).strftime("%Y-%m-%d %H:%M:%S")
-        logger.info(f"[FACEBOOK] Token valid. Expires: {exp_date}")
-    else:
-        logger.info("[FACEBOOK] Token valid")
-    return True
-
-
-if not validate_token(PAGE_TOKEN):
-    raise SystemExit("Page token is not valid")
-
-
-def clean_article_text(html: str, max_chars: int = 5000) -> str:
-    """Limpia y recorta texto del artículo."""
-    if not html:
-        return ""
-    html = re.sub(r"<script.*?</script>", "", html, flags=re.DOTALL | re.IGNORECASE)
-    html = re.sub(r"<style.*?</style>", "", html, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r"<[^>]+>", "", html)
-    text = re.sub(r"\r\n", "\n", text)
-    text = re.sub(r"\n{2,}", "\n\n", text)
-    text = text.strip()
-    filtros = [
-        "Lee también más noticias",
-        "Síguenos en:",
-        "Bluesky",
-        "Mastodon",
-        "Facebook",
-    ]
-    text = "\n".join(
-        line
-        for line in text.splitlines()
-        if not any(f in line for f in filtros)
-        and not line.strip().startswith("Fuente:")
-    )
-    if len(text) > max_chars:
-        cutoff = text.rfind(" ", 0, max_chars)
-        if cutoff == -1:
-            cutoff = max_chars
-        text = text[:cutoff].strip()
-    return text
-
-
 def validate_image_url(url: str, max_size_mb: int = 10) -> bool:
     """Valida imagen antes de subir."""
     try:
@@ -100,20 +45,6 @@ def validate_image_url(url: str, max_size_mb: int = 10) -> bool:
 
 class FacebookPublisher:
     """Publisher para Facebook."""
-
-    def _load_articles_from_mongo(self) -> List[Dict]:
-        try:
-            from src.shared.adapters.mongo_db import get_database
-
-            db = get_database()
-            coll = db["generated_articles"]
-            articles = list(coll.find({}))
-            for a in articles:
-                a.pop("_id", None)
-            return articles
-        except Exception as e:
-            logger.error(f"[FACEBOOK] Error cargando artículos: {e}")
-            return []
 
     def _load_posts_from_mongo(self) -> List[Dict]:
         try:
@@ -149,8 +80,6 @@ class FacebookPublisher:
         """Publica posts en Facebook."""
         if posts is None:
             posts = self._load_posts_from_mongo()
-        if articles is None:
-            articles = self._load_articles_from_mongo()
 
         if not posts:
             logger.warning("[FACEBOOK] No hay posts para publicar")
@@ -168,16 +97,13 @@ class FacebookPublisher:
                 )
                 continue
 
-            art = (
-                articles[idx]
-                if idx < len(articles) and isinstance(articles[idx], dict)
-                else None
-            )
-            content_text = (
-                clean_article_text(art["content"])
-                if art and art.get("content")
-                else (post.get("tweet") or "").strip()
-            )
+            # Usar solo el contenido del post (tweet)
+            tweet = (post.get("tweet") or "").strip()
+            if not tweet:
+                logger.warning(
+                    f"[FACEBOOK] Post sin tweet: {post.get('title', '')[:60]}..."
+                )
+                continue
 
             title_es = (post.get("title_es") or "").strip()
             title_orig = (post.get("title") or "Noticia destacada").strip()
@@ -186,7 +112,8 @@ class FacebookPublisher:
             hashtags = post.get("hashtags", [])
             hashtags_str = " ".join(hashtags) if hashtags else ""
 
-            message_text = f"📌 **{title}**\n\n{content_text}"
+            # Formato simple: título + tweet + hashtags
+            message_text = f"📌 {title}\n\n{tweet}"
             if hashtags_str:
                 message_text += f"\n\n{hashtags_str}"
 
