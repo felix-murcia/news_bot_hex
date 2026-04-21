@@ -118,11 +118,15 @@ def text_to_speech(
     Returns:
         Ruta del archivo de audio generado.
     """
-    adapter = TTSAdapter()
+    from src.shared.adapters.tts_factory import get_tts_adapter
+
+    adapter = get_tts_adapter()
     return adapter.text_to_speech(text, voice, model, output_path)
 
 
 def is_tts_available() -> bool:
     """Verifica si el servicio TTS está disponible."""
-    adapter = TTSAdapter()
+    from src.shared.adapters.tts_factory import get_tts_adapter
+
+    adapter = get_tts_adapter()
     return adapter.is_available()

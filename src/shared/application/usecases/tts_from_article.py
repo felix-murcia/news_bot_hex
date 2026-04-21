@@ -67,25 +67,13 @@ def clean_text_for_tts(text: str) -> str:
 class TTSFromArticleUseCase:
     """Caso de uso para generar audio TTS desde artículos."""
 
-    def __init__(
-        self,
-        voice: Optional[str] = None,
-        model: Optional[str] = None,
-    ):
-        from config.settings import Settings
-
-        self.voice = voice or Settings.TTS_VOICE
-        self.model = model or Settings.TTS_MODEL
+    def __init__(self):
+        """Inicializa el use case. No requiere configuración TTS,
+        el adaptador usa sus propios defaults facilitados por la fábrica."""
+        pass
 
     def execute(self, article: Dict[str, Any]) -> Dict[str, Any]:
-        """Genera audio TTS para un artículo.
-
-        Args:
-            article: Diccionario con los datos del artículo (debe contener 'content').
-
-        Returns:
-            Diccionario con el artículo actualizado incluyendo 'tts_audio_path'.
-        """
+        """Genera audio TTS para un artículo."""
         if not is_tts_available():
             logger.warning(
                 "[TTS] Servicio TTS no disponible, saltando generación de audio"
@@ -97,7 +85,6 @@ class TTSFromArticleUseCase:
             logger.warning("[TTS] Artículo sin contenido, saltando generación de audio")
             return article
 
-        # Limpiar HTML y caracteres no deseados
         cleaned_content = clean_text_for_tts(content)
         if not cleaned_content:
             logger.warning(
@@ -106,11 +93,8 @@ class TTSFromArticleUseCase:
             return article
 
         try:
-            audio_path = text_to_speech(
-                text=cleaned_content,
-                voice=self.voice,
-                model=self.model,
-            )
+            # El adaptador seleccionado por TTS_MODE usará su configuración propia
+            audio_path = text_to_speech(text=cleaned_content)
             article["tts_audio_path"] = audio_path
             logger.info(f"[TTS] Audio generado: {audio_path}")
         except Exception as e:

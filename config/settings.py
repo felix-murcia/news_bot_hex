@@ -278,10 +278,20 @@ class Settings:
     SPELL_CHECKER_LANG = os.getenv("SPELL_CHECKER_LANG", "es")
 
     # === TTS Configuration ===
+    TTS_MODE = os.getenv("TTS_MODE", "speaches")  # "speaches" o "coqui"
     TTS_MODEL = os.getenv("TTS_MODEL", "speaches-ai/Kokoro-82M-v1.0-ONNX-int8")
     TTS_VOICE = os.getenv("TTS_VOICE", random.choice(["ef_dora", "em_alex"]))
     TTS_API_URL = os.getenv("TTS_API_URL", "http://localhost:5005")
     TTS_TIMEOUT = int(os.getenv("TTS_TIMEOUT", "120"))
+
+    # === Coqui TTS Configuration ===
+    COQUI_API_URL = os.getenv("COQUI_API_URL", "http://localhost:5002")
+    COQUI_VOICE = os.getenv("COQUI_VOICE", "es-ml-onyx")
+    COQUI_MODEL = os.getenv("COQUI_MODEL", "coqui-ai/tts")
+
+    # === Audio Converter Configuration (ffmpeg) ===
+    FFMPEG_API_URL = os.getenv("FFMPEG_API_URL", "http://localhost:8082")
+    AUDIO_CONVERTER_PATH = os.getenv("AUDIO_CONVERTER_PATH", "/audio/convert-by-path")
 
     @classmethod
     def ensure_directories(cls):
