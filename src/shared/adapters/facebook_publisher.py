@@ -121,6 +121,36 @@ class FacebookPublisher:
             if wp_url:
                 message_text += f"\n\nMás info: {wp_url}"
 
+            # 1️⃣ INTENTAR SUBIR VIDEO PRIMERO (tiene prioridad)
+            video_path = post.get("video_path")
+            logger.info(f"[FACEBOOK] video_path: {video_path}")
+            if video_path and os.path.exists(video_path):
+                endpoint = f"{Settings.FACEBOOK_GRAPH_API_BASE}/{Settings.FACEBOOK_GRAPH_API_VERSION}/{PAGE_ID}/videos"
+                logger.info(f"[FACEBOOK] Subiendo video a {endpoint}")
+
+                files = {"source": open(video_path, "rb")}
+                payload = {"description": message_text, "access_token": PAGE_TOKEN}
+
+                resp = requests.post(endpoint, data=payload, files=files)
+
+                if resp.status_code != 200:
+                    logger.error(
+                        f"[FACEBOOK] Error subiendo video: {resp.status_code} {resp.text}"
+                    )
+                    errors += 1
+                    continue
+
+                fb_resp = resp.json()
+                post_id = fb_resp.get("id")
+                post_url = f"https://www.facebook.com/{post_id}" if post_id else None
+
+                logger.info(f"[FACEBOOK] 🎥 Video publicado: {post_url}")
+                post["facebook_url"] = post_url
+                self._save_post(post)
+                published += 1
+                continue
+
+            # 2️⃣ SI NO HAY VIDEO, INTENTAR SUBIR IMAGEN
             image_url = (post.get("image_url") or "").strip()
             if (
                 image_url

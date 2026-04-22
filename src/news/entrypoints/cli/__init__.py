@@ -337,6 +337,24 @@ def main_pipeline():
                             {"_id": article["_id"]},
                             {"$set": {"generated_video_path": video_path}},
                         )
+                        # También actualizar generated_posts con video_path para social publishers
+                        try:
+                            posts_coll = db["generated_posts"]
+                            original_url = article.get("original_url")
+                            if original_url:
+                                post = posts_coll.find_one({"url": original_url})
+                                if post:
+                                    posts_coll.update_one(
+                                        {"_id": post["_id"]},
+                                        {"$set": {"video_path": video_path}},
+                                    )
+                                    logger.debug(
+                                        f"[VIDEO] generated_posts actualizado con video_path: {original_url}"
+                                    )
+                        except Exception as e:
+                            logger.warning(
+                                f"[VIDEO] No se pudo actualizar generated_posts: {e}"
+                            )
                         videos_generated += 1
                         logger.debug(
                             f"[VIDEO] Video generado para artículo '{article.get('title', '')[:50]}': {video_path}"
