@@ -1,12 +1,17 @@
 """Use case para generar audio TTS desde artículos."""
 
 import re
+from pathlib import Path
 from typing import Dict, Any, List, Optional
 
 from config.logging_config import get_logger
 from src.shared.adapters.tts_adapter import text_to_speech, is_tts_available
+from src.shared.adapters.audio_converter import AudioConverter
 
 logger = get_logger("shared.usecases.tts")
+
+# Instancia global del conversor de audio
+_audio_converter = AudioConverter()
 
 
 def clean_text_for_tts(text: str) -> str:
@@ -27,7 +32,9 @@ def clean_text_for_tts(text: str) -> str:
     text = re.sub(r"<h[12].*?</h[12]>", "\n", text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"<strong.*?</strong>", "", text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"Washington", "Wáshington", text, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r"Silicon Valley", "Sílicon Valey", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(
+        r"Silicon Valley", "Sílicon Valey", text, flags=re.DOTALL | re.IGNORECASE
+    )
 
     # Eliminar todas las etiquetas HTML restantes
     text = re.sub(r"<[^>]+>", "", text)
@@ -96,8 +103,34 @@ class TTSFromArticleUseCase:
         try:
             # El adaptador seleccionado por TTS_MODE usará su configuración propia
             audio_path = text_to_speech(text=cleaned_content)
-            article["tts_audio_path"] = audio_path
-            logger.info(f"[TTS] Audio generado: {audio_path}")
+            if not audio_path:
+                logger.warning("[TTS] No se generó audio (ruta vacía)")
+                return article
+
+            # Asegurar que el audio esté en MP3 (convertir si es WAV)
+            audio_ext = Path(audio_path).suffix.lower()
+            if audio_ext == ".wav":
+                logger.info("[TTS] Convirtiendo WAV a MP3 (64k) para reducir tamaño...")
+                mp3_path = _audio_converter.convert_to_mp3(
+                    input_path=audio_path,
+                    bitrate="64k",
+                    delete_original=True,  # Eliminar WAV tras conversión
+                )
+                if mp3_path and Path(mp3_path).exists():
+                    article["tts_audio_path"] = mp3_path
+                    logger.info(
+                        f"[TTS] Audio convertido a MP3: {mp3_path} ({Path(mp3_path).stat().st_size / 1024 / 1024:.1f} MB)"
+                    )
+                else:
+                    # Si la conversión falla, mantener WAV (aunque ocupará más)
+                    article["tts_audio_path"] = audio_path
+                    logger.warning(
+                        "[TTS] No se pudo convertir WAV a MP3, usando WAV original"
+                    )
+            else:
+                article["tts_audio_path"] = audio_path
+                logger.info(f"[TTS] Audio generado: {audio_path}")
+
         except Exception as e:
             logger.warning(f"[TTS] Error al generar audio (no bloquea pipeline): {e}")
 

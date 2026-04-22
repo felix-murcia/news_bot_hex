@@ -27,11 +27,17 @@ services:
       - /tmp/data/cache:/app/data/cache
       - ${MODELS_LOCATION}:/app/models
       - /tmp/audios:/tmp/audios
-    network_mode: host
+      - /tmp/videos:/tmp/videos
+    networks:
+      - cine-network
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
               count: all
-              capabilities: [gpu]
+              capabilities: [gpu, compute, utility]
+
+networks:
+  cine-network:
+    external: true

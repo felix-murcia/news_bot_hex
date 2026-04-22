@@ -3,14 +3,19 @@
 import datetime
 import os
 import time
+from pathlib import Path
 from typing import Optional
 
 import requests
 
 from config.logging_config import get_logger
 from src.shared.domain.ports.tts_port import TTSPort
+from src.shared.adapters.audio_converter import AudioConverter
 
 logger = get_logger("shared.adapters.tts")
+
+# Instancia global del conversor de audio (para convertir WAV → MP3 si es necesario)
+_audio_converter = AudioConverter()
 
 
 class TTSAdapter(TTSPort):
@@ -51,10 +56,10 @@ class TTSAdapter(TTSPort):
             text: Texto a convertir a audio.
             voice: Voz a usar para la síntesis.
             model: Modelo TTS a utilizar.
-            output_path: Ruta donde guardar el audio (opcional).
+            output_path: Ruta donde guardar el audio (opcional, se fuerza MP3).
 
         Returns:
-            Ruta del archivo de audio generado.
+            Ruta del archivo de audio generado (MP3).
         """
         if not text:
             raise ValueError("El texto no puede estar vacío")
@@ -83,22 +88,53 @@ class TTSAdapter(TTSPort):
             logger.error(f"[TTS] Error en la solicitud: {e}")
             raise RuntimeError(f"Error al generar audio TTS: {e}") from e
 
-        if output_path is None:
-            audio_dir = "/tmp/audios"
-            os.makedirs(audio_dir, exist_ok=True)
-            output_path = f"{audio_dir}/noticia_{int(time.time())}.mp3"
+        # Determinar directorio de salida
+        audio_dir = "/tmp/audios"
+        os.makedirs(audio_dir, exist_ok=True)
 
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with open(output_path, "wb") as f:
+        # Guardar audio temporal (extensión original del servicio, puede ser WAV)
+        timestamp = int(time.time())
+        temp_filename = f"tts_temp_{timestamp}.wav"
+        temp_path = os.path.join(audio_dir, temp_filename)
+
+        with open(temp_path, "wb") as f:
             f.write(response.content)
 
-        total_time = time.time() - start_time
-        total_time_str = str(datetime.timedelta(seconds=int(total_time)))
+        temp_size = Path(temp_path).stat().st_size
         logger.info(
-            f"[TTS] ✅ Audio guardado en: {output_path} "
-            f"(API: {elapsed_time:.2f}s + escritura: {total_time - elapsed_time:.2f}s ≈ {total_time_str} total)"
+            f"[TTS] Audio temporal guardado: {temp_path} ({temp_size / 1024 / 1024:.2f} MB)"
         )
-        return output_path
+
+        # Convertir a MP3 si es WAV (o cualquier formato) para reducir tamaño
+        mp3_filename = f"noticia_{timestamp}.mp3"
+        if output_path:
+            mp3_path = str(Path(output_path).with_suffix(".mp3"))
+        else:
+            mp3_path = os.path.join(audio_dir, mp3_filename)
+
+        logger.info("[TTS] Convirtiendo a MP3 (64k)...")
+        mp3_result = _audio_converter.convert_to_mp3(
+            input_path=temp_path,
+            output_path=mp3_path,
+            bitrate="64k",
+            delete_original=True,  # Eliminar temporal WAV
+        )
+
+        if mp3_result and Path(mp3_result).exists():
+            mp3_size = Path(mp3_result).stat().st_size
+            total_time = time.time() - start_time
+            total_time_str = str(datetime.timedelta(seconds=int(total_time)))
+            logger.info(
+                f"[TTS] ✅ Audio MP3 guardado: {mp3_result} "
+                f"({mp3_size / 1024 / 1024:.2f} MB) en {total_time_str}"
+            )
+            return mp3_result
+        else:
+            # Fallback: devolver el archivo original si la conversión falló
+            logger.warning(
+                f"[TTS] Conversión a MP3 falló, devolviendo archivo original: {temp_path}"
+            )
+            return temp_path
 
 
 def text_to_speech(
@@ -116,7 +152,7 @@ def text_to_speech(
         output_path: Ruta donde guardar el audio (opcional).
 
     Returns:
-        Ruta del archivo de audio generado.
+        Ruta del archivo de audio generado (MP3).
     """
     from src.shared.adapters.tts_factory import get_tts_adapter
 
