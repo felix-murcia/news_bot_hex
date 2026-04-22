@@ -2,86 +2,45 @@
 Video Transcriber using Groq Whisper API.
 
 Reemplaza el modelo local Whisper por Groq API para transcripción.
+Uso del servicio HTTP ffmpeg para extracción de audio (MP3 comprimido).
 """
 
 import os
-import logging
-import tempfile
-import subprocess
-from typing import Optional
 from pathlib import Path
+from typing import Optional
 
 import requests
 from dotenv import load_dotenv
 
 from config.settings import Settings
 from config.logging_config import get_logger
+from src.shared.adapters.audio_converter import AudioConverter
 
 load_dotenv(override=True)
 
 logger = get_logger("video_bot.infra.transcriber")
 
-
-def has_audio_stream(video_path: str) -> bool:
-    """Check if video has an audio stream."""
-    try:
-        result = subprocess.run(
-            [
-                "ffprobe",
-                "-v",
-                "error",
-                "-select_streams",
-                "a:0",
-                "-show_entries",
-                "stream=codec_type",
-                "-of",
-                "csv=p=0",
-                video_path,
-            ],
-            capture_output=True,
-            text=True,
-        )
-        return bool(result.stdout.strip())
-    except Exception:
-        return True
+# Instancia global del conversor (inyección de dependencia)
+_audio_converter = AudioConverter()
 
 
-def _convert_to_wav(input_path: str) -> str:
-    """Extract and convert audio to 16kHz mono WAV for Groq API."""
-    output_path = tempfile.mktemp(suffix=".wav")
-    try:
-        subprocess.run(
-            [
-                "ffmpeg",
-                "-y",
-                "-i", input_path,
-                "-ar", "16000",
-                "-ac", "1",
-                "-f", "wav",
-                output_path,
-            ],
-            check=True,
-            capture_output=True,
-            timeout=300,
-        )
-        size = os.path.getsize(output_path)
-        logger.info(f"[TRANSCRIBER] Audio extraído y convertido a WAV: {size} bytes")
-        return output_path
-    except subprocess.CalledProcessError as e:
-        logger.error(f"[TRANSCRIBER] FFmpeg falló: {e.stderr.decode()}")
-        raise RuntimeError(f"FFmpeg failed: {e}")
-    except FileNotFoundError:
-        logger.error("[TRANSCRIBER] ffmpeg no encontrado en PATH")
-        raise RuntimeError("ffmpeg es requerido para extracción de audio")
-
-
-def _send_to_groq(wav_path: str) -> str:
-    """Send WAV file to Groq Whisper API."""
+def _send_to_groq(audio_path: str) -> str:
+    """Send audio file (MP3, WAV, etc.) to Groq Whisper API."""
     api_key = Settings.GROQ_API_KEY
     if not api_key:
         raise RuntimeError("GROQ_API_KEY no configurada en .env")
 
-    with open(wav_path, "rb") as f:
+    # Determinar MIME type por extensión
+    ext = Path(audio_path).suffix.lower()
+    mime_map = {
+        ".mp3": "audio/mpeg",
+        ".wav": "audio/wav",
+        ".ogg": "audio/ogg",
+        ".m4a": "audio/mp4",
+    }
+    mime_type = mime_map.get(ext, "application/octet-stream")
+
+    with open(audio_path, "rb") as f:
         resp = requests.post(
             Settings.GROQ_API_URL,
             headers={"Authorization": f"Bearer {api_key}"},
@@ -90,12 +49,12 @@ def _send_to_groq(wav_path: str) -> str:
                 "language": "es",
                 "response_format": "text",
             },
-            files={"file": ("audio.wav", f, "audio/wav")},
+            files={"file": (os.path.basename(audio_path), f, mime_type)},
             timeout=600,
         )
 
     resp.raise_for_status()
-    
+
     # When response_format="text", Groq returns plain text, not JSON
     content_type = resp.headers.get("content-type", "")
     try:
@@ -108,7 +67,9 @@ def _send_to_groq(wav_path: str) -> str:
     except (ValueError, KeyError) as e:
         logger.error(f"[TRANSCRIBER] Error parsing Groq response: {e}")
         logger.debug(f"[TRANSCRIBER] Response content-type: {content_type}")
-        logger.debug(f"[TRANSCRIBER] Response body (first 500 chars): {resp.text[:500]}")
+        logger.debug(
+            f"[TRANSCRIBER] Response body (first 500 chars): {resp.text[:500]}"
+        )
         raise RuntimeError(f"Failed to parse Groq response: {e}")
 
     if not text:
@@ -121,6 +82,7 @@ def _send_to_groq(wav_path: str) -> str:
 def transcribe_video(video_path: str) -> str:
     """Transcribe un video usando Groq Whisper API."""
     import time
+
     step_start = time.time()
 
     logger.info(f"Transcription started: {os.path.basename(video_path)}")
@@ -128,13 +90,31 @@ def transcribe_video(video_path: str) -> str:
     if not os.path.exists(video_path):
         raise FileNotFoundError(f"Video no encontrado: {video_path}")
 
-    wav_path = None
+    mp3_path = None
     try:
-        wav_path = _convert_to_wav(video_path)
-        text = _send_to_groq(wav_path)
+        # Paso único: Convertir video a MP3 (baja calidad) y enviar a Groq
+        logger.info("[TRANSCRIBER] Extrayendo audio como MP3 (64k)...")
+        mp3_path = _audio_converter.convert_to_mp3(
+            input_path=video_path,
+            bitrate="64k",  # Comprime para reducir tamaño
+            delete_original=False,
+        )
+        if not mp3_path:
+            raise RuntimeError("[TRANSCRIBER] Falló la extracción de audio a MP3")
+
+        mp3_size = os.path.getsize(mp3_path) / (1024 * 1024)
+        logger.info(
+            f"[TRANSCRIBER] MP3 generado: {os.path.basename(mp3_path)} ({mp3_size:.1f} MB)"
+        )
+
+        # Enviar MP3 directamente a Groq (sin conversión a WAV)
+        logger.info("[TRANSCRIBER] Enviando MP3 a Groq...")
+        text = _send_to_groq(mp3_path)
         elapsed = time.time() - step_start
 
-        logger.info(f"Transcription completed in {elapsed:.1f}s: {len(text)} characters")
+        logger.info(
+            f"Transcription completed in {elapsed:.1f}s: {len(text)} characters"
+        )
 
         if not text or len(text) < 50:
             logger.warning("Transcription result is very short (< 50 chars)")
@@ -149,9 +129,10 @@ def transcribe_video(video_path: str) -> str:
         logger.error(f"Transcription error: {e}")
         raise
     finally:
-        if wav_path and os.path.exists(wav_path):
+        # Limpiar archivo temporal MP3
+        if mp3_path and os.path.exists(mp3_path):
             try:
-                os.unlink(wav_path)
+                os.unlink(mp3_path)
             except OSError:
                 pass
 

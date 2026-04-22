@@ -18,9 +18,6 @@ from config.logging_config import get_logger
 
 logger = get_logger("news_bot.infra.news_adapters")
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-DATA_DIR = BASE_DIR / "data"
-
 
 class MongoRSSSourceRepository(RSSSourceRepository):
     COLLECTION_NAME = "sources_rss"

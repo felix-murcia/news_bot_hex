@@ -1,4 +1,5 @@
 """Tests for news application use cases."""
+
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 
@@ -10,9 +11,7 @@ class TestNewsToNewsUseCase:
         from src.news.application.usecases.news_to_news import NewsToNewsUseCase
 
         mock_extractor = Mock()
-        use_case = NewsToNewsUseCase(
-            content_extractor=mock_extractor, use_ai=False
-        )
+        use_case = NewsToNewsUseCase(content_extractor=mock_extractor, use_ai=False)
         assert use_case.use_ai is False
         assert use_case.content_extractor is mock_extractor
 
@@ -30,7 +29,7 @@ class TestNewsToNewsUseCase:
         result = check_copyright("https://youtube.com/watch?v=test")
         assert isinstance(result, bool)
 
-    @patch('src.shared.adapters.cache_manager.load_content_from_cache')
+    @patch("src.shared.adapters.cache_manager.load_content_from_cache")
     def test_load_from_cache_hit(self, mock_load):
         from src.news.application.usecases.news_to_news import NewsToNewsUseCase
 
@@ -41,7 +40,7 @@ class TestNewsToNewsUseCase:
         result = use_case._load_from_cache("https://example.com")
         assert result is not None
 
-    @patch('src.shared.adapters.cache_manager.load_content_from_cache')
+    @patch("src.shared.adapters.cache_manager.load_content_from_cache")
     def test_load_from_cache_miss(self, mock_load):
         from src.news.application.usecases.news_to_news import NewsToNewsUseCase
 
@@ -52,7 +51,7 @@ class TestNewsToNewsUseCase:
         result = use_case._load_from_cache("https://example.com")
         assert result is None
 
-    @patch('src.shared.adapters.cache_manager.save_content_to_cache')
+    @patch("src.shared.adapters.cache_manager.save_content_to_cache")
     def test_save_to_cache(self, mock_save):
         from src.news.application.usecases.news_to_news import NewsToNewsUseCase
 
@@ -107,7 +106,9 @@ class TestArticleFromNewsUseCase:
     """Test ArticleFromNewsUseCase."""
 
     def test_init(self):
-        from src.news.application.usecases.article_from_news import ArticleFromNewsUseCase
+        from src.news.application.usecases.article_from_news import (
+            ArticleFromNewsUseCase,
+        )
 
         use_case = ArticleFromNewsUseCase(use_ai=False)
         assert use_case.use_ai is False
@@ -157,17 +158,21 @@ class TestArticleFromAudioUseCase:
 class TestAudioPipelineUseCase:
     """Test AudioPipelineUseCase with run method."""
 
-    @patch('src.audio.application.usecases.audio_pipeline.run_from_audio')
-    @patch('src.audio.infrastructure.adapters.audio_transcriber.transcribe_audio')
-    @patch('src.audio.infrastructure.adapters.audio_fetcher.has_audio_stream')
-    @patch('src.audio.infrastructure.adapters.audio_fetcher.download_audio')
-    def test_run_success(self, mock_download, mock_has_stream, mock_transcribe, mock_run_article):
+    @patch(
+        "src.shared.application.usecases.article_from_transcript.run_from_transcript"
+    )
+    @patch("src.audio.infrastructure.adapters.audio_transcriber.transcribe_audio")
+    @patch("src.audio.infrastructure.adapters.audio_fetcher._audio_converter")
+    @patch("src.audio.infrastructure.adapters.audio_fetcher.download_audio")
+    def test_run_success(
+        self, mock_download, mock_converter, mock_transcribe, mock_run_transcript
+    ):
         from src.audio.application.usecases.audio_pipeline import AudioPipelineUseCase
 
         mock_download.return_value = "/tmp/test.mp3"
-        mock_has_stream.return_value = True
+        mock_converter.has_audio_stream.return_value = True
         mock_transcribe.return_value = "Test transcript"
-        mock_run_article.return_value = {
+        mock_run_transcript.return_value = {
             "article": {"title": "Test", "content": "<p>Content</p>"},
             "tweet": "Test tweet",
             "article_file": "/tmp/article.json",
@@ -179,7 +184,7 @@ class TestAudioPipelineUseCase:
         assert result["mode"] == "audio"
         assert result["transcript"] == "Test transcript"
 
-    @patch('src.audio.infrastructure.adapters.audio_fetcher.download_audio')
+    @patch("src.audio.infrastructure.adapters.audio_fetcher.download_audio")
     def test_run_download_failure(self, mock_download):
         from src.audio.application.usecases.audio_pipeline import AudioPipelineUseCase
 
@@ -193,9 +198,11 @@ class TestAudioPipelineUseCase:
 class TestMongoRepositories:
     """Test MongoDB repositories."""
 
-    @patch('src.shared.adapters.mongo_db.get_database')
+    @patch("src.shared.adapters.mongo_db.get_database")
     def test_mongo_repository_init(self, mock_get_db):
-        from src.news.infrastructure.adapters.mongo_repositories import MongoArticleRepository
+        from src.news.infrastructure.adapters.mongo_repositories import (
+            MongoArticleRepository,
+        )
 
         mock_db = Mock()
         mock_db.__getitem__ = Mock(return_value=Mock())
@@ -208,7 +215,9 @@ class TestNewsValidatorAdapter:
     """Test news validator adapter."""
 
     def test_class_exists(self):
-        from src.news.infrastructure.adapters.news_validator_adapter import ClassicNewsValidatorAdapter
+        from src.news.infrastructure.adapters.news_validator_adapter import (
+            ClassicNewsValidatorAdapter,
+        )
 
         assert ClassicNewsValidatorAdapter is not None
 
@@ -229,4 +238,4 @@ class TestValidationRules:
         from src.news.domain.services import validation_rules
 
         assert validation_rules is not None
-        assert hasattr(validation_rules, 'DEFAULT_VALIDATION_RULES')
+        assert hasattr(validation_rules, "DEFAULT_VALIDATION_RULES")

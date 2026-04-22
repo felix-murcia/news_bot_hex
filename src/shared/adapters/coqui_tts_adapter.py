@@ -135,9 +135,9 @@ class CoquiTTSAdapter(TTSPort):
 
             # Convertir WAV a MP3
             logger.info("[COQUI TTS] Iniciando conversión a MP3...")
-            mp3_result = self.converter.convert_wav_to_mp3(
-                wav_path=wav_path,
-                mp3_path=mp3_path,
+            mp3_result = self.converter.convert_to_mp3(
+                input_path=wav_path,
+                output_path=mp3_path,
                 delete_original=True,  # Eliminar WAV tras conversión exitosa
             )
 

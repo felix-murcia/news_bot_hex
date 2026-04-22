@@ -1,4 +1,5 @@
 """Tests for shared adapters."""
+
 import pytest
 import json
 import tempfile
@@ -10,7 +11,10 @@ class TestCacheManager:
     """Test cache manager functions."""
 
     def test_save_and_load_content(self):
-        from src.shared.adapters.cache_manager import save_content_to_cache, load_content_from_cache
+        from src.shared.adapters.cache_manager import (
+            save_content_to_cache,
+            load_content_from_cache,
+        )
 
         url = "https://example.com/test123"
         content = "<html><body>" + "x" * 200 + "</body></html>"
@@ -52,7 +56,11 @@ class TestImageEnricher:
         result = enricher.enrich([])
         assert result == []
 
-    def test_enrich_with_unsplash_url(self):
+    @patch(
+        "src.shared.adapters.image_enricher.ImageEnricher._is_accessible_image",
+        return_value=True,
+    )
+    def test_enrich_with_unsplash_url(self, mock_is_accessible):
         from src.shared.adapters.image_enricher import ImageEnricher
 
         enricher = ImageEnricher()
@@ -60,7 +68,11 @@ class TestImageEnricher:
         result = enricher.enrich(posts)
         assert result[0]["image_url"] == "https://unsplash.com/img.jpg"
 
-    def test_enrich_with_google_url(self):
+    @patch(
+        "src.shared.adapters.image_enricher.ImageEnricher._is_accessible_image",
+        return_value=True,
+    )
+    def test_enrich_with_google_url(self, mock_is_accessible):
         from src.shared.adapters.image_enricher import ImageEnricher
 
         enricher = ImageEnricher()
@@ -81,7 +93,7 @@ class TestImageEnricher:
 class TestMongoDB:
     """Test MongoDB adapter."""
 
-    @patch('src.shared.adapters.mongo_db.get_database')
+    @patch("src.shared.adapters.mongo_db.get_database")
     def test_get_database(self, mock_get_db):
         from src.shared.adapters.mongo_db import get_database
 
@@ -109,7 +121,7 @@ class TestGeminiAdapter:
         from src.shared.adapters.ai import gemini_adapter
 
         assert gemini_adapter is not None
-        assert hasattr(gemini_adapter, 'GeminiAdapter')
+        assert hasattr(gemini_adapter, "GeminiAdapter")
 
 
 class TestOpenRouterAdapter:
@@ -165,7 +177,7 @@ class TestGoogleImagesFetcher:
         result = fallback_google_query("protesta en Madrid")
         assert result is not None
 
-    @patch('src.shared.adapters.google_images_fetcher.search_google_images')
+    @patch("src.shared.adapters.google_images_fetcher.search_google_images")
     def test_fetch_for_posts_with_mock(self, mock_search):
         from src.shared.adapters.google_images_fetcher import GoogleImagesFetcher
 
@@ -195,7 +207,7 @@ class TestUnsplashFetcher:
         result = fallback_unsplash_query("tecnología en España")
         assert result is not None
 
-    @patch('src.shared.adapters.unsplash_fetcher.search_unsplash')
+    @patch("src.shared.adapters.unsplash_fetcher.search_unsplash")
     def test_fetch_for_posts_with_mock(self, mock_search):
         from src.shared.adapters.unsplash_fetcher import UnsplashFetcher
 
@@ -239,3 +251,187 @@ class TestVideoTranscriber:
 
         transcriber = VideoTranscriber()
         assert transcriber is not None
+
+
+class TestAudioConverter:
+    """Test AudioConverter HTTP client."""
+
+    @patch("src.shared.adapters.audio_converter.os.path.getsize", return_value=1024)
+    @patch("src.shared.adapters.audio_converter.os.path.exists", return_value=True)
+    @patch("src.shared.adapters.audio_converter.requests.post")
+    def test_convert_to_mp3_calls_endpoint(self, mock_post, mock_exists, mock_getsize):
+        from src.shared.adapters.audio_converter import AudioConverter
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"output": "/tmp/output.mp3"}
+        mock_post.return_value = mock_response
+
+        converter = AudioConverter(base_url="http://localhost:8082")
+        result = converter.convert_to_mp3("/tmp/input.wav")
+
+        assert result == "/tmp/output.mp3"
+        call_args = mock_post.call_args
+        assert call_args[1]["json"] == {"path": "/tmp/input.wav", "format": "mp3"}
+
+    @patch("src.shared.adapters.audio_converter.os.path.getsize", return_value=1024)
+    @patch("src.shared.adapters.audio_converter.os.path.exists", return_value=True)
+    @patch("src.shared.adapters.audio_converter.requests.post")
+    def test_convert_to_wav16k_calls_endpoint(
+        self, mock_post, mock_exists, mock_getsize
+    ):
+        from src.shared.adapters.audio_converter import AudioConverter
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"output": "/tmp/output.wav"}
+        mock_post.return_value = mock_response
+
+        converter = AudioConverter(base_url="http://localhost:8082")
+        result = converter.convert_to_wav16k("/tmp/input.mp3")
+
+        assert result == "/tmp/output.wav"
+        call_args = mock_post.call_args
+        assert call_args[1]["json"] == {"path": "/tmp/input.mp3"}
+
+    @patch("src.shared.adapters.audio_converter.os.path.exists", return_value=True)
+    @patch("src.shared.adapters.audio_converter.requests.post")
+    def test_has_audio_stream_true(self, mock_post, mock_exists):
+        from src.shared.adapters.audio_converter import AudioConverter
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"has_audio": True}
+        mock_post.return_value = mock_response
+
+        converter = AudioConverter(base_url="http://localhost:8082")
+        assert converter.has_audio_stream("/tmp/video.mp4") is True
+
+    @patch("src.shared.adapters.audio_converter.requests.post")
+    def test_has_audio_stream_false(self, mock_post):
+        from src.shared.adapters.audio_converter import AudioConverter
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"has_audio": False}
+        mock_post.return_value = mock_response
+
+        converter = AudioConverter(base_url="http://localhost:8082")
+        assert converter.has_audio_stream("/tmp/video.mp4") is False
+
+
+class TestTTSFactory:
+    """Test TTS Factory selection."""
+
+    @patch("src.shared.adapters.tts_factory.TTSAdapter")
+    def test_get_tts_adapter_speaches(self, mock_adapter):
+        from src.shared.adapters.tts_factory import get_tts_adapter, _adapter_cache
+
+        # Clear cache to ensure fresh instantiation
+        _adapter_cache.clear()
+
+        mock_instance = Mock()
+        mock_adapter.return_value = mock_instance
+
+        with patch("config.settings.Settings.TTS_MODE", "speaches"):
+            adapter = get_tts_adapter()
+            assert adapter is mock_instance
+
+    @patch("src.shared.adapters.tts_factory.CoquiTTSAdapter")
+    def test_get_tts_adapter_coqui(self, mock_adapter):
+        from src.shared.adapters.tts_factory import get_tts_adapter, _adapter_cache
+
+        # Clear cache to ensure fresh instantiation
+        _adapter_cache.clear()
+
+        mock_instance = Mock()
+        mock_adapter.return_value = mock_instance
+
+        with patch("config.settings.Settings.TTS_MODE", "coqui"):
+            adapter = get_tts_adapter()
+            assert adapter is mock_instance
+
+    def test_get_tts_adapter_invalid_mode_uses_fallback(self):
+        from src.shared.adapters.tts_factory import get_tts_adapter, _adapter_cache
+
+        # Clear cache to ensure fresh adapter creation
+        _adapter_cache.clear()
+
+        with patch("config.settings.Settings.TTS_MODE", "invalid_mode"):
+            adapter = get_tts_adapter()
+            # Should return TTSAdapter (fallback)
+            from src.shared.adapters.tts_adapter import TTSAdapter
+
+            assert isinstance(adapter, TTSAdapter)
+
+
+class TestCoquiTTSAdapter:
+    """Test Coqui TTS Adapter with MP3 conversion."""
+
+    @patch("src.shared.adapters.coqui_tts_adapter.os.path.getsize", return_value=1024)
+    @patch("src.shared.adapters.coqui_tts_adapter.os.path.exists", return_value=True)
+    @patch("src.shared.adapters.coqui_tts_adapter.requests.get")
+    @patch("src.shared.adapters.coqui_tts_adapter.AudioConverter.convert_to_mp3")
+    def test_text_to_speech_returns_mp3(
+        self, mock_convert, mock_get, mock_exists, mock_getsize
+    ):
+        from src.shared.adapters.coqui_tts_adapter import CoquiTTSAdapter
+
+        mock_get_response = Mock()
+        mock_get_response.status_code = 200
+        mock_get_response.iter_content = lambda chunk_size: [b"fake wav data"]
+        mock_get.return_value = mock_get_response
+
+        mock_convert.return_value = "/tmp/audios/noticia_20260421_test.mp3"
+
+        with patch("config.settings.Settings.COQUI_API_URL", "http://localhost:5002"):
+            adapter = CoquiTTSAdapter()
+            result = adapter.text_to_speech("Prueba texto")
+
+        # Verificar que se llamó a la API de Coqui
+        assert mock_get.called
+        # Verificar que se llamó a conversión MP3
+        mock_convert.assert_called_once()
+        assert result == "/tmp/audios/noticia_20260421_test.mp3"
+
+    @patch("src.shared.adapters.coqui_tts_adapter.requests.get")
+    def test_is_available_success(self, mock_get):
+        from src.shared.adapters.coqui_tts_adapter import CoquiTTSAdapter
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_get.return_value = mock_response
+
+        with patch("config.settings.Settings.COQUI_API_URL", "http://localhost:5002"):
+            adapter = CoquiTTSAdapter()
+            assert adapter.is_available() is True
+
+    @patch("src.shared.adapters.coqui_tts_adapter.requests.get")
+    def test_is_available_failure(self, mock_get):
+        from src.shared.adapters.coqui_tts_adapter import CoquiTTSAdapter
+
+        mock_get.side_effect = OSError("Connection error")
+
+        with patch("config.settings.Settings.COQUI_API_URL", "http://localhost:5002"):
+            adapter = CoquiTTSAdapter()
+            assert adapter.is_available() is False
+
+    @patch("src.shared.adapters.coqui_tts_adapter.requests.get")
+    @patch("src.shared.adapters.coqui_tts_adapter.AudioConverter.convert_to_mp3")
+    def test_conversion_fallback_to_wav_on_error(self, mock_convert, mock_get):
+        from src.shared.adapters.coqui_tts_adapter import CoquiTTSAdapter
+
+        mock_get_response = Mock()
+        mock_get_response.status_code = 200
+        mock_get_response.iter_content = lambda chunk_size: [b"fake wav"]
+        mock_get.return_value = mock_get_response
+
+        # Conversión falla, devuelve None
+        mock_convert.return_value = None
+
+        with patch("config.settings.Settings.COQUI_API_URL", "http://localhost:5002"):
+            adapter = CoquiTTSAdapter()
+            result = adapter.text_to_speech("texto")
+
+        # Aunque conversión falle, devuelve WAV path
+        assert result.endswith(".wav")

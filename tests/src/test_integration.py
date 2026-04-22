@@ -239,25 +239,25 @@ class TestAudioPipeline:
         assert pipeline.no_publish is True
         assert pipeline.mode == "audio"
 
-    @patch('src.audio.application.usecases.audio_pipeline.run_from_audio')
-    @patch('src.audio.infrastructure.adapters.audio_transcriber.transcribe_audio')
-    @patch('src.audio.infrastructure.adapters.audio_fetcher.has_audio_stream')
-    @patch('src.audio.infrastructure.adapters.audio_fetcher.download_audio')
+    @patch("src.audio.application.usecases.audio_pipeline.run_from_transcript")
+    @patch("src.audio.infrastructure.adapters.audio_transcriber.transcribe_audio")
+    @patch("src.audio.infrastructure.adapters.audio_fetcher._audio_converter")
+    @patch("src.audio.infrastructure.adapters.audio_fetcher.download_audio")
     def test_audio_pipeline_run(
         self,
         mock_download,
-        mock_has_stream,
+        mock_converter,
         mock_transcribe,
-        mock_run_from_audio,
+        mock_run_from_transcript,
     ):
         """Test audio pipeline execution with mocks."""
         from src.audio.application.usecases.audio_pipeline import AudioPipelineUseCase
 
         # Setup mocks
         mock_download.return_value = "/tmp/test_audio.mp3"
-        mock_has_stream.return_value = True
+        mock_converter.has_audio_stream.return_value = True
         mock_transcribe.return_value = "Test transcript"
-        mock_run_from_audio.return_value = {
+        mock_run_from_transcript.return_value = {
             "article": {
                 "title": "Test Article",
                 "content": "<p>Test content</p>",
@@ -400,16 +400,25 @@ class TestWordPressPublisher:
         """Test that missing JWT token raises error."""
         from config.settings import Settings
         from src.shared.adapters.wordpress_publisher import get_headers
-        
+        from unittest.mock import patch
+
         # Save original token
         original_token = Settings.WP_HOSTING_JWT_TOKEN
-        
+
         try:
             # Temporarily remove token
             Settings.WP_HOSTING_JWT_TOKEN = ""
-            
-            with pytest.raises(RuntimeError, match="WP_HOSTING_JWT_TOKEN"):
-                get_headers()
+
+            # Mock get_valid_wp_token to raise error (simulating failure)
+            with patch(
+                "src.shared.adapters.wordpress_token_manager.get_valid_wp_token"
+            ) as mock_refresh:
+                mock_refresh.side_effect = RuntimeError(
+                    "WP_HOSTING_JWT_TOKEN not configured and auto-refresh failed"
+                )
+
+                with pytest.raises(RuntimeError, match="WP_HOSTING_JWT_TOKEN"):
+                    get_headers()
         finally:
             # Restore original token
             Settings.WP_HOSTING_JWT_TOKEN = original_token
@@ -428,9 +437,7 @@ class TestSocialPublisher:
         """Test social publisher initialization."""
         from src.shared.adapters.publishers.social import SocialMediaPublisher
 
-        publisher = SocialMediaPublisher(
-            enable_bluesky=False, enable_mastodon=False
-        )
+        publisher = SocialMediaPublisher(enable_bluesky=False, enable_mastodon=False)
         assert publisher._bluesky is None
         assert publisher._mastodon is None
 
@@ -466,18 +473,18 @@ class TestTypeHints:
         import inspect
 
         # Check run method has annotations
-        assert hasattr(BasePipelineUseCase.run, '__annotations__')
+        assert hasattr(BasePipelineUseCase.run, "__annotations__")
 
     def test_audio_pipeline_has_type_hints(self):
         """Test audio pipeline has type hints."""
         from src.audio.application.usecases.audio_pipeline import AudioPipelineUseCase
         import inspect
 
-        assert hasattr(AudioPipelineUseCase.run, '__annotations__')
+        assert hasattr(AudioPipelineUseCase.run, "__annotations__")
 
     def test_video_pipeline_has_type_hints(self):
         """Test video pipeline has type hints."""
         from src.video.application.usecases.video_pipeline import VideoPipelineUseCase
         import inspect
 
-        assert hasattr(VideoPipelineUseCase.run, '__annotations__')
+        assert hasattr(VideoPipelineUseCase.run, "__annotations__")

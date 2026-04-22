@@ -8,9 +8,10 @@ from config.logging_config import get_logger
 
 logger = get_logger("news_bot.usecase.content")
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-DATA_DIR = BASE_DIR / "data"
-POSTS_PATH = DATA_DIR / "generated_posts.json"
+# Ensure directories exist
+Settings.ensure_directories()
+
+POSTS_PATH = Settings.DATA_DIR / "generated_posts.json"
 
 POST_LIMITS = {
     "bluesky": 300,
@@ -112,6 +113,7 @@ class ContentUseCase:
 
         # Aplicar post-edición automática
         from src.shared.utils.content_post_editor import post_edit_content
+
         tweet = post_edit_content(tweet)
 
         if not tweet:

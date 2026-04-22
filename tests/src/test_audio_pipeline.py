@@ -71,8 +71,8 @@ class TestArticleFromAudioUseCase:
         """Test ArticleFromAudioUseCase initialization."""
         from src.audio.application.usecases import ArticleFromAudioUseCase
 
-        use_case = ArticleFromAudioUseCase(model_provider=Settings.AI_PROVIDER)
-        assert use_case.model_provider == Settings.AI_PROVIDER
+        use_case = ArticleFromAudioUseCase(llm_provider=Settings.AI_PROVIDER)
+        assert use_case.llm_provider == Settings.AI_PROVIDER
 
 
 class TestAudioTranscriber:
@@ -97,7 +97,7 @@ class TestAudioPipeline:
         use_case = AudioToNewsUseCase(use_ai=False)
         assert use_case is not None
 
-        article_use_case = ArticleFromAudioUseCase(model_provider=Settings.AI_PROVIDER)
+        article_use_case = ArticleFromAudioUseCase(llm_provider=Settings.AI_PROVIDER)
         assert article_use_case is not None
 
 

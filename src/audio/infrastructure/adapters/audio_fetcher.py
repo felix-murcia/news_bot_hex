@@ -1,20 +1,24 @@
 import os
 import re
 import uuid
-import logging
-import subprocess
 import json
 from typing import Optional, Dict, Any
 
+import yt_dlp
+import requests
 from config.logging_config import get_logger
+from config.settings import Settings
+from src.shared.adapters.audio_converter import AudioConverter
 
 logger = get_logger("audio_bot.infra.fetcher")
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-CACHE_DIR = os.path.join(BASE_DIR, "data", "cache")
+CACHE_DIR = Settings.CACHE_DIR
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 MAX_DURATION = 600
+
+# Instancia global del conversor de audio (inyección de dependencia)
+_audio_converter = AudioConverter()
 
 
 def extract_audio_id(url: str) -> Optional[str]:
@@ -31,23 +35,6 @@ def extract_audio_id(url: str) -> Optional[str]:
         if match:
             return match.group(1)
     return None
-
-
-def get_audio_duration(path: str) -> float:
-    """Devuelve la duración en segundos usando ffprobe."""
-    cmd = [
-        "ffprobe",
-        "-v",
-        "quiet",
-        "-print_format",
-        "json",
-        "-show_format",
-        "-show_streams",
-        path,
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    info = json.loads(result.stdout)
-    return float(info["format"]["duration"])
 
 
 def is_direct_audio_url(url: str) -> bool:
@@ -79,14 +66,17 @@ def _download_direct(url: str, output_dir: str, audio_id: str) -> Optional[str]:
         logger.info(f"[AUDIO] Descarga directa: {url[:80]}...")
 
         # HEAD request primero para validar Content-Type
-        head_resp = requests.head(url, headers=headers, timeout=15, allow_redirects=True)
+        head_resp = requests.head(
+            url, headers=headers, timeout=15, allow_redirects=True
+        )
         if head_resp.status_code in (200, 206):
             content_type = head_resp.headers.get("Content-Type", "").lower()
             # Si claramente no es audio, abortar inmediatamente
-            if any(ct in content_type for ct in ("text/html", "text/plain", "application/json")):
-                logger.warning(
-                    f"[AUDIO] Content-Type no es audio: {content_type[:60]}"
-                )
+            if any(
+                ct in content_type
+                for ct in ("text/html", "text/plain", "application/json")
+            ):
+                logger.warning(f"[AUDIO] Content-Type no es audio: {content_type[:60]}")
                 return None
             # Si es audio, extraer extensión correcta
             if "mpeg" in content_type or "mp3" in content_type:
@@ -97,7 +87,9 @@ def _download_direct(url: str, output_dir: str, audio_id: str) -> Optional[str]:
         response = requests.get(url, headers=headers, timeout=120, stream=True)
 
         if response.status_code in (400, 401, 403, 410):
-            logger.warning(f"[AUDIO] Error {response.status_code} - Token expirado o no autorizado")
+            logger.warning(
+                f"[AUDIO] Error {response.status_code} - Token expirado o no autorizado"
+            )
             return None
 
         response.raise_for_status()
@@ -112,7 +104,9 @@ def _download_direct(url: str, output_dir: str, audio_id: str) -> Optional[str]:
             logger.info(f"[AUDIO] ✅ Descarga directa completada: {output_path}")
             return output_path
         else:
-            actual_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
+            actual_size = (
+                os.path.getsize(output_path) if os.path.exists(output_path) else 0
+            )
             logger.warning(
                 f"[AUDIO] Archivo demasiado pequeño ({actual_size} bytes < {min_size} bytes)"
             )
@@ -132,30 +126,12 @@ def _download_direct(url: str, output_dir: str, audio_id: str) -> Optional[str]:
 def _download_with_ytdlp(
     url: str, output_dir: str, audio_id: str, max_duration: int
 ) -> Optional[str]:
-    """Descarga usando yt-dlp o descarga directa según tipo de URL."""
-    output_path = os.path.join(output_dir, f"{audio_id}.mp3")
-
-    # Si ya existe en caché, validarlo
-    if os.path.exists(output_path):
-        if os.path.getsize(output_path) > 1024 and has_audio_stream(output_path):
-            logger.info(f"[AUDIO] Audio ya existe y es válido: {output_path}")
-            return output_path
-        else:
-            logger.warning(f"[AUDIO] Cache inválido, eliminando: {output_path}")
-            os.remove(output_path)
-
-    # ============================================================
-    # Si es URL directa de audio (mp3, m4a, etc.), descargar directamente
-    # yt-dlp no es necesario y puede fallar con URLs de CDN con tokens
-    # ============================================================
-    if is_direct_audio_url(url):
-        logger.info("[AUDIO] URL directa detectada, usando descarga directa")
-        return _download_direct(url, output_dir, audio_id)
-
-    # ============================================================
-    # Para URLs de plataforma (YouTube, podcast, etc.), usar yt-dlp
-    # ============================================================
+    """Descarga usando yt-dlp y convierte a MP3 mediante servicio HTTP."""
     import yt_dlp
+    from src.shared.adapters.audio_converter import AudioConverter
+
+    # Inicializar conversor
+    converter = AudioConverter()
 
     outtmpl = os.path.join(output_dir, f"{audio_id}.%(ext)s")
 
@@ -167,13 +143,8 @@ def _download_with_ytdlp(
         "extractor_retries": 3,
         "fragment_retries": 3,
         "ignoreerrors": False,
-        "postprocessors": [
-            {
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-                "preferredquality": "192",
-            }
-        ],
+        # Sin postprocessors - la conversión la haremos después con AudioConverter
+        "postprocessors": [],
         "headers": {
             "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
             "Accept-Language": "es-ES,es;q=0.9",
@@ -186,46 +157,57 @@ def _download_with_ytdlp(
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:  # type: ignore[arg-type]
             ydl.download([url])
 
-        # Verificar archivo MP3
-        if os.path.exists(output_path) and os.path.getsize(output_path) > 1024:
-            logger.info(f"[AUDIO] ✅ Descarga yt-dlp exitosa: {output_path}")
-            return output_path
+        # Encontrar archivo descargado (cualquier extensión de audio)
+        downloaded_path = None
+        audio_extensions = [".webm", ".m4a", ".mp3", ".ogg", ".opus", ".wav", ".flac"]
+        for ext in audio_extensions:
+            path = os.path.join(output_dir, f"{audio_id}{ext}")
+            if os.path.exists(path) and os.path.getsize(path) > 1024:
+                downloaded_path = path
+                logger.info(f"[AUDIO] Archivo descargado: {os.path.basename(path)}")
+                break
 
-        # Buscar otros formatos
-        for ext in [".m4a", ".webm", ".wav", ".ogg", ".opus"]:
-            alt_path = os.path.join(output_dir, f"{audio_id}{ext}")
-            if os.path.exists(alt_path) and os.path.getsize(alt_path) > 1024:
-                # Intentar convertir a MP3
-                try:
-                    mp3_path = os.path.join(output_dir, f"{audio_id}.mp3")
-                    subprocess.run(
-                        [
-                            "ffmpeg",
-                            "-i",
-                            alt_path,
-                            "-acodec",
-                            "libmp3lame",
-                            "-ab",
-                            "192k",
-                            "-y",
-                            mp3_path,
-                        ],
-                        capture_output=True,
-                        check=True,
-                        timeout=120,
-                    )
-                    os.remove(alt_path)
-                    logger.info(f"[AUDIO] ✅ Convertido a MP3: {mp3_path}")
-                    return mp3_path
-                except Exception as conv_err:
-                    logger.warning(f"[AUDIO] No se pudo convertir a MP3: {conv_err}")
-                    return alt_path
+        if not downloaded_path:
+            logger.error(f"[AUDIO] No se encontró archivo descargado para {audio_id}")
+            return None
 
-        logger.error(f"[AUDIO] No se encontró archivo descargado para {audio_id}")
-        return None
+        # Si ya es MP3, renombrar a la ruta final y devolver
+        if downloaded_path.endswith(".mp3"):
+            final_path = os.path.join(output_dir, f"{audio_id}.mp3")
+            if downloaded_path != final_path:
+                os.rename(downloaded_path, final_path)
+            logger.info(f"[AUDIO] ✅ Descarga yt-dlp exitosa (MP3): {final_path}")
+            return final_path
 
-    except Exception as e:  # noqa: BLE001
-        error_msg = str(e)
+        # Convertir a MP3 usando AudioConverter (endpoint HTTP ffmpeg)
+        mp3_path = os.path.join(output_dir, f"{audio_id}.mp3")
+        logger.info(
+            f"[AUDIO] Convirtiendo {os.path.basename(downloaded_path)} → MP3..."
+        )
+
+        converted = converter.convert_to_mp3(
+            input_path=downloaded_path,
+            output_path=mp3_path,
+        )
+
+        if converted and os.path.exists(converted):
+            # Eliminar archivo original descargado
+            try:
+                os.remove(downloaded_path)
+            except Exception:
+                pass
+            logger.info(f"[AUDIO] ✅ Conversión a MP3 exitosa: {converted}")
+            return converted
+        else:
+            logger.error("[AUDIO] Falló la conversión a MP3")
+            # Eliminar archivo original por limpieza
+            try:
+                os.remove(downloaded_path)
+            except Exception:
+                pass
+            return None
+
+    except Exception as e:
         logger.error(f"[AUDIO] Error en yt-dlp: {e}")
         return None
 
@@ -244,6 +226,7 @@ def download_audio(
     3. Valida siempre que el resultado sea un audio real
     """
     import time
+
     step_start = time.time()
 
     if not audio_id:
@@ -257,7 +240,9 @@ def download_audio(
 
     # Verificar caché válido
     if os.path.exists(output_path_mp3):
-        if os.path.getsize(output_path_mp3) > 1024 and has_audio_stream(output_path_mp3):
+        if os.path.getsize(
+            output_path_mp3
+        ) > 1024 and _audio_converter.has_audio_stream(output_path_mp3):
             logger.info(f"Audio cache hit: {os.path.basename(output_path_mp3)}")
             return output_path_mp3
         else:
@@ -271,7 +256,7 @@ def download_audio(
     # Funciona para URLs directas (.mp3, .m4a), CDN con tokens, etc.
     # ============================================================
     result = _download_direct(url, output_dir, audio_id)
-    if result and has_audio_stream(result):
+    if result and _audio_converter.has_audio_stream(result):
         logger.info(f"Direct download completed in {time.time() - step_start:.1f}s")
         return result
 
@@ -287,7 +272,7 @@ def download_audio(
     # ============================================================
     logger.info("Direct download failed, trying yt-dlp...")
     result = _download_with_ytdlp(url, output_dir, audio_id, max_duration)
-    if result and has_audio_stream(result):
+    if result and _audio_converter.has_audio_stream(result):
         logger.info(f"yt-dlp download completed in {time.time() - step_start:.1f}s")
         return result
 
@@ -302,35 +287,11 @@ def download_audio(
     return None
 
 
-def has_audio_stream(audio_path: str) -> bool:
-    """Verifica si el archivo tiene flujo de audio válido."""
-    if not audio_path or not os.path.exists(audio_path):
-        return False
-
-    if os.path.getsize(audio_path) < 1024:
-        return False
-
-    try:
-        cmd = [
-            "ffprobe",
-            "-v",
-            "error",
-            "-show_entries",
-            "stream=codec_type",
-            "-of",
-            "default=noprint_wrappers=1:nokey=1",
-            audio_path,
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-        return "audio" in result.stdout.lower()
-    except Exception:
-        # Si ffprobe falla, asumir que es válido si tiene tamaño
-        return os.path.getsize(audio_path) > 10240
-
-
 def transcribe_audio(audio_path: str) -> str:
     """Transcribe un archivo de audio usando Groq Whisper API."""
-    from src.audio.infrastructure.adapters.audio_transcriber import transcribe_audio as _transcribe
+    from src.audio.infrastructure.adapters.audio_transcriber import (
+        transcribe_audio as _transcribe,
+    )
 
     return _transcribe(audio_path)
 

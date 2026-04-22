@@ -70,11 +70,12 @@ def truncate_social_post(text: str, limit: Optional[int] = None) -> str:
         # Caso extremo: solo hashtag
         return first_hashtag[:limit]
 
-    # Sin hashtags: truncar en última palabra completa (sin "...")
-    if limit > 10:
-        truncated = tweet[:limit].rsplit(" ", 1)[0]
+    # Sin hashtags: truncar en última palabra completa y añadir "..."
+    if limit > 3:
+        available = limit - 3  # espacio para texto antes de "..."
+        truncated = tweet[:available].rsplit(" ", 1)[0]
         if not truncated:
-            truncated = tweet[:limit]
-        return truncated.rstrip()
-
+            truncated = tweet[:available]
+        return truncated.rstrip() + "..."
+    # Límite muy pequeño, solo truncar sin "..."
     return tweet[:limit]

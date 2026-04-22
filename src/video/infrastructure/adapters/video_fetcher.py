@@ -1,15 +1,19 @@
 import os
 import re
 import uuid
-import logging
 from typing import Optional
 
+import yt_dlp
 from config.logging_config import get_logger
+from config.settings import Settings
+from src.shared.adapters.audio_converter import AudioConverter
 
 logger = get_logger("video_bot.infra.fetcher")
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-CACHE_DIR = os.path.join(BASE_DIR, "data", "cache")
+# Instancia global del conversor (inyección de dependencia)
+_audio_converter = AudioConverter()
+
+CACHE_DIR = Settings.CACHE_DIR
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 
@@ -37,8 +41,6 @@ def download_video(
 ) -> Optional[str]:
     """Descarga el video desde la URL usando yt_dlp."""
     import time
-    import subprocess
-    step_start = time.time()
 
     if not video_id:
         video_id = extract_video_id(url) or str(uuid.uuid4())
@@ -47,11 +49,13 @@ def download_video(
         output_dir = CACHE_DIR
     os.makedirs(output_dir, exist_ok=True)
 
+    step_start = time.time()
+
     # Check cache for any file with this video_id and valid audio
     for cached in os.listdir(output_dir):
         if cached.startswith(video_id) and cached != f"{video_id}.mp4":
             cached_path = os.path.join(output_dir, cached)
-            if _has_audio_stream(cached_path):
+            if _audio_converter.has_audio_stream(cached_path):
                 logger.info(f"Video cache hit: {cached}")
                 return cached_path
 
@@ -83,17 +87,19 @@ def download_video(
                 "http_chunk_size": 10485760,
                 "geo_bypass": True,
                 "merge_output_format": "mp4",
-                "postprocessors": [{
-                    "key": "FFmpegVideoConvertor",
-                    "preferedformat": "mp4",
-                }],
+                "postprocessors": [
+                    {
+                        "key": "FFmpegVideoConvertor",
+                        "preferedformat": "mp4",
+                    }
+                ],
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
 
             # Find the actual downloaded file (yt-dlp may produce mp4 or webm)
             downloaded = _find_downloaded_file(output_dir, video_id)
-            if downloaded and _has_audio_stream(downloaded):
+            if downloaded and _audio_converter.has_audio_stream(downloaded):
                 elapsed = time.time() - step_start
                 size_mb = os.path.getsize(downloaded) / (1024 * 1024)
                 logger.info(
@@ -135,25 +141,6 @@ def _cleanup_partial(output_dir: str, video_id: str):
                 os.remove(path)
             except OSError:
                 pass
-
-
-def _has_audio_stream(file_path: str) -> bool:
-    """Check if a video file contains an audio stream."""
-    try:
-        result = subprocess.run(
-            [
-                "ffprobe",
-                "-v", "error",
-                "-select_streams", "a:0",
-                "-show_entries", "stream=codec_type",
-                "-of", "csv=p=0",
-                file_path,
-            ],
-            capture_output=True, text=True, timeout=10,
-        )
-        return bool(result.stdout.strip())
-    except Exception:
-        return os.path.getsize(file_path) > 10240 if os.path.exists(file_path) else False
 
 
 def get_video_info(url: str) -> Optional[dict]:

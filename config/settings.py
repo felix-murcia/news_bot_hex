@@ -18,11 +18,12 @@ class Settings:
     """Centralized application settings."""
 
     # === Base Paths ===
-    BASE_DIR = Path(__file__).resolve().parent.parent.parent
-    DATA_DIR = BASE_DIR / "data"
-    CACHE_DIR = DATA_DIR / "cache"
-    MODELS_DIR = BASE_DIR / "models"
-    IMAGES_DIR = DATA_DIR / "images"
+    # Use environment override for containerized deployments where /app is the working dir
+    BASE_DIR = Path(os.getenv("BASE_DIR", "/app"))
+    DATA_DIR = Path(os.getenv("DATA_DIR", BASE_DIR / "data"))
+    CACHE_DIR = Path(os.getenv("CACHE_DIR", DATA_DIR / "cache"))
+    MODELS_DIR = Path(os.getenv("MODELS_DIR", BASE_DIR / "models"))
+    IMAGES_DIR = Path(os.getenv("IMAGES_DIR", DATA_DIR / "images"))
 
     # === WordPress Configuration ===
     WP_HOSTING_API_BASE = os.getenv("WP_HOSTING_API_BASE", "https://api.nbes.blog")

@@ -7,6 +7,7 @@ and news pipelines to avoid code duplication.
 import re
 import os
 import time
+import requests
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -21,6 +22,9 @@ from src.shared.adapters.wordpress_publisher import (
     ensure_category,
     ensure_tag,
     upload_image_from_url,
+    upload_audio,
+    rest_url,
+    get_headers,
 )
 from src.shared.adapters.publishers.social import SocialMediaPublisher
 
@@ -209,6 +213,39 @@ class BasePipelineUseCase(ABC):
                 flags=re.DOTALL | re.IGNORECASE,
             )
             content = content.strip()
+
+            # === TTS Audio Upload ===
+            audio_path = article.get("tts_audio_path")
+            audio_block = ""
+            if audio_path and Path(audio_path).exists():
+                audio_id = upload_audio(audio_path)
+                if audio_id:
+                    # Obtener URL del audio desde WordPress
+                    try:
+                        media_resp = requests.get(
+                            rest_url(f"media/{audio_id}"),
+                            headers=get_headers(),
+                            timeout=15,
+                        )
+                        if media_resp.status_code == 200:
+                            audio_url = media_resp.json().get("source_url", "")
+                            # Crear bloque Gutenberg para audio
+                            audio_block = f"""
+<!-- wp:audio {{"id": {audio_id}}} -->
+<audio controls src="{audio_url}" controlsList="nodownload" oncontextmenu="return false"></audio>
+<!-- /wp:audio -->
+"""
+                            logger.info(
+                                f"[{self.mode.upper()}] Audio bloque preparado (ID={audio_id})"
+                            )
+                    except Exception as e:
+                        logger.warning(
+                            f"[{self.mode.upper()}] No se pudo obtener URL del audio: {e}"
+                        )
+
+            # Prepend audio block to content if available
+            if audio_block:
+                content = audio_block + "\n\n" + content
 
             # Publish
             article_title = article.get("title") or "Untitled"

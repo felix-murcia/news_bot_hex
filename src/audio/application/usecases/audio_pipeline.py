@@ -25,7 +25,6 @@ class AudioPipelineUseCase(BasePipelineUseCase):
     def run(self, url: str, tema: str) -> Dict[str, Any]:
         from src.audio.infrastructure.adapters.audio_fetcher import (
             download_audio,
-            has_audio_stream,
         )
         from src.audio.infrastructure.adapters.audio_transcriber import transcribe_audio
 
@@ -39,8 +38,6 @@ class AudioPipelineUseCase(BasePipelineUseCase):
             audio_path = download_audio(url)
             if not audio_path:
                 raise RuntimeError(f"Failed to download audio: {url}")
-            if not has_audio_stream(audio_path):
-                raise RuntimeError(f"Downloaded file is not valid audio: {audio_path}")
 
             self._track_temp_file(audio_path)
             transcript = transcribe_audio(audio_path)

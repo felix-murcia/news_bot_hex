@@ -4,10 +4,11 @@ import os
 from typing import List, Optional
 from deep_translator import GoogleTranslator
 from config.logging_config import get_logger
+from config.settings import Settings
 
 logger = get_logger("news_bot")
 
-CACHE_DIR = os.path.join("data", "cache", "translations")
+CACHE_DIR = os.path.join(Settings.CACHE_DIR, "translations")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 _translator = None

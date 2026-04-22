@@ -24,6 +24,7 @@ services:
     volumes:
       - /tmp/logs:/app/logs
       - /tmp/data:/app/data
+      - /tmp/data/cache:/app/data/cache
       - ${MODELS_LOCATION}:/app/models
       - /tmp/audios:/tmp/audios
     network_mode: host

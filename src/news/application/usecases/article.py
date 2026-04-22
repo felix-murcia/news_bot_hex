@@ -10,16 +10,17 @@ from config.logging_config import get_logger
 
 logger = get_logger("news_bot.usecase.article")
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-DATA_DIR = BASE_DIR / "data"
-CACHE_DIR = DATA_DIR / "cache"
+# Ensure directories exist
+Settings.ensure_directories()
 
-CACHE_DIR.mkdir(parents=True, exist_ok=True)
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-_TEMPLATE_PATH = Settings.BASE_DIR.parent / "news_bot" / "templates" / "plantilla_periodico.html"
+_TEMPLATE_PATH = Settings.BASE_DIR / "templates" / "plantilla_periodico.html"
 if not _TEMPLATE_PATH.exists():
-    _TEMPLATE_PATH = Settings.BASE_DIR / "templates" / "plantilla_periodico.html"
+    # Fallback para compatibilidad con estructuras antiguas
+    _TEMPLATE_PATH = (
+        Path(__file__).resolve().parent.parent.parent.parent
+        / "templates"
+        / "plantilla_periodico.html"
+    )
 
 
 def get_domain(url: str) -> str:
@@ -319,7 +320,9 @@ class ArticleUseCase:
                 renderer = self._get_template_renderer()
                 if renderer is None:
                     # No template available, use body as-is
-                    logger.info(f"[ARTICLE] Sin plantilla, usando contenido directo: {payload['title']}")
+                    logger.info(
+                        f"[ARTICLE] Sin plantilla, usando contenido directo: {payload['title']}"
+                    )
                 else:
                     category = item.get("tema", "Noticias")
                     if category in ("Video", "Política", "Política internacional"):

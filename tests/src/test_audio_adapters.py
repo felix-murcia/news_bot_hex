@@ -1,4 +1,5 @@
 """Tests for audio infrastructure adapters."""
+
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 
@@ -40,7 +41,10 @@ class TestAudioFetcherDetailed:
     def test_is_rtve_url_variants(self):
         from src.audio.infrastructure.adapters.audio_fetcher import _is_rtve_url
 
-        assert _is_rtve_url("https://www.rtve.es/play/audios/24-horas/test/17016782/") is True
+        assert (
+            _is_rtve_url("https://www.rtve.es/play/audios/24-horas/test/17016782/")
+            is True
+        )
         assert _is_rtve_url("https://rtve.es/play/audios/test") is True
         assert _is_rtve_url("https://youtube.com/watch?v=test") is False
         assert _is_rtve_url("https://ivoox.com/test") is False
@@ -65,7 +69,7 @@ class TestAudioTranscriberDetailed:
         from src.audio.infrastructure.adapters.audio_transcriber import AudioTranscriber
 
         transcriber = AudioTranscriber()
-        assert hasattr(transcriber, 'transcribe')
+        assert hasattr(transcriber, "transcribe")
 
 
 class TestAudioContentExtractor:
@@ -75,7 +79,7 @@ class TestAudioContentExtractor:
         from src.audio.infrastructure.adapters.audio_fetcher import AudioFetcher
 
         fetcher = AudioFetcher()
-        assert hasattr(fetcher, 'fetch')
+        assert hasattr(fetcher, "fetch")
 
 
 class TestAIAdapterLocal:
@@ -96,14 +100,31 @@ class TestAudioFetcherDownload:
         assert callable(download_audio)
 
     def test_has_audio_stream_function_exists(self):
-        from src.audio.infrastructure.adapters.audio_fetcher import has_audio_stream
+        # has_audio_stream ya no es función de módulo, es método de AudioConverter
+        from src.shared.adapters.audio_converter import AudioConverter
 
-        assert callable(has_audio_stream)
+        converter = AudioConverter()
+        assert hasattr(converter, "has_audio_stream")
+        assert callable(converter.has_audio_stream)
 
     def test_transcribe_audio_function_exists(self):
         from src.audio.infrastructure.adapters.audio_transcriber import transcribe_audio
 
         assert callable(transcribe_audio)
+
+    def test_audio_converter_has_audio_stream_method_exists(self):
+        from src.shared.adapters.audio_converter import AudioConverter
+
+        converter = AudioConverter()
+        assert hasattr(converter, "has_audio_stream")
+        assert callable(converter.has_audio_stream)
+
+    def test_audio_converter_convert_methods_exist(self):
+        from src.shared.adapters.audio_converter import AudioConverter
+
+        converter = AudioConverter()
+        assert hasattr(converter, "convert_to_mp3")
+        assert hasattr(converter, "convert_to_wav16k")
 
 
 class TestAudioFetcherUrlValidation:
@@ -112,7 +133,10 @@ class TestAudioFetcherUrlValidation:
     def test_youtube_url_watch(self):
         from src.audio.infrastructure.adapters.audio_fetcher import extract_audio_id
 
-        assert extract_audio_id("https://www.youtube.com/watch?v=dQw4w9WgXcQ") == "dQw4w9WgXcQ"
+        assert (
+            extract_audio_id("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+            == "dQw4w9WgXcQ"
+        )
 
 
 class TestAudioToNewsUseCaseMethods:
@@ -135,16 +159,11 @@ class TestAudioToNewsUseCaseMethods:
         use_case_data_dir.mkdir()
 
         article_data = {
-            "article": {
-                "title": "Test Article",
-                "content": "<p>Content</p>"
-            }
+            "article": {"title": "Test Article", "content": "<p>Content</p>"}
         }
         transcript = "Test transcript"
 
         # Test _generate_tweet by mocking AI
-        with patch.object(use_case, '_generate_tweet', return_value="Test tweet"):
+        with patch.object(use_case, "_generate_tweet", return_value="Test tweet"):
             # Just test the method exists
-            assert hasattr(use_case, '_save_outputs')
-
-
+            assert hasattr(use_case, "_save_outputs")

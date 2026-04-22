@@ -7,15 +7,12 @@ from typing import Dict, Any, Optional
 
 from config.settings import Settings
 from config.logging_config import setup_logging, get_logger
+
 setup_logging()
 logger = get_logger("video_bot")
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-DATA_DIR = BASE_DIR / "data"
-CACHE_DIR = DATA_DIR / "cache"
-
-CACHE_DIR.mkdir(parents=True, exist_ok=True)
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+# Ensure directories exist
+Settings.ensure_directories()
 
 
 def slugify(text: str) -> str:
@@ -67,26 +64,79 @@ class VideoToNewsUseCase:
         text_only = re.sub(r"<[^>]+>", " ", content)[:150]
         combined = f"{title} {text_only}".lower()
         combined = re.sub(r"^(video|audio|podcast|noticia)[:\s]+", "", combined)
-        
+
         stopwords_es = {
-            "el", "la", "los", "las", "un", "una", "de", "del", "en", "y", "o",
-            "que", "es", "son", "ser", "por", "para", "con", "sin", "se", "su",
-            "sus", "al", "lo", "le", "les", "como", "más", "pero", "este", "esta",
-            "todo", "todos", "ya", "muy", "también", "no", "si", "cuando", "donde",
-            "the", "and", "for", "are", "but", "not", "you", "all", "can", "had",
-            "her", "was", "one", "our", "out", "has", "have", "been", "from",
+            "el",
+            "la",
+            "los",
+            "las",
+            "un",
+            "una",
+            "de",
+            "del",
+            "en",
+            "y",
+            "o",
+            "que",
+            "es",
+            "son",
+            "ser",
+            "por",
+            "para",
+            "con",
+            "sin",
+            "se",
+            "su",
+            "sus",
+            "al",
+            "lo",
+            "le",
+            "les",
+            "como",
+            "más",
+            "pero",
+            "este",
+            "esta",
+            "todo",
+            "todos",
+            "ya",
+            "muy",
+            "también",
+            "no",
+            "si",
+            "cuando",
+            "donde",
+            "the",
+            "and",
+            "for",
+            "are",
+            "but",
+            "not",
+            "you",
+            "all",
+            "can",
+            "had",
+            "her",
+            "was",
+            "one",
+            "our",
+            "out",
+            "has",
+            "have",
+            "been",
+            "from",
         }
-        
-        words = re.findall(r'[a-záéíóúñü]{4,}', combined)
+
+        words = re.findall(r"[a-záéíóúñü]{4,}", combined)
         meaningful = [w for w in words if w not in stopwords_es]
         slug_words = meaningful[:6] if len(meaningful) >= 5 else meaningful[:4]
-        
+
         if len(slug_words) < 3:
             slug_words = [slugify(tema)] + words[:4]
-        
+
         slug = "-".join(slug_words)[:80]
-        slug = re.sub(r'-+', '-', slug).strip('-')
-        
+        slug = re.sub(r"-+", "-", slug).strip("-")
+
         return slug or slugify(f"{tema}-{title[:30]}")
 
     def _get_ai_model(self):
@@ -198,6 +248,7 @@ class VideoToNewsUseCase:
 
         # Aplicar post-edición automática
         from src.shared.utils.content_post_editor import post_edit_content
+
         tweet = post_edit_content(tweet)
 
         if not tweet:
@@ -221,8 +272,8 @@ class VideoToNewsUseCase:
         """Guarda los outputs."""
         article = article_data.get("article", {})
 
-        articles_path = DATA_DIR / "generated_video_articles.json"
-        posts_path = DATA_DIR / "generated_video_posts.json"
+        articles_path = Settings.DATA_DIR / "generated_video_articles.json"
+        posts_path = Settings.DATA_DIR / "generated_video_posts.json"
 
         with open(articles_path, "w", encoding="utf-8") as f:
             json.dump([article], f, indent=2, ensure_ascii=False)
@@ -232,7 +283,7 @@ class VideoToNewsUseCase:
                 [{"tweet": "", "article": article}], f, indent=2, ensure_ascii=False
             )
 
-        logger.info(f"[VIDEO] Archivos guardados en {DATA_DIR}")
+        logger.info(f"[VIDEO] Archivos guardados en {Settings.DATA_DIR}")
 
     def process_video_url(self, url: str) -> Dict[str, Any]:
         """Procesa un video y genera artículo."""
@@ -242,8 +293,8 @@ class VideoToNewsUseCase:
             logger.warning(f"[VIDEO] Posible riesgo de copyright: {url}")
 
         file_id = str(uuid.uuid5(uuid.NAMESPACE_URL, url))
-        video_path = CACHE_DIR / f"{file_id}.mp4"
-        transcript_path = CACHE_DIR / f"{file_id}.txt"
+        video_path = Settings.CACHE_DIR / f"{file_id}.mp4"
+        transcript_path = Settings.CACHE_DIR / f"{file_id}.txt"
 
         transcript = self._get_or_create_transcript(url, video_path, transcript_path)
 
@@ -257,7 +308,7 @@ class VideoToNewsUseCase:
             "transcript": transcript,
             "transcript_file": str(transcript_path),
             "article": article_data["article"].get("content", ""),
-            "article_file": str(DATA_DIR / "generated_video_articles.json"),
+            "article_file": str(Settings.DATA_DIR / "generated_video_articles.json"),
             "post": tweet_text,
             "mode": self.model_provider,
         }

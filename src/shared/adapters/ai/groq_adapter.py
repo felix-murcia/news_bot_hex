@@ -7,14 +7,13 @@ Uses Groq's API (OpenAI-compatible) for audio transcription.
 
 import os
 import logging
-import tempfile
-import subprocess
 from typing import Dict, Optional
 
 import requests
 from dotenv import load_dotenv
 
 from src.shared.utils.retry import retry_with_backoff
+from src.shared.adapters.audio_converter import AudioConverter
 from config.settings import Settings
 
 load_dotenv(override=True)
@@ -34,12 +33,11 @@ class GroqAdapter:
         """
         self.config = config or {}
         self.api_key = Settings.GROQ_API_KEY
-        self.api_url = self.config.get(
-            "api_url", Settings.GROQ_API_URL
-        )
-        self.model = self.config.get(
-            "model", Settings.GROQ_TRANSCRIBE_MODEL
-        )
+        self.api_url = self.config.get("api_url", Settings.GROQ_API_URL)
+        self.model = self.config.get("model", Settings.GROQ_TRANSCRIBE_MODEL)
+
+        # Inicializar conversor de audio (inyección de dependencia)
+        self.audio_converter = AudioConverter()
 
         if not self.api_key:
             logger.warning("[GROQ] API key not found in environment")
@@ -53,35 +51,6 @@ class GroqAdapter:
     @property
     def provider(self) -> str:
         return "groq"
-
-    @staticmethod
-    def _convert_to_wav(input_path: str) -> str:
-        """Convert audio to 16kHz mono WAV using local ffmpeg."""
-        output_path = tempfile.mktemp(suffix=".wav")
-        try:
-            subprocess.run(
-                [
-                    "ffmpeg",
-                    "-y",
-                    "-i", input_path,
-                    "-ar", "16000",
-                    "-ac", "1",
-                    "-f", "wav",
-                    output_path,
-                ],
-                check=True,
-                capture_output=True,
-                timeout=120,
-            )
-            size = os.path.getsize(output_path)
-            logger.info(f"[GROQ] Audio converted to WAV: {size} bytes")
-            return output_path
-        except subprocess.CalledProcessError as e:
-            logger.error(f"[GROQ] FFmpeg conversion failed: {e.stderr.decode()}")
-            raise RuntimeError(f"FFmpeg failed: {e}")
-        except FileNotFoundError:
-            logger.error("[GROQ] ffmpeg not found in PATH")
-            raise RuntimeError("ffmpeg is required for audio conversion")
 
     @retry_with_backoff(
         max_retries=3,
@@ -100,16 +69,22 @@ class GroqAdapter:
         """
         logger.info(f"[GROQ] Transcribing: {os.path.basename(audio_path)}")
 
-        # Convert to 16kHz mono WAV (Groq requirement)
+        # Convert to 16kHz mono WAV (Groq requirement) via HTTP service
         wav_path = None
         try:
-            wav_path = self._convert_to_wav(audio_path)
+            wav_path = self.audio_converter.convert_to_wav16k(input_path=audio_path)
+            if not wav_path:
+                raise RuntimeError("[GROQ] Falló la conversión a WAV 16kHz")
 
             with open(wav_path, "rb") as f:
                 resp = requests.post(
                     self.api_url,
                     headers={"Authorization": f"Bearer {self.api_key}"},
-                    data={"model": self.model, "language": "es", "response_format": "text"},
+                    data={
+                        "model": self.model,
+                        "language": "es",
+                        "response_format": "text",
+                    },
                     files={"file": ("audio.wav", f, "audio/wav")},
                     timeout=300,
                 )
@@ -126,7 +101,9 @@ class GroqAdapter:
             return text
 
         except requests.HTTPError as e:
-            logger.error(f"[GROQ] API error: {e.response.text if hasattr(e, 'response') else e}")
+            logger.error(
+                f"[GROQ] API error: {e.response.text if hasattr(e, 'response') else e}"
+            )
             raise
         except Exception as e:
             logger.error(f"[GROQ] Transcription error: {e}")
