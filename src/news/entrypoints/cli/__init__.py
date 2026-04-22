@@ -337,20 +337,27 @@ def main_pipeline():
                             {"_id": article["_id"]},
                             {"$set": {"generated_video_path": video_path}},
                         )
-                        # También actualizar generated_posts con video_path para social publishers
+                        # También actualizar generated_posts con video_path y title_es
                         try:
                             posts_coll = db["generated_posts"]
                             original_url = article.get("original_url")
                             if original_url:
                                 post = posts_coll.find_one({"url": original_url})
                                 if post:
-                                    posts_coll.update_one(
-                                        {"_id": post["_id"]},
-                                        {"$set": {"video_path": video_path}},
-                                    )
-                                    logger.debug(
-                                        f"[VIDEO] generated_posts actualizado con video_path: {original_url}"
-                                    )
+                                    update_data = {}
+                                    if video_path:
+                                        update_data["video_path"] = video_path
+                                    # Copiar title_es si existe en el artículo y no está en el post
+                                    title_es = article.get("title_es")
+                                    if title_es and not post.get("title_es"):
+                                        update_data["title_es"] = title_es
+                                    if update_data:
+                                        posts_coll.update_one(
+                                            {"_id": post["_id"]}, {"$set": update_data}
+                                        )
+                                        logger.debug(
+                                            f"[VIDEO] generated_posts actualizado: {list(update_data.keys())} → {original_url}"
+                                        )
                         except Exception as e:
                             logger.warning(
                                 f"[VIDEO] No se pudo actualizar generated_posts: {e}"
