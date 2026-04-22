@@ -15,6 +15,19 @@ class TestNewsToNewsUseCase:
         assert use_case.use_ai is False
         assert use_case.content_extractor is mock_extractor
 
+    def test_init_with_video_generator(self):
+        from src.news.application.usecases.news_to_news import NewsToNewsUseCase
+        from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
+
+        mock_extractor = Mock()
+        mock_video_gen = Mock(spec=VideoGeneratorPort)
+        use_case = NewsToNewsUseCase(
+            content_extractor=mock_extractor,
+            use_ai=False,
+            video_generator=mock_video_gen,
+        )
+        assert use_case.video_generator is mock_video_gen
+
     def test_slugify(self):
         from src.news.application.usecases.news_to_news import slugify
 

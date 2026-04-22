@@ -1,3 +1,4 @@
+import os
 from config.logging_config import setup_logging, get_logger
 from config.settings import Settings
 
@@ -298,28 +299,66 @@ def main_pipeline():
     db = get_database()
     articles_coll = db["generated_articles"]
     articles = list(articles_coll.find({}))
+    updated_articles_tts = None
     if articles:
-        updated_articles = run_tts_from_articles(articles)
-        for i, article in enumerate(updated_articles):
+        updated_articles_tts = run_tts_from_articles(articles)
+        for article in updated_articles_tts:
             if article.get("tts_audio_path"):
                 articles_coll.update_one(
                     {"_id": article["_id"]},
                     {"$set": {"tts_audio_path": article["tts_audio_path"]}},
                 )
         logger.info(
-            f"[TTS] Audio TTS generado para {len([a for a in updated_articles if a.get('tts_audio_path')])} artículo(s)"
+            f"[TTS] Audio TTS generado para {len([a for a in updated_articles_tts if a.get('tts_audio_path')])} artículo(s)"
         )
     else:
         logger.info("[TTS] No hay artículos para generar audio TTS")
 
-    # Step 10: WordPress
+    # Step 9: Video Generation (from TTS audio + random image)
+    logger.info("[VIDEO] Iniciando generación de videos desde audios TTS...")
+    from src.shared.adapters.video_generator import get_video_generator
+
+    video_generator = get_video_generator()
+    if video_generator.is_available():
+        videos_generated = 0
+        # Usar artículos actualizados con TTS si están disponibles
+        articles_to_process = (
+            updated_articles_tts if updated_articles_tts is not None else articles
+        )
+        for article in articles_to_process:
+            tts_audio_path = article.get("tts_audio_path")
+            if tts_audio_path and os.path.exists(tts_audio_path):
+                try:
+                    video_path = video_generator.create_video_from_audio(
+                        audio_path=tts_audio_path
+                    )
+                    if video_path:
+                        articles_coll.update_one(
+                            {"_id": article["_id"]},
+                            {"$set": {"generated_video_path": video_path}},
+                        )
+                        videos_generated += 1
+                        logger.debug(
+                            f"[VIDEO] Video generado para artículo '{article.get('title', '')[:50]}': {video_path}"
+                        )
+                except Exception as e:
+                    logger.warning(
+                        f"[VIDEO] Error generando video para artículo '{article.get('title', '')[:50]}': {e}"
+                    )
+        logger.info(
+            f"[VIDEO] Videos generados: {videos_generated}/{len(articles_to_process)} artículos con TTS"
+        )
+    else:
+        logger.warning("[VIDEO] Servicio de video no disponible, saltando...")
+
+    # Step 11: WordPress
     logger.info("[WORDPRESS] Iniciando publicación en WordPress...")
     wp_result = main_wordpress()
     logger.info(
         f"[WORDPRESS] Publicación en WordPress finalizada. Publicados: {wp_result.get('published', 0)}"
     )
 
-    # Step 11: Social Media
+    # Step 12: Social Media
     logger.info("[SOCIAL] Iniciando publicación en redes sociales...")
     main_facebook()
     main_bluesky()

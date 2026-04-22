@@ -294,6 +294,9 @@ class Settings:
     FFMPEG_API_URL = os.getenv("FFMPEG_API_URL", "http://localhost:8082")
     AUDIO_CONVERTER_PATH = os.getenv("AUDIO_CONVERTER_PATH", "/audio/convert-by-path")
 
+    # === Video Generator Configuration ===
+    VIDEO_GENERATOR_IMAGES_DIR = os.getenv("VIDEO_GENERATOR_IMAGES_DIR", "/tmp/images")
+
     @classmethod
     def ensure_directories(cls):
         """Create required directories if they don't exist."""

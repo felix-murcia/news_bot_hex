@@ -100,6 +100,22 @@ class TestAudioPipeline:
         article_use_case = ArticleFromAudioUseCase(llm_provider=Settings.AI_PROVIDER)
         assert article_use_case is not None
 
+    def test_audio_pipeline_accepts_video_generator(self):
+        """Test AudioPipelineUseCase constructor accepts video generator."""
+        from src.audio.application.usecases.audio_pipeline import AudioPipelineUseCase
+        from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
+
+        # Creer un mock del puerto
+        mock_generator = Mock(spec=VideoGeneratorPort)
+        mock_generator.create_video_from_audio.return_value = "/tmp/videos/test.mp4"
+        mock_generator.is_available.return_value = True
+
+        pipeline = AudioPipelineUseCase(
+            no_publish=True,
+            video_generator=mock_generator,
+        )
+        assert pipeline.video_generator is mock_generator
+
 
 class TestAudioUseCases:
     """Test Audio use cases imports."""

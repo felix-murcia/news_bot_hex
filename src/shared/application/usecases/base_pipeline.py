@@ -218,30 +218,82 @@ class BasePipelineUseCase(ABC):
             audio_path = article.get("tts_audio_path")
             audio_block = ""
             if audio_path and Path(audio_path).exists():
-                audio_id = upload_audio(audio_path)
-                if audio_id:
-                    # Obtener URL del audio desde WordPress
+                audio_size_mb = Path(audio_path).stat().st_size / (1024 * 1024)
+                logger.info(
+                    f"[{self.mode.upper()}] Audio TTS encontrado: {audio_path} ({audio_size_mb:.1f} MB)"
+                )
+
+                # VALIDACIÓN: Solo permitir MP3, rechazar WAV explícitamente
+                audio_ext = Path(audio_path).suffix.lower()
+                if audio_ext == ".wav":
+                    logger.error(
+                        f"[{self.mode.upper()}] ❌ Archivo WAV detectado ({audio_size_mb:.1f} MB). No se subirá a WordPress (política: solo MP3)."
+                    )
+                    # Intentar conversión a MP3
+                    logger.info(
+                        f"[{self.mode.upper()}] Intentando convertir WAV → MP3 (64k)..."
+                    )
                     try:
-                        media_resp = requests.get(
-                            rest_url(f"media/{audio_id}"),
-                            headers=get_headers(),
-                            timeout=15,
+                        from src.shared.adapters.audio_converter import AudioConverter
+
+                        converter = AudioConverter()
+                        mp3_path = converter.convert_to_mp3(
+                            input_path=audio_path,
+                            bitrate="64k",
+                            delete_original=False,
                         )
-                        if media_resp.status_code == 200:
-                            audio_url = media_resp.json().get("source_url", "")
-                            # Crear bloque Gutenberg para audio
-                            audio_block = f"""
+                        if mp3_path and Path(mp3_path).exists():
+                            mp3_size = Path(mp3_path).stat().st_size / (1024 * 1024)
+                            logger.info(
+                                f"[{self.mode.upper()}] ✅ WAV convertido a MP3: {mp3_path} ({mp3_size:.1f} MB)"
+                            )
+                            audio_path = mp3_path
+                            audio_ext = ".mp3"
+                        else:
+                            logger.error(
+                                f"[{self.mode.upper()}] ❌ Conversión WAV→MP3 falló. Audio NO será subido a WordPress."
+                            )
+                            audio_path = None  # No subir audio
+                    except Exception as e:
+                        logger.error(
+                            f"[{self.mode.upper()}] ❌ Error en conversión WAV→MP3: {e}. Audio NO será subido."
+                        )
+                        audio_path = None  # No subir audio
+
+                # Si después de la conversión (o si ya era MP3) es MP3, proceder a subir
+                if audio_path and audio_ext == ".mp3":
+                    final_size = Path(audio_path).stat().st_size / (1024 * 1024)
+                    logger.info(
+                        f"[{self.mode.upper()}] Subiendo audio MP3 a WordPress: {audio_path} ({final_size:.1f} MB)"
+                    )
+                    audio_id = upload_audio(audio_path)
+                    if audio_id:
+                        # Obtener URL del audio desde WordPress
+                        try:
+                            media_resp = requests.get(
+                                rest_url(f"media/{audio_id}"),
+                                headers=get_headers(),
+                                timeout=15,
+                            )
+                            if media_resp.status_code == 200:
+                                audio_url = media_resp.json().get("source_url", "")
+                                # Crear bloque Gutenberg para audio
+                                audio_block = f"""
 <!-- wp:audio {{"id": {audio_id}}} -->
 <audio controls src="{audio_url}" controlsList="nodownload" oncontextmenu="return false"></audio>
 <!-- /wp:audio -->
 """
-                            logger.info(
-                                f"[{self.mode.upper()}] Audio bloque preparado (ID={audio_id})"
+                                logger.info(
+                                    f"[{self.mode.upper()}] Audio bloque preparado (ID={audio_id})"
+                                )
+                        except Exception as e:
+                            logger.warning(
+                                f"[{self.mode.upper()}] No se pudo obtener URL del audio: {e}"
                             )
-                    except Exception as e:
-                        logger.warning(
-                            f"[{self.mode.upper()}] No se pudo obtener URL del audio: {e}"
-                        )
+                else:
+                    logger.info(
+                        f"[{self.mode.upper()}] No se subirá audio (formato no soportado o conversión fallida)"
+                    )
 
             # Prepend audio block to content if available
             if audio_block:

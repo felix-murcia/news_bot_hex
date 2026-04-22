@@ -1,4 +1,5 @@
 import json
+import os
 import re
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -6,6 +7,7 @@ from typing import Dict, Any, Optional
 from config.settings import Settings
 from src.news.domain.ports import ContentExtractor
 from config.logging_config import get_logger
+from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
 
 logger = get_logger("news_bot.usecase.news_to_news")
 
@@ -39,6 +41,7 @@ class NewsToNewsUseCase:
         model_provider: str = Settings.AI_PROVIDER,
         ai_config: Optional[dict] = None,
         ai_model=None,
+        video_generator: Optional[VideoGeneratorPort] = None,
     ):
         self.content_extractor = content_extractor
         self.use_ai = use_ai
@@ -46,6 +49,13 @@ class NewsToNewsUseCase:
         self.ai_config = ai_config or {}
         self.ai_model = ai_model
         self.article_generator = None
+        self.video_generator = video_generator or self._get_default_video_generator()
+
+    def _get_default_video_generator(self) -> VideoGeneratorPort:
+        """Obtiene el generador de videos por defecto."""
+        from src.shared.adapters.video_generator import get_video_generator
+
+        return get_video_generator()
 
     def _get_ai_model(self):
         """Obtiene el modelo de IA (lazy loading)."""
@@ -183,6 +193,50 @@ class NewsToNewsUseCase:
 
         tweet_text = self._generate_tweet(article_data)
 
+        # Step 5: Text-to-Speech (inserted after article generation)
+        logger.info("[NEWS_TO_NEWS] Generando audio TTS del artículo...")
+        try:
+            from src.shared.application.usecases.tts_from_article import (
+                TTSFromArticleUseCase,
+            )
+
+            article = article_data.get("article", {})
+            article = TTSFromArticleUseCase().execute(article)
+            article_data["article"] = article
+
+            if article.get("tts_audio_path"):
+                logger.info(
+                    f"[NEWS_TO_NEWS] Audio TTS generado: {article['tts_audio_path']}"
+                )
+            else:
+                logger.warning("[NEWS_TO_NEWS] No se generó audio TTS")
+        except Exception as e:
+            logger.warning(f"[NEWS_TO_NEWS] Error en generación TTS (no bloquea): {e}")
+
+        # Step 6: Video Generation (from TTS audio + random image)
+        logger.info("[NEWS_TO_NEWS] Generando video a partir del audio TTS...")
+        try:
+            article = article_data.get("article", {})
+            tts_audio_path = article.get("tts_audio_path")
+            if tts_audio_path and os.path.exists(tts_audio_path):
+                video_path = self.video_generator.create_video_from_audio(
+                    audio_path=tts_audio_path
+                )
+                if video_path:
+                    article["generated_video_path"] = video_path
+                    article_data["article"] = article
+                    logger.info(f"[NEWS_TO_NEWS] Video generado: {video_path}")
+                else:
+                    logger.warning("[NEWS_TO_NEWS] No se pudo generar el video")
+            else:
+                logger.warning(
+                    "[NEWS_TO_NEWS] No hay audio TTS disponible para generar video"
+                )
+        except Exception as e:
+            logger.warning(
+                f"[NEWS_TO_NEWS] Error en generación de video (no bloquea): {e}"
+            )
+
         saved_files = self._save_outputs(article_data, content, content_path)
 
         result = {
@@ -206,6 +260,7 @@ def process_news_url(
     model_provider: str = Settings.AI_PROVIDER,
     use_ai: bool = True,
     ai_config: Optional[dict] = None,
+    video_generator: Optional[VideoGeneratorPort] = None,
 ) -> Dict[str, Any]:
     """Función principal para procesar URL de noticia."""
     processor = NewsToNewsUseCase(
@@ -213,6 +268,7 @@ def process_news_url(
         model_provider=model_provider,
         use_ai=use_ai,
         ai_config=ai_config,
+        video_generator=video_generator,
     )
     return processor.process_url(url)
 

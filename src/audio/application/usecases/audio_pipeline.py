@@ -3,6 +3,7 @@
 This use-case orchestrates the complete audio-to-article processing pipeline.
 """
 
+import os
 import time
 import random
 from typing import Dict, Any, List, Optional
@@ -14,13 +15,39 @@ logger = get_logger("audio_bot.usecase")
 
 from src.shared.application.usecases.article_from_transcript import run_from_transcript
 from src.shared.application.usecases.base_pipeline import BasePipelineUseCase
+from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
 
 
 class AudioPipelineUseCase(BasePipelineUseCase):
     """Orchestrates complete audio processing pipeline."""
 
-    def __init__(self, no_publish: bool = False):
+    def __init__(
+        self,
+        no_publish: bool = False,
+        video_generator: Optional[VideoGeneratorPort] = None,
+    ):
+        """
+        Inicializa el pipeline de audio.
+
+        Args:
+            no_publish: Si True, omite publicación en WordPress y redes.
+            video_generator: Adaptador para generar videos (inyección de dependencia).
+                           Si None, se usa la instancia global por defecto.
+        """
         super().__init__(mode="audio", no_publish=no_publish)
+        self.video_generator = video_generator or self._create_video_generator()
+
+    @staticmethod
+    def _create_video_generator() -> VideoGeneratorPort:
+        """
+        Crea una instancia del generador de videos por defecto.
+
+        Returns:
+            Instancia del adaptador de generación de video.
+        """
+        from src.shared.adapters.video_generator import get_video_generator
+
+        return get_video_generator()
 
     def run(self, url: str, tema: str) -> Dict[str, Any]:
         from src.audio.infrastructure.adapters.audio_fetcher import (
@@ -100,21 +127,78 @@ class AudioPipelineUseCase(BasePipelineUseCase):
                 logger.info(
                     f"[4/8] Audio TTS generado en {time.time() - step_start:.1f}s: {tts_audio_path}"
                 )
+
+                # Asegurar que el audio esté en MP3 (convertir si es WAV)
+                from pathlib import Path
+                from src.shared.adapters.audio_converter import AudioConverter
+
+                _converter = AudioConverter()
+                _audio_path = enriched_article.get("tts_audio_path")
+                if _audio_path and Path(_audio_path).exists():
+                    _ext = Path(_audio_path).suffix.lower()
+                    if _ext == ".wav":
+                        logger.info(
+                            "[4/8] Convirtiendo WAV → MP3 (64k) para optimizar..."
+                        )
+                        try:
+                            _mp3_path = _converter.convert_to_mp3(
+                                input_path=_audio_path,
+                                bitrate="64k",
+                                delete_original=False,
+                            )
+                            if _mp3_path and Path(_mp3_path).exists():
+                                enriched_article["tts_audio_path"] = _mp3_path
+                                logger.info(
+                                    f"[4/8] ✅ Audio ahora en MP3: {_mp3_path} ({Path(_mp3_path).stat().st_size / 1024 / 1024:.1f} MB)"
+                                )
+                            else:
+                                logger.warning(
+                                    "[4/8] ❌ Conversión WAV→MP3 falló. El audio seguirá siendo WAV y podría causar timeout."
+                                )
+                        except Exception as e:
+                            logger.warning(f"[4/8] ❌ Error convirtiendo WAV→MP3: {e}")
             else:
                 logger.warning("[4/8] No hay contenido para generar audio TTS")
         except Exception as e:
             logger.warning(f"[4/8] Error en generación TTS (no bloquea pipeline): {e}")
 
-        # Step 5: WordPress
+        # Step 5: Generación de video desde audio + imagen
         step_start = time.time()
+        logger.info("[5/9] Generando video a partir del audio TTS...")
+        try:
+            tts_audio_path = enriched_article.get("tts_audio_path")
+            if tts_audio_path and os.path.exists(tts_audio_path):
+                video_path = self.video_generator.create_video_from_audio(
+                    audio_path=tts_audio_path
+                )
+                if video_path:
+                    enriched_article["generated_video_path"] = video_path
+                    self._track_temp_file(video_path)
+                    logger.info(
+                        f"[5/9] Video generado en {time.time() - step_start:.1f}s: {video_path}"
+                    )
+                else:
+                    logger.warning("[5/9] No se pudo generar el video")
+            else:
+                logger.warning(
+                    "[5/9] No hay audio TTS disponible para generar video, saltando..."
+                )
+        except Exception as e:
+            logger.warning(
+                f"[5/9] Error en generación de video (no bloquea pipeline): {e}"
+            )
+
+        # Step 6: WordPress
+        step_start = time.time()
+        logger.info("[6/10] Publicando en WordPress...")
         wordpress_url: Optional[str] = None
         if not self.no_publish:
-            logger.info("[5/9] Publicando en WordPress...")
+            logger.info("[6/10] Publicando en WordPress...")
             wordpress_url = self._publish_to_wordpress(enriched_article, tema)
             if wordpress_url:
                 enriched_article["wp_url"] = wordpress_url
                 logger.info(
-                    f"[5/9] Publicado en WordPress en {time.time() - step_start:.1f}s: {wordpress_url}"
+                    f"[6/10] Publicado en WordPress en {time.time() - step_start:.1f}s: {wordpress_url}"
                 )
 
                 # Replace placeholder URL in tweet with actual WordPress URL
@@ -138,7 +222,7 @@ class AudioPipelineUseCase(BasePipelineUseCase):
                     tweets = [tweet]  # Update tweets list with corrected tweet
             else:
                 logger.warning(
-                    f"[5/9] No se obtuvo URL de WordPress — usando URL fallback"
+                    f"[6/10] No se obtuvo URL de WordPress — usando URL fallback"
                 )
                 # Fallback: use original audio URL or placeholder article URL
                 fallback_url = (
@@ -152,20 +236,20 @@ class AudioPipelineUseCase(BasePipelineUseCase):
 
                     tweet = truncate_social_post(tweet)
                     tweets = [tweet]
-                    logger.info(f"[5/9] Tweet con URL fallback: {fallback_url}")
+                    logger.info(f"[6/10] Tweet con URL fallback: {fallback_url}")
         else:
-            logger.info("[5/9] WordPress omitido (no-publish mode)")
+            logger.info("[6/10] WordPress omitido (no-publish mode)")
 
-        # Step 6: Social media
+        # Step 7: Social media
         step_start = time.time()
-        logger.info("[6/10] Publicando en redes sociales...")
+        logger.info("[7/11] Publicando en redes sociales...")
         social_results = self._publish_to_social(enriched_article, tweet, url)
         logger.info(
-            f"[6/10] Redes sociales procesadas en {time.time() - step_start:.1f}s"
+            f"[7/11] Redes sociales procesadas en {time.time() - step_start:.1f}s"
         )
 
-        # Step 7: Cleanup
-        logger.info("[7/10] Limpiando archivos temporales...")
+        # Step 8: Cleanup
+        logger.info("[8/11] Limpiando archivos temporales...")
         self._cleanup_temp_files()
 
         return self.build_result(

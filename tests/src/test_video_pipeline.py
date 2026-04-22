@@ -87,6 +87,21 @@ class TestVideoPipeline:
         article_use_case = ArticleFromVideoUseCase(llm_provider="mock")
         assert article_use_case is not None
 
+    def test_video_pipeline_accepts_video_generator(self):
+        """Test VideoPipelineUseCase constructor accepts video generator."""
+        from src.video.application.usecases.video_pipeline import VideoPipelineUseCase
+        from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
+
+        mock_generator = Mock(spec=VideoGeneratorPort)
+        mock_generator.create_video_from_audio.return_value = "/tmp/videos/test.mp4"
+        mock_generator.is_available.return_value = True
+
+        pipeline = VideoPipelineUseCase(
+            no_publish=True,
+            video_generator=mock_generator,
+        )
+        assert pipeline.video_generator is mock_generator
+
 
 class TestVideoUseCases:
     """Test Video use cases imports."""

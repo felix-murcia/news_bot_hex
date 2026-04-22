@@ -28,6 +28,7 @@ services:
       - ${MODELS_LOCATION}:/app/models
       - /tmp/audios:/tmp/audios
       - /tmp/videos:/tmp/videos
+      - /tmp/images:/tmp/images
     networks:
       - cine-network
     deploy:

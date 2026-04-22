@@ -168,13 +168,48 @@ def upload_image_from_url(
 
 
 def upload_audio(audio_path: str) -> Optional[int]:
-    """Sube un archivo de audio a WordPress."""
+    """Sube un archivo de audio a WordPress. Solo acepta MP3."""
     try:
+        # Validar extensión: solo MP3 permitido
+        ext = Path(audio_path).suffix.lower()
+        if ext == ".wav":
+            logger.error(
+                f"[HOSTING] ❌ Intento de subir archivo WAV ({audio_path}). No permitido. Convirtiendo a MP3..."
+            )
+            # Intentar conversión a MP3 como último recurso
+            try:
+                from src.shared.adapters.audio_converter import AudioConverter
+
+                converter = AudioConverter()
+                mp3_path = converter.convert_to_mp3(
+                    input_path=audio_path,
+                    bitrate="64k",
+                    delete_original=False,
+                )
+                if mp3_path and Path(mp3_path).exists():
+                    mp3_size = Path(mp3_path).stat().st_size / (1024 * 1024)
+                    logger.info(
+                        f"[HOSTING] ✅ WAV convertido a MP3: {mp3_path} ({mp3_size:.1f} MB)"
+                    )
+                    audio_path = mp3_path
+                else:
+                    logger.error(
+                        "[HOSTING] ❌ Conversión WAV→MP3 falló. Audio NO subido."
+                    )
+                    return None
+            except Exception as e:
+                logger.error(f"[HOSTING] ❌ Error en conversión WAV→MP3: {e}")
+                return None
+
+        # Ahora seguro de que es MP3 (o conversión exitosa)
         headers = get_headers()
         headers.pop("Content-Type", None)
+        file_size = Path(audio_path).stat().st_size
+        logger.info(
+            f"[HOSTING] Subiendo audio MP3: {audio_path} ({file_size / 1024 / 1024:.1f} MB)"
+        )
         with open(audio_path, "rb") as f:
             files = {"file": (os.path.basename(audio_path), f, "audio/mpeg")}
-            logger.info(f"[HOSTING] Subiendo audio: {audio_path}")
             resp = requests.post(
                 rest_url("media"), headers=headers, files=files, timeout=30
             )

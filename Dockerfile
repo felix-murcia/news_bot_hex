@@ -16,8 +16,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
-RUN mkdir -p /app/logs /app/data /app/models /app/data/cache /tmp/audios /tmp/videos \ 
-    && chmod 777 /app/logs /app/data /app/models /app/data/cache /tmp/audios /tmp/videos 
+RUN mkdir -p /app/logs /app/data /app/models /app/data/cache /tmp/audios /tmp/videos /tmp/images \ 
+    && chmod 777 /app/logs /app/data /app/models /app/data/cache /tmp/audios /tmp/videos /tmp/images
 
 EXPOSE 8000
 
