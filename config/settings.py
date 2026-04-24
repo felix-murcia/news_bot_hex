@@ -289,7 +289,10 @@ class Settings:
     COQUI_API_URL = os.getenv("COQUI_API_URL", "http://localhost:5002")
     COQUI_VOICE = os.getenv("COQUI_VOICE", "es-ml-onyx")
     COQUI_MODEL = os.getenv("COQUI_MODEL", "coqui-ai/tts")
-
+    COQUI_LANGUAGE = os.getenv("COQUI_LANGUAGE", "es")
+    # Timeout in milliseconds (e.g., 120000), convert to seconds
+    COQUI_TIMEOUT = os.getenv("COQUI_TIMEOUT", "900000")
+  
     # === Audio Converter Configuration (ffmpeg) ===
     FFMPEG_API_URL = os.getenv("FFMPEG_API_URL", "http://localhost:8082")
     AUDIO_CONVERTER_PATH = os.getenv("AUDIO_CONVERTER_PATH", "/audio/convert-by-path")

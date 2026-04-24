@@ -121,9 +121,7 @@ class VideoPipelineUseCase(BasePipelineUseCase):
         logger.info("[4/8] Generando audio TTS del artículo...")
         try:
             from src.shared.adapters.tts_adapter import text_to_speech
-            from src.shared.application.usecases.tts_from_article import (
-                clean_text_for_tts,
-            )
+            from src.shared.utils.text_cleaner import clean_text_for_tts
 
             article_text = enriched_article.get("content", "")
             if article_text:

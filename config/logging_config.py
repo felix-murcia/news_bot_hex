@@ -8,8 +8,32 @@ import logging
 import logging.handlers
 import os
 import sys
+import time
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from config.settings import Settings
+
+# Configure timezone from TZ environment variable at module load time
+# This ensures logging uses the correct timezone before any handlers are created
+_tz_name = os.environ.get("TZ", "Europe/Madrid")
+try:
+    # Try to get local timezone from system
+    local_tz = datetime.now().astimezone().tzinfo
+    if local_tz is None:
+        raise ValueError("No local timezone")
+except Exception:
+    # Fallback: parse TZ as UTC offset or use UTC
+    import re
+
+    match = re.match(r"^([+-])(\d{2}):?(\d{2})?$", _tz_name)
+    if match:
+        sign = 1 if match.group(1) == "+" else -1
+        hours = int(match.group(2))
+        minutes = int(match.group(3) or 0)
+        local_tz = timezone(sign * timedelta(hours=hours, minutes=minutes))
+    else:
+        # Default to UTC if we can't determine timezone
+        local_tz = timezone.utc
 
 # Log directory: /app/logs inside Docker, falls back to /tmp/logs on host
 log_dir_env = Settings.LOG_DIR or "/app/logs"
@@ -25,6 +49,27 @@ LOG_FILE = LOG_DIR / "news_bot.log"
 # Log format: timestamp | level | logger_name | message
 LOG_FORMAT = "%(asctime)s | %(levelname)-7s | %(name)-25s | %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+
+class TimezoneAwareFormatter(logging.Formatter):
+    """Formatter that uses the configured local timezone."""
+
+    def __init__(self, fmt=None, datefmt=None, tz=None):
+        super().__init__(fmt, datefmt)
+        self.tz = tz
+
+    def converter(self, timestamp):
+        dt = datetime.fromtimestamp(timestamp)
+        if self.tz:
+            dt = dt.astimezone(self.tz)
+        return dt
+
+    def formatTime(self, record, datefmt=None):
+        dt = self.converter(record.created)
+        if datefmt:
+            return dt.strftime(datefmt)
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+
 
 MAX_BYTES = 50 * 1024 * 1024  # 50 MB per file
 BACKUP_COUNT = 7  # Keep 7 rotated files
@@ -45,7 +90,7 @@ def setup_logging(level: int = logging.INFO) -> None:
 
     root_logger.setLevel(level)
 
-    formatter = logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT)
+    formatter = TimezoneAwareFormatter(LOG_FORMAT, datefmt=DATE_FORMAT, tz=local_tz)
 
     # --- File handler (rotating) ---
     try:

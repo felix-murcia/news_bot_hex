@@ -2,12 +2,18 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# System deps: ffmpeg (audio conversion), curl, git
+# System deps: ffmpeg (audio conversion), curl, git, tzdata (timezone support)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     curl \
     git \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
+
+# Set timezone from build arg (default to Europe/Madrid)
+ARG TZ=Europe/Madrid
+ENV TZ=${TZ}
+RUN ln -sf /usr/share/zoneinfo/${TZ} /etc/localtime && echo ${TZ} > /etc/timezone
 
 # Update pip
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel

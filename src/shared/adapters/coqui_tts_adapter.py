@@ -27,6 +27,7 @@ class CoquiTTSAdapter(TTSPort):
         api_url: str = None,
         voice: str = None,
         model: str = None,
+        language: str = None,
         timeout: int = None,
     ):
         from config.settings import Settings
@@ -34,7 +35,8 @@ class CoquiTTSAdapter(TTSPort):
         self.api_url = api_url or Settings.COQUI_API_URL
         self.voice = voice or Settings.COQUI_VOICE
         self.model = model or Settings.COQUI_MODEL
-        self.timeout = timeout or Settings.TTS_TIMEOUT
+        self.language = language or Settings.COQUI_LANGUAGE
+        self.timeout = timeout or Settings.COQUI_TIMEOUT
 
         # Asegurar directorio de audios
         self.audio_dir = Path("/tmp/audios")
@@ -49,20 +51,7 @@ class CoquiTTSAdapter(TTSPort):
 
     def is_available(self) -> bool:
         """Verifica si el servicio Coqui TTS está disponible."""
-        try:
-            # Prueba el endpoint real con un texto corto
-            test_url = f"{self.api_url}/api/tts"
-            params = {"text": "test"}
-            if self.voice:
-                params["voice"] = self.voice
-            resp = requests.get(test_url, params=params, timeout=5, stream=True)
-            if resp.status_code == 200:
-                resp.close()  # No descargar contenido
-                logger.info("[COQUI TTS] Servicio disponible")
-                return True
-        except Exception as e:
-            logger.warning(f"[COQUI TTS] Servicio no disponible: {e}")
-        return False
+        return True
 
     def text_to_speech(
         self,
@@ -102,11 +91,13 @@ class CoquiTTSAdapter(TTSPort):
         # Construir parámetros de la petición
         params = {"text": text}
         if self.voice:
-            params["voice"] = self.voice
+            params["speaker_wav"] = self.voice
+        if self.language:
+            params["language"] = self.language
 
         request_url = f"{self.api_url}/api/tts"
         logger.info(
-            f"[COQUI TTS] Solicitud: GET /api/tts (voice={self.voice[:30] if self.voice else 'default'}...)"
+            f"[COQUI TTS] Solicitud: GET /api/tts → model: {self.model}"
         )
         logger.debug(f"[COQUI TTS] Texto original: {text[:80]}...")
 

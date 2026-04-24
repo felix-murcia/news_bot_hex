@@ -10,6 +10,7 @@ services:
     ports:
       - "8000:8000"
     environment:
+      - TTS_API_URL=${TTS_API_URL}
       - MONGO_HOST=${MONGO_HOST}
       - MONGO_PORT=${MONGO_PORT}
       - MONGO_USER=${MONGO_USER}
@@ -19,6 +20,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
       - LOG_DIR=/app/logs
+      - TZ=${TZ}
     env_file:
       - .env
     volumes:
