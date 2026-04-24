@@ -36,7 +36,7 @@ class CoquiTTSAdapter(TTSPort):
         self.voice = voice or Settings.COQUI_VOICE
         self.model = model or Settings.COQUI_MODEL
         self.language = language or Settings.COQUI_LANGUAGE
-        self.timeout = timeout or Settings.COQUI_TIMEOUT
+        self.timeout = timeout or int(Settings.TTS_TIMEOUT) 
 
         # Asegurar directorio de audios
         self.audio_dir = Path("/tmp/audios")
