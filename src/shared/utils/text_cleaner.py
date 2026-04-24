@@ -5,7 +5,6 @@ before sending it to Text-to-Speech engines.
 """
 
 import re
-from typing import Optional
 
 from src.shared.utils.number_to_words import convert_numbers_to_words
 
