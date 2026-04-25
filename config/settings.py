@@ -290,6 +290,10 @@ class Settings:
     COQUI_VOICE = os.getenv("COQUI_VOICE", "es-ml-onyx")
     COQUI_MODEL = os.getenv("COQUI_MODEL", "coqui-ai/tts")
     COQUI_LANGUAGE = os.getenv("COQUI_LANGUAGE", "es")
+    COQUI_SPEED = float(os.getenv("COQUI_SPEED", "1.0"))
+    COQUI_ATEMPO = float(os.getenv("COQUI_ATEMPO", "1.0"))
+    COQUI_TIMEOUT = int(os.getenv("COQUI_TIMEOUT", "990000"))
+    COQUI_LANGUAGE = os.getenv("COQUI_LANGUAGE", "es")
     # Timeout in milliseconds (e.g., 120000), convert to seconds
     COQUI_TIMEOUT = os.getenv("COQUI_TIMEOUT", "900000")
   
