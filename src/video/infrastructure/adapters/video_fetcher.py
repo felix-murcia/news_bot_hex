@@ -123,13 +123,109 @@ def download_video(
 
 
 def _find_downloaded_file(output_dir: str, video_id: str) -> Optional[str]:
-    """Find the actual downloaded file, which may have any extension."""
+    """Find the downloaded file after yt-dlp processing."""
+    # Priorizar MP3 generado por postprocesador
+    mp3_path = os.path.join(output_dir, f"{video_id}.mp3")
+    if os.path.exists(mp3_path) and os.path.getsize(mp3_path) > 1024:
+        return mp3_path
+
+    # Buscar cualquier archivo con el video_id (por si yt-dlp usa otra extensión)
     for name in os.listdir(output_dir):
         if name.startswith(video_id) and name != f"{video_id}.%(ext)s":
             path = os.path.join(output_dir, name)
-            if os.path.getsize(path) > 1024:
+            if os.path.isfile(path) and os.path.getsize(path) > 1024:
                 return path
+
     return None
+
+
+def download_mp3(
+    url: str, output_dir: str = None, video_id: str = None
+) -> Optional[str]:
+    """Descarga el audio del video y lo convierte a MP3 usando yt-dlp + AudioConverter."""
+    import time
+
+    if not video_id:
+        video_id = extract_video_id(url) or str(uuid.uuid4())
+
+    if output_dir is None:
+        output_dir = CACHE_DIR
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Audio final en MP3
+    final_mp3 = os.path.join(output_dir, f"{video_id}.mp3")
+
+    # Check cache
+    if os.path.exists(final_mp3):
+        logger.info(f"Audio MP3 cache hit: {video_id}.mp3")
+        return final_mp3
+
+    step_start = time.time()
+    logger.info(f"Audio download started: {url[:80]}...")
+
+    # Paso 1: Descargar el mejor audio disponible (sin convertir)
+    output_template = os.path.join(output_dir, f"{video_id}.%(ext)s")
+    ydl_opts = {
+        "outtmpl": output_template,
+        "format": "bestaudio/best",
+        "quiet": True,
+        "no_warnings": True,
+        "nocheckcertificate": True,
+        "extractor_retries": 3,
+        "fragment_retries": 3,
+        "geo_bypass": True,
+    }
+
+    audio_path = None
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+
+        # Buscar el archivo de audio descargado
+        audio_path = _find_downloaded_file(output_dir, video_id)
+        if not audio_path:
+            logger.error(f"Audio download failed: no file found")
+            return None
+
+        logger.info(
+            f"Audio downloaded: {os.path.basename(audio_path)} "
+            f"({os.path.getsize(audio_path) / 1024 / 1024:.1f} MB)"
+        )
+
+        # Paso 2: Convertir a MP3 usando el servicio de conversión (si no es MP3)
+        if audio_path.endswith(".mp3"):
+            logger.info(f"Audio already in MP3 format")
+            # Renombrar a nombre estandarizado si es necesario
+            if audio_path != final_mp3:
+                os.rename(audio_path, final_mp3)
+                audio_path = final_mp3
+            return audio_path
+        else:
+            logger.info(f"Converting {os.path.basename(audio_path)} → MP3...")
+            converter = AudioConverter()
+            mp3_path = converter.convert_to_mp3(
+                input_path=audio_path,
+                output_path=final_mp3,
+                bitrate="64k",
+                delete_original=True,
+            )
+            if mp3_path and os.path.exists(mp3_path):
+                elapsed = time.time() - step_start
+                size_mb = os.path.getsize(mp3_path) / (1024 * 1024)
+                logger.info(
+                    f"Audio MP3 ready in {elapsed:.1f}s: {os.path.basename(mp3_path)} ({size_mb:.1f} MB)"
+                )
+                return mp3_path
+            else:
+                logger.error("Audio MP3 conversion failed")
+                return None
+
+    except Exception as e:
+        logger.error(f"Audio MP3 download error: {e}")
+        if audio_path and os.path.exists(audio_path):
+            os.remove(audio_path)
+        _cleanup_partial(output_dir, video_id)
+        return None
 
 
 def _cleanup_partial(output_dir: str, video_id: str):

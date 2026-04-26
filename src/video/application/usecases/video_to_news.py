@@ -157,24 +157,17 @@ class VideoToNewsUseCase:
             logger.info(f"[VIDEO] Reutilizando transcripción cacheada")
             return transcript_path.read_text(encoding="utf-8")
 
-        from src.video.infrastructure.adapters.video_fetcher import download_video
+        from src.video.infrastructure.adapters.video_fetcher import download_mp3
 
-        if not video_path.exists():
-            logger.info(f"[VIDEO] Descargando video: {url}")
-            downloaded_path = download_video(url)
-            if not downloaded_path:
-                raise ValueError(f"No se pudo descargar el video: {url}")
-            video_path = Path(downloaded_path)
+        logger.info(f"[VIDEO] Descargando audio MP3 del video: {url}")
+        audio_path = download_mp3(url)
+        if not audio_path:
+            raise ValueError(f"No se pudo descargar el audio del video: {url}")
 
-        if not validate_video(video_path):
-            raise ValueError(
-                f"El video no tiene audio. No se puede transcribir: {video_path}"
-            )
+        logger.info(f"[VIDEO] Transcribiendo audio MP3")
+        from src.video.infrastructure.adapters.video_transcriber import transcribe_audio
 
-        logger.info(f"[VIDEO] Transcribiendo video")
-        from src.video.infrastructure.adapters.video_transcriber import transcribe_video
-
-        transcript = transcribe_video(str(video_path))
+        transcript = transcribe_audio(audio_path)
 
         transcript_path.write_text(transcript, encoding="utf-8")
         logger.info(f"[VIDEO] Transcripción guardada")

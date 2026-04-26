@@ -308,23 +308,20 @@ class TestAudioTranscriberUsesConverter:
 
 
 class TestVideoTranscriberUsesConverter:
-    """Test VideoTranscriber usa AudioConverter para extracción de audio."""
+    """Test VideoTranscriber envia audio MP3 directamente a Groq sin conversion."""
 
-    @patch("src.shared.adapters.audio_converter.AudioConverter.convert_to_wav16k")
     @patch("src.video.infrastructure.adapters.video_transcriber._send_to_groq")
-    def test_transcribe_video_uses_converter(self, mock_send_groq, mock_convert):
-        from src.video.infrastructure.adapters.video_transcriber import transcribe_video
+    def test_transcribe_audio_sends_directly(self, mock_send_groq):
+        from src.video.infrastructure.adapters.video_transcriber import transcribe_audio
         import tempfile
 
-        mock_convert.return_value = "/tmp/test.wav"
-        mock_send_groq.return_value = "Texto del video"
+        mock_send_groq.return_value = "Texto del audio"
 
-        video_path = tempfile.mktemp(suffix=".mp4")
-        with open(video_path, "w") as f:
-            f.write("fake video")
+        audio_path = tempfile.mktemp(suffix=".mp3")
+        with open(audio_path, "w") as f:
+            f.write("fake mp3")
 
-        result = transcribe_video(video_path)
+        result = transcribe_audio(audio_path)
 
-        mock_convert.assert_called_once_with(video_path)
-        mock_send_groq.assert_called_once_with("/tmp/test.wav")
-        assert result == "Texto del video"
+        mock_send_groq.assert_called_once_with(audio_path)
+        assert result == "Texto del audio"

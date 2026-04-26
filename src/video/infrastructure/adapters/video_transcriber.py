@@ -79,37 +79,21 @@ def _send_to_groq(audio_path: str) -> str:
     return text
 
 
-def transcribe_video(video_path: str) -> str:
-    """Transcribe un video usando Groq Whisper API."""
+def transcribe_audio(audio_path: str) -> str:
+    """Transcribe un archivo de audio MP3 usando Groq Whisper API."""
     import time
 
     step_start = time.time()
 
-    logger.info(f"Transcription started: {os.path.basename(video_path)}")
+    logger.info(f"Transcription started: {os.path.basename(audio_path)}")
 
-    if not os.path.exists(video_path):
-        raise FileNotFoundError(f"Video no encontrado: {video_path}")
+    if not os.path.exists(audio_path):
+        raise FileNotFoundError(f"Audio no encontrado: {audio_path}")
 
-    mp3_path = None
     try:
-        # Paso único: Convertir video a MP3 (baja calidad) y enviar a Groq
-        logger.info("[TRANSCRIBER] Extrayendo audio como MP3 (64k)...")
-        mp3_path = _audio_converter.convert_to_mp3(
-            input_path=video_path,
-            bitrate="64k",  # Comprime para reducir tamaño
-            delete_original=False,
-        )
-        if not mp3_path:
-            raise RuntimeError("[TRANSCRIBER] Falló la extracción de audio a MP3")
-
-        mp3_size = os.path.getsize(mp3_path) / (1024 * 1024)
-        logger.info(
-            f"[TRANSCRIBER] MP3 generado: {os.path.basename(mp3_path)} ({mp3_size:.1f} MB)"
-        )
-
-        # Enviar MP3 directamente a Groq (sin conversión a WAV)
+        # Enviar MP3 directamente a Groq
         logger.info("[TRANSCRIBER] Enviando MP3 a Groq...")
-        text = _send_to_groq(mp3_path)
+        text = _send_to_groq(audio_path)
         elapsed = time.time() - step_start
 
         logger.info(
@@ -128,13 +112,6 @@ def transcribe_video(video_path: str) -> str:
     except Exception as e:
         logger.error(f"Transcription error: {e}")
         raise
-    finally:
-        # Limpiar archivo temporal MP3
-        if mp3_path and os.path.exists(mp3_path):
-            try:
-                os.unlink(mp3_path)
-            except OSError:
-                pass
 
 
 class VideoTranscriber:
@@ -143,21 +120,21 @@ class VideoTranscriber:
     def __init__(self, model: str = "whisper-large-v3-turbo"):
         self.model = model
 
-    def transcribe(self, video_path: str) -> str:
-        """Transcribe un video."""
-        return transcribe_video(video_path)
+    def transcribe(self, audio_path: str) -> str:
+        """Transcribe un archivo de audio."""
+        return transcribe_audio(audio_path)
 
 
-def run(video_path: str) -> str:
+def run(audio_path: str) -> str:
     """Función principal."""
-    return transcribe_video(video_path)
+    return transcribe_audio(audio_path)
 
 
 if __name__ == "__main__":
     import sys
 
     if len(sys.argv) > 1:
-        result = transcribe_video(sys.argv[1])
+        result = transcribe_audio(sys.argv[1])
         print(f"✅ {len(result)} caracteres")
     else:
-        print("Usage: python video_transcriber.py <video_file>")
+        print("Usage: python video_transcriber.py <audio_file>")

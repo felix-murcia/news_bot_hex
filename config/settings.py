@@ -19,7 +19,8 @@ class Settings:
 
     # === Base Paths ===
     # Use environment override for containerized deployments where /app is the working dir
-    BASE_DIR = Path(os.getenv("BASE_DIR", "/app"))
+    # Default to project root directory for local development
+    BASE_DIR = Path(os.getenv("BASE_DIR", Path(__file__).parent.parent))
     DATA_DIR = Path(os.getenv("DATA_DIR", BASE_DIR / "data"))
     CACHE_DIR = Path(os.getenv("CACHE_DIR", DATA_DIR / "cache"))
     MODELS_DIR = Path(os.getenv("MODELS_DIR", BASE_DIR / "models"))

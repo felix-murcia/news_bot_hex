@@ -54,23 +54,23 @@ class VideoPipelineUseCase(BasePipelineUseCase):
 
     def run(self, url: str, tema: str) -> Dict[str, Any]:
         step_start = time.time()
-        logger.info("[1/4] Descargando video y extrayendo audio...")
+        logger.info("[1/4] Descargando audio MP3 del video...")
 
         transcript = ""
-        video_path: Optional[str] = None
+        audio_path: Optional[str] = None
 
         try:
-            from src.video.infrastructure.adapters.video_fetcher import download_video
+            from src.video.infrastructure.adapters.video_fetcher import download_mp3
             from src.video.infrastructure.adapters.video_transcriber import (
-                transcribe_video,
+                transcribe_audio,
             )
 
-            video_path = download_video(url)
-            if not video_path or not os.path.exists(video_path):
-                raise RuntimeError(f"Failed to download video: {url}")
+            audio_path = download_mp3(url)
+            if not audio_path or not os.path.exists(audio_path):
+                raise RuntimeError(f"Failed to download audio MP3: {url}")
 
-            self._track_temp_file(video_path)
-            transcript = transcribe_video(video_path)
+            self._track_temp_file(audio_path)
+            transcript = transcribe_audio(audio_path)
 
             if len(transcript) < 200:
                 logger.warning(
@@ -79,12 +79,12 @@ class VideoPipelineUseCase(BasePipelineUseCase):
                 )
 
             logger.info(
-                f"[1/4] Video descargado y transcrito ({len(transcript)} caracteres) en {time.time() - step_start:.1f}s"
+                f"[1/4] Audio MP3 descargado y transcrito ({len(transcript)} caracteres) en {time.time() - step_start:.1f}s"
             )
 
         except Exception as e:
-            logger.error(f"[1/4] Error en descarga/transcripción de video: {e}")
-            raise RuntimeError(f"Error in video download/transcription: {e}") from e
+            logger.error(f"[1/4] Error en descarga/transcripción de audio: {e}")
+            raise RuntimeError(f"Error in audio download/transcription: {e}") from e
 
         # Steps 2-4: Article generation
         step_start = time.time()
