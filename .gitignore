@@ -86,3 +86,9 @@ htmlcov/
 
 # Logs de cron/timer
 logs/pipeline_cron.log
+
+node_modules/
+.claude/
+.ruffle_cache/
+CLAUDE.md
+.mcp.json

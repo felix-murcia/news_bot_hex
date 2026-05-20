@@ -4,7 +4,7 @@ FastAPI Router for News Pipeline.
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 
 from config.logging_config import get_logger
 
@@ -76,6 +76,35 @@ def news_rss():
         return PipelineResponse(status="ok", message="RSS news fetched successfully")
     except Exception as e:
         logger.error(f"Error fetching RSS: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class ArticleItem(BaseModel):
+    title: str
+    url: str
+    source: str
+    publishedAt: Optional[str] = None
+
+
+@router.get("/rss", response_model=List[ArticleItem])
+def news_rss_list():
+    """Return the articles currently stored in MongoDB."""
+    try:
+        from src.news.infrastructure.adapters import MongoArticleRepository
+
+        repo = MongoArticleRepository()
+        articles = repo.get_all_articles()
+        return [
+            ArticleItem(
+                title=a.title,
+                url=a.url,
+                source=a.source,
+                publishedAt=a.published_at.isoformat() if hasattr(a.published_at, "isoformat") else a.published_at,
+            )
+            for a in articles
+        ]
+    except Exception as e:
+        logger.error(f"Error listing RSS articles: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
