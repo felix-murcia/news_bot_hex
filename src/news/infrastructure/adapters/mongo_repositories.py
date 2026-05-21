@@ -5,6 +5,7 @@ from typing import List, Set
 
 from src.news.domain.entities.article import Article
 from src.news.domain.entities.verified_article import VerifiedArticle
+from src.news.domain.exceptions import RepositoryError
 from src.news.domain.ports import (
     RSSSourceRepository,
     ArticleRepository,
@@ -12,6 +13,8 @@ from src.news.domain.ports import (
     PublishedUrlsRepository,
     KeywordsRepository,
     ScoringConfigRepository,
+    GeneratedPostsRepository,
+    GeneratedArticlesRepository,
 )
 
 from config.logging_config import get_logger
@@ -22,10 +25,11 @@ logger = get_logger("news_bot.infra.news_adapters")
 class MongoRSSSourceRepository(RSSSourceRepository):
     COLLECTION_NAME = "sources_rss"
 
-    def __init__(self):
-        from src.shared.adapters.mongo_db import get_database
-
-        self._db = get_database()
+    def __init__(self, db=None):
+        if db is None:
+            from src.shared.adapters.mongo_db import get_database
+            db = get_database()
+        self._db = db
         self._collection = self._db[self.COLLECTION_NAME]
 
     def get_all_sources(self) -> List[dict]:
@@ -49,10 +53,11 @@ class MongoRSSSourceRepository(RSSSourceRepository):
 class MongoArticleRepository(ArticleRepository):
     COLLECTION_NAME = "raw_news"
 
-    def __init__(self):
-        from src.shared.adapters.mongo_db import get_database
-
-        self._db = get_database()
+    def __init__(self, db=None):
+        if db is None:
+            from src.shared.adapters.mongo_db import get_database
+            db = get_database()
+        self._db = db
         self._collection = self._db[self.COLLECTION_NAME]
 
     def get_all_articles(self) -> List[Article]:
@@ -77,16 +82,17 @@ class MongoArticleRepository(ArticleRepository):
             return self._collection.count_documents({})
         except Exception as e:
             logger.error(f"Error counting raw news: {e}")
-            return 0
+            raise RepositoryError(f"Error counting articles: {e}") from e
 
 
 class MongoVerifiedNewsRepository(VerifiedNewsRepository):
     COLLECTION_NAME = "verified_news"
 
-    def __init__(self):
-        from src.shared.adapters.mongo_db import get_database
-
-        self._db = get_database()
+    def __init__(self, db=None):
+        if db is None:
+            from src.shared.adapters.mongo_db import get_database
+            db = get_database()
+        self._db = db
         self._collection = self._db[self.COLLECTION_NAME]
 
     def get_all_news(self) -> List[VerifiedArticle]:
@@ -105,7 +111,7 @@ class MongoVerifiedNewsRepository(VerifiedNewsRepository):
             return None
         except Exception as e:
             logger.error(f"Error retrieving news by URL: {e}")
-            return None
+            raise RepositoryError(f"Error retrieving news by URL: {e}") from e
 
     def get_verified_news(self) -> List[VerifiedArticle]:
         try:
@@ -118,9 +124,10 @@ class MongoVerifiedNewsRepository(VerifiedNewsRepository):
             return []
 
     def get_all_for_soft_verify(self) -> List[dict]:
-        """Returns raw dicts for soft verify (avoids entity conversion overhead)."""
+        """Returns raw dicts for soft verify from verified_all collection."""
         try:
-            raw = list(self._collection.find({}, {"_id": 0}))
+            coll = self._db["verified_all"]
+            raw = list(coll.find({}, {"_id": 0}))
             return raw
         except Exception as e:
             logger.error(f"Error loading all verified news for soft verify: {e}")
@@ -145,10 +152,7 @@ class MongoVerifiedNewsRepository(VerifiedNewsRepository):
 
     def save_verified_all(self, articles: List[VerifiedArticle]) -> bool:
         try:
-            from src.shared.adapters.mongo_db import get_database
-
-            db = get_database()
-            coll = db["verified_all"]
+            coll = self._db["verified_all"]
             coll.delete_many({})
             if articles:
                 data = [a.to_dict() for a in articles]
@@ -162,10 +166,11 @@ class MongoVerifiedNewsRepository(VerifiedNewsRepository):
 class MongoPublishedUrlsRepository(PublishedUrlsRepository):
     COLLECTION_NAME = "published_urls"
 
-    def __init__(self):
-        from src.shared.adapters.mongo_db import get_database
-
-        self._db = get_database()
+    def __init__(self, db=None):
+        if db is None:
+            from src.shared.adapters.mongo_db import get_database
+            db = get_database()
+        self._db = db
         self._collection = self._db[self.COLLECTION_NAME]
 
     def get_urls(self, ttl_days: int, max_urls: int) -> set:
@@ -220,10 +225,11 @@ class MongoPublishedUrlsRepository(PublishedUrlsRepository):
 
 
 class MongoKeywordsRepository(KeywordsRepository):
-    def __init__(self):
-        from src.shared.adapters.mongo_db import get_database
-
-        self._db = get_database()
+    def __init__(self, db=None):
+        if db is None:
+            from src.shared.adapters.mongo_db import get_database
+            db = get_database()
+        self._db = db
 
     def get_breaking_keywords(self) -> List[str]:
         try:
@@ -249,10 +255,11 @@ class MongoKeywordsRepository(KeywordsRepository):
 
 
 class MongoScoringConfigRepository(ScoringConfigRepository):
-    def __init__(self):
-        from src.shared.adapters.mongo_db import get_database
-
-        self._db = get_database()
+    def __init__(self, db=None):
+        if db is None:
+            from src.shared.adapters.mongo_db import get_database
+            db = get_database()
+        self._db = db
 
     def get_scoring_config(self) -> dict:
         try:
@@ -264,7 +271,7 @@ class MongoScoringConfigRepository(ScoringConfigRepository):
             return self._default_config()
         except Exception as e:
             logger.error(f"Error loading scoring config: {e}")
-            return self._default_config()
+            raise RepositoryError(f"Error loading scoring config: {e}") from e
 
     def _default_config(self) -> dict:
         return {
@@ -289,3 +296,87 @@ class MongoScoringConfigRepository(ScoringConfigRepository):
             },
             "limits": {"ttl_days": 30, "max_urls": 1000},
         }
+
+
+class MongoGeneratedPostsRepository(GeneratedPostsRepository):
+    """Repositorio de posts generados (tweets/content)."""
+
+    COLLECTION_NAME = "generated_posts"
+
+    def __init__(self, db=None):
+        if db is None:
+            from src.shared.adapters.mongo_db import get_database
+            db = get_database()
+        self._db = db
+        self._collection = self._db[self.COLLECTION_NAME]
+
+    def load_all(self) -> List[dict]:
+        try:
+            posts = list(self._collection.find({}))
+            for p in posts:
+                p.pop("_id", None)
+            return posts
+        except Exception as e:
+            logger.error(f"Error loading generated posts: {e}")
+            raise RepositoryError(f"Error loading generated posts: {e}") from e
+
+    def save_all(self, posts: List[dict]) -> bool:
+        try:
+            self._collection.delete_many({})
+            if posts:
+                self._collection.insert_many(posts)
+            logger.info(f"Saved {len(posts)} generated posts")
+            return True
+        except Exception as e:
+            logger.error(f"Error saving generated posts: {e}")
+            return False
+
+    def delete_all(self) -> bool:
+        try:
+            self._collection.delete_many({})
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting generated posts: {e}")
+            return False
+
+
+class MongoGeneratedArticlesRepository(GeneratedArticlesRepository):
+    """Repositorio de artículos generados."""
+
+    COLLECTION_NAME = "generated_articles"
+
+    def __init__(self, db=None):
+        if db is None:
+            from src.shared.adapters.mongo_db import get_database
+            db = get_database()
+        self._db = db
+        self._collection = self._db[self.COLLECTION_NAME]
+
+    def load_all(self) -> List[dict]:
+        try:
+            articles = list(self._collection.find({}))
+            for a in articles:
+                a.pop("_id", None)
+            return articles
+        except Exception as e:
+            logger.error(f"Error loading generated articles: {e}")
+            raise RepositoryError(f"Error loading generated articles: {e}") from e
+
+    def save_all(self, articles: List[dict]) -> bool:
+        try:
+            self._collection.delete_many({})
+            if articles:
+                self._collection.insert_many(articles)
+            logger.info(f"Saved {len(articles)} generated articles")
+            return True
+        except Exception as e:
+            logger.error(f"Error saving generated articles: {e}")
+            return False
+
+    def delete_all(self) -> bool:
+        try:
+            self._collection.delete_many({})
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting generated articles: {e}")
+            return False

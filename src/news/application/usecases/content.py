@@ -5,6 +5,10 @@ from typing import Dict, Any, List, Optional
 
 from config.settings import Settings
 from config.logging_config import get_logger
+from src.news.domain.ports import VerifiedNewsRepository, GeneratedPostsRepository
+from src.shared.adapters.ai.agents import TweetGeopoliticsAgent
+from src.shared.utils.tweet_truncation import truncate_social_post
+from src.shared.utils.content_post_editor import post_edit_content
 
 logger = get_logger("news_bot.usecase.content")
 
@@ -22,10 +26,12 @@ POST_LIMITS = {
 
 
 class ContentUseCase:
-    """Caso de uso para generar contenido (tweets/posts) para redes sociales."""
+    """Caso de uso para generar contenido (tweets/posts) para redes sociales (DIP: inyección de repositorio)."""
 
     def __init__(
         self,
+        verified_repo: Optional[VerifiedNewsRepository] = None,
+        generated_posts_repo: Optional[GeneratedPostsRepository] = None,
         network: str = "bluesky",
         use_ai: bool = True,
         ai_config: Optional[dict] = None,
@@ -33,6 +39,15 @@ class ContentUseCase:
         ai_model=None,
         mode: str = "news",
     ):
+        # Fallback para compatibilidad con tests (inicialmente sin DI)
+        if verified_repo is None:
+            from src.news.infrastructure.adapters import MongoVerifiedNewsRepository
+            verified_repo = MongoVerifiedNewsRepository()
+        if generated_posts_repo is None:
+            from src.news.infrastructure.adapters import MongoGeneratedPostsRepository
+            generated_posts_repo = MongoGeneratedPostsRepository()
+        self.verified_repo = verified_repo
+        self.generated_posts_repo = generated_posts_repo
         self.network = network
         self.mode = mode
         self.MAX_CHARS = POST_LIMITS.get(network, 280)
@@ -55,49 +70,29 @@ class ContentUseCase:
         return self.ai_model
 
     def _get_verified_news(self) -> List[Dict]:
+        """Obtiene noticias verificadas usando el repositorio inyectado (DIP)."""
         try:
-            from src.shared.adapters.mongo_db import get_database
-
-            db = get_database()
-            coll = db["verified_news"]
-            news = list(coll.find({}))
-            for n in news:
-                n.pop("_id", None)
-            return news
+            articles = self.verified_repo.get_all_news()
+            return [a.to_dict() for a in articles]
         except Exception as e:
             logger.error(f"[CONTENT] Error cargando verified_news: {e}")
             return []
 
     def _load_posts(self) -> List[Dict]:
         try:
-            from src.shared.adapters.mongo_db import get_database
-
-            db = get_database()
-            coll = db["generated_posts"]
-            posts = list(coll.find({}))
-            for p in posts:
-                p.pop("_id", None)
-            return posts
+            return self.generated_posts_repo.load_all()
         except Exception as e:
             logger.error(f"[CONTENT] Error cargando posts: {e}")
             return []
 
     def _save_posts(self, posts: List[Dict]):
         try:
-            from src.shared.adapters.mongo_db import get_database
-
-            db = get_database()
-            coll = db["generated_posts"]
-            coll.delete_many({})
-            if posts:
-                coll.insert_many(posts)
+            self.generated_posts_repo.save_all(posts)
             logger.info(f"[CONTENT] Guardados {len(posts)} posts en MongoDB")
         except Exception as e:
             logger.error(f"[CONTENT] Error guardando posts: {e}")
 
     def _generate_tweet_ai(self, news_item: Dict) -> str:
-        from src.shared.adapters.ai.agents import TweetGeopoliticsAgent
-
         title = news_item.get("title", "")
         tema = news_item.get("tema", "Noticias")
         desc = news_item.get("desc", "")[:200]
@@ -106,14 +101,10 @@ class ContentUseCase:
         agent = TweetGeopoliticsAgent(model)
         tweet = agent.generate(title=title, tema=tema, context=desc)
 
-        from src.shared.utils.tweet_truncation import truncate_social_post
-
         tweet = truncate_social_post(tweet, limit=self.MAX_CHARS)
         tweet = tweet.strip()
 
         # Aplicar post-edición automática
-        from src.shared.utils.content_post_editor import post_edit_content
-
         tweet = post_edit_content(tweet)
 
         if not tweet:
@@ -208,7 +199,13 @@ def run_content(
 ) -> List[Dict]:
     """Función principal para generar tweets."""
     logger.info(f"[CONTENT] Ejecutando (provider: {model_provider}, red: {network})")
+    from src.news.infrastructure.adapters import MongoVerifiedNewsRepository, MongoGeneratedPostsRepository
+
+    verified_repo = MongoVerifiedNewsRepository()
+    generated_posts_repo = MongoGeneratedPostsRepository()
     use_case = ContentUseCase(
+        verified_repo=verified_repo,
+        generated_posts_repo=generated_posts_repo,
         network=network,
         use_ai=use_gemini,
         ai_config=gemini_config,

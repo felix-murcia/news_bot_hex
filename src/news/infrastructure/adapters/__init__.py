@@ -5,6 +5,8 @@ from src.news.infrastructure.adapters.mongo_repositories import (
     MongoPublishedUrlsRepository,
     MongoKeywordsRepository,
     MongoScoringConfigRepository,
+    MongoGeneratedPostsRepository,
+    MongoGeneratedArticlesRepository,
 )
 from src.news.infrastructure.adapters.rss_fetcher import FeedparserRSSFetcher
 from src.news.infrastructure.adapters.content_extractor import JinaContentExtractor

@@ -1,12 +1,34 @@
 """
 FastAPI Router for News Pipeline.
+
+Usa FastAPI Depends() para inyecciones de dependencias (Composition Root).
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional, List
 
 from config.logging_config import get_logger
+from config.settings import Settings
+from src.news.domain.exceptions import RepositoryError
+from src.news.domain.ports import (
+    ArticleRepository,
+    VerifiedNewsRepository,
+    ContentExtractor,
+)
+from src.news.application.usecases.article import ArticleUseCase
+from src.news.application.usecases.content import ContentUseCase
+from src.news.entrypoints.api.dependencies import (
+    get_content_extractor,
+    get_article_repo,
+    get_verified_news_repo,
+    get_article_usecase,
+    get_content_usecase,
+    get_fetch_rss_usecase,
+    get_full_verify_usecase,
+    get_soft_verify_usecase,
+    get_generated_posts_repo,
+)
 
 logger = get_logger("news_bot.api.router")
 
@@ -21,13 +43,6 @@ class ProcessUrlRequest(BaseModel):
     provider: str | None = None
     use_ai: bool = True
 
-    def get_model_provider(self) -> str:
-        """Resolve model provider at runtime (not import time)."""
-        if self.provider:
-            return self.provider
-        from config.settings import Settings
-        return Settings.AI_PROVIDER
-
 
 class PipelineResponse(BaseModel):
     status: str
@@ -39,16 +54,18 @@ class PipelineResponse(BaseModel):
 # Endpoints
 # ============================================================
 @router.post("/process_url", response_model=PipelineResponse)
-def news_process_url(req: ProcessUrlRequest):
+def news_process_url(
+    req: ProcessUrlRequest,
+    extractor: ContentExtractor = Depends(get_content_extractor),
+):
     """Process a news URL and generate article + tweet."""
     try:
         from src.news.application.usecases.news_to_news import process_news_url
-        from src.news.infrastructure.adapters import JinaContentExtractor
 
-        model_provider = req.get_model_provider()
+        model_provider = req.provider or Settings.AI_PROVIDER
         result = process_news_url(
             url=req.url,
-            content_extractor=JinaContentExtractor(),
+            content_extractor=extractor,
             model_provider=model_provider,
             use_ai=req.use_ai,
         )
@@ -67,13 +84,18 @@ def news_process_url(req: ProcessUrlRequest):
 
 
 @router.post("/rss", response_model=PipelineResponse)
-def news_rss():
+def news_rss(fetch_usecase=Depends(get_fetch_rss_usecase)):
     """Fetch RSS news and store in MongoDB."""
     try:
-        from src.news.entrypoints.cli import main_rss
-
-        main_rss()
-        return PipelineResponse(status="ok", message="RSS news fetched successfully")
+        result = fetch_usecase.execute()
+        return PipelineResponse(
+            status="ok",
+            message="RSS news fetched successfully",
+            data={"new_articles": result.get("new_articles", 0), "total_articles": result.get("total_articles", 0)},
+        )
+    except RepositoryError as e:
+        logger.error(f"Database error fetching RSS: {e}")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
     except Exception as e:
         logger.error(f"Error fetching RSS: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -87,13 +109,10 @@ class ArticleItem(BaseModel):
 
 
 @router.get("/rss", response_model=List[ArticleItem])
-def news_rss_list():
+def news_rss_list(article_repo: ArticleRepository = Depends(get_article_repo)):
     """Return the articles currently stored in MongoDB."""
     try:
-        from src.news.infrastructure.adapters import MongoArticleRepository
-
-        repo = MongoArticleRepository()
-        articles = repo.get_all_articles()
+        articles = article_repo.get_all_articles()
         return [
             ArticleItem(
                 title=a.title,
@@ -103,74 +122,95 @@ def news_rss_list():
             )
             for a in articles
         ]
+    except RepositoryError as e:
+        logger.error(f"Database error listing RSS articles: {e}")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
     except Exception as e:
         logger.error(f"Error listing RSS articles: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/verify", response_model=PipelineResponse)
-def news_verify():
+def news_verify(verify_usecase=Depends(get_full_verify_usecase)):
     """Verify and score news articles."""
     try:
-        from src.news.entrypoints.cli import main_full_verify
-
-        main_full_verify()
-        return PipelineResponse(status="ok", message="News verification completed")
+        result = verify_usecase.execute()
+        return PipelineResponse(status="ok", message="News verification completed", data=result)
+    except RepositoryError as e:
+        logger.error(f"Database error during verification: {e}")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
     except Exception as e:
         logger.error(f"Error during verification: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/soft", response_model=PipelineResponse)
-def news_soft():
+def news_soft(soft_usecase=Depends(get_soft_verify_usecase)):
     """Soft verify and select best news."""
     try:
-        from src.news.entrypoints.cli import main_soft
-
-        result = main_soft()
+        result = soft_usecase.execute()
         return PipelineResponse(
             status="ok",
             message="Soft verification completed",
-            data={"title": result.get("title", ""), "score": result.get("score", 0)},
+            data={"title": result.get("title", ""), "score": result.get("score", 0), "url": result.get("url", "")},
         )
+    except RepositoryError as e:
+        logger.error(f"Database error during soft verify: {e}")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
     except Exception as e:
         logger.error(f"Error during soft verify: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/article", response_model=PipelineResponse)
-def news_article(provider: str | None = None, limit: int = 1):
+def news_article(
+    provider: str | None = None,
+    limit: int = 1,
+    article_usecase: ArticleUseCase = Depends(get_article_usecase),
+):
     """Generate professional articles from verified news."""
     try:
-        from src.news.application.usecases.article import run
-        from config.settings import Settings
-
-        model_provider = provider or Settings.AI_PROVIDER
-        results = run(limit=limit, use_gemini=True, model_provider=model_provider)
+        results = article_usecase.execute(limit=limit)
         return PipelineResponse(
             status="ok",
             message=f"Generated {len(results)} article(s)",
             data={"count": len(results)},
         )
+    except RepositoryError as e:
+        logger.error(f"Database error generating articles: {e}")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
     except Exception as e:
         logger.error(f"Error generating articles: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/content", response_model=PipelineResponse)
-def news_content(network: str = "bluesky", provider: str | None = None):
+def news_content(
+    network: str = "bluesky",
+    provider: str | None = None,
+    verified_repo: VerifiedNewsRepository = Depends(get_verified_news_repo),
+    generated_posts_repo=Depends(get_generated_posts_repo),
+):
     """Generate social media posts (tweets) from verified news."""
     try:
-        from src.news.application.usecases.content import run_content
-        from config.settings import Settings
+        from src.news.application.usecases.content import ContentUseCase
 
         model_provider = provider or Settings.AI_PROVIDER
-        results = run_content(network=network, use_gemini=True, model_provider=model_provider)
+        content_usecase = ContentUseCase(
+            verified_repo=verified_repo,
+            generated_posts_repo=generated_posts_repo,
+            network=network,
+            model_provider=model_provider,
+        )
+        results = content_usecase.execute()
         return PipelineResponse(
             status="ok",
             message=f"Generated {len(results)} post(s)",
             data={"count": len(results)},
         )
+    except RepositoryError as e:
+        logger.error(f"Database error generating content: {e}")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
     except Exception as e:
         logger.error(f"Error generating content: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -178,12 +218,16 @@ def news_content(network: str = "bluesky", provider: str | None = None):
 
 @router.post("/pipeline", response_model=PipelineResponse)
 def news_full_pipeline():
-    """Execute the complete news pipeline."""
+    """Execute the complete news pipeline with images, audio, video, and publishing."""
     try:
         from src.news.entrypoints.cli import main_pipeline
 
         main_pipeline()
-        return PipelineResponse(status="ok", message="Full pipeline executed")
+
+        return PipelineResponse(
+            status="ok",
+            message="Full pipeline executed successfully with RSS, verification, articles, posts, images, audio, video, and publishing"
+        )
     except Exception as e:
-        logger.error(f"Error in full pipeline: {e}")
+        logger.error(f"Error in full pipeline: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

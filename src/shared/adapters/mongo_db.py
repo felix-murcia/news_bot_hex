@@ -6,36 +6,39 @@ from config.logging_config import get_logger
 
 logger = get_logger("news_bot")
 
-MONGO_HOST = Settings.MONGO_HOST
-MONGO_PORT = Settings.MONGO_PORT
-MONGO_USER = Settings.MONGO_USER
-MONGO_PASSWORD = Settings.MONGO_PASSWORD
-MONGO_DB_NAME = Settings.MONGO_DB_NAME
-
 
 class MongoDBClient:
-    _instance = None
+    """Cliente MongoDB sin Singleton pattern (Hexagonal Architecture DIP)."""
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._client = None
-        return cls._instance
+    def __init__(
+        self,
+        host: str = None,
+        port: int = None,
+        user: str = None,
+        password: str = None,
+        db_name: str = None,
+    ):
+        self._client = None
+        self._host = host or Settings.MONGO_HOST
+        self._port = port or Settings.MONGO_PORT
+        self._user = user or Settings.MONGO_USER
+        self._password = password or Settings.MONGO_PASSWORD
+        self._db_name = db_name or Settings.MONGO_DB_NAME
 
     def get_client(self):
         if self._client is None:
             self._client = MongoClient(
-                host=MONGO_HOST,
-                port=MONGO_PORT,
-                username=MONGO_USER,
-                password=MONGO_PASSWORD,
+                host=self._host,
+                port=self._port,
+                username=self._user,
+                password=self._password,
                 authSource="admin",
                 serverSelectionTimeoutMS=5000,
             )
         return self._client
 
     def get_database(self):
-        return self.get_client()[MONGO_DB_NAME]
+        return self.get_client()[self._db_name]
 
     def test_connection(self):
         try:
@@ -45,9 +48,20 @@ class MongoDBClient:
             return False
 
 
+_default_client = None
+
+
 def get_database():
-    return MongoDBClient().get_database()
+    """Factory function para obtener la BD (compatible con CLI composition root)."""
+    global _default_client
+    if _default_client is None:
+        _default_client = MongoDBClient()
+    return _default_client.get_database()
 
 
 def test_connection():
-    return MongoDBClient().test_connection()
+    """Test conexión con BD."""
+    global _default_client
+    if _default_client is None:
+        _default_client = MongoDBClient()
+    return _default_client.test_connection()

@@ -108,6 +108,38 @@ class ContentExtractor(ABC):
         pass
 
 
+class GeneratedPostsRepository(ABC):
+    """Puerto para gestionar posts generados (tweets/content)."""
+
+    @abstractmethod
+    def load_all(self) -> List[dict]:
+        pass
+
+    @abstractmethod
+    def save_all(self, posts: List[dict]) -> bool:
+        pass
+
+    @abstractmethod
+    def delete_all(self) -> bool:
+        pass
+
+
+class GeneratedArticlesRepository(ABC):
+    """Puerto para gestionar artículos generados."""
+
+    @abstractmethod
+    def load_all(self) -> List[dict]:
+        pass
+
+    @abstractmethod
+    def save_all(self, articles: List[dict]) -> bool:
+        pass
+
+    @abstractmethod
+    def delete_all(self) -> bool:
+        pass
+
+
 class FakeNewsModel(ABC):
     """Puerto para el modelo de detección de fake news."""
 

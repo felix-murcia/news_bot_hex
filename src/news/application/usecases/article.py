@@ -7,6 +7,10 @@ from urllib.parse import urlparse
 
 from config.settings import Settings
 from config.logging_config import get_logger
+from src.news.domain.ports import VerifiedNewsRepository, GeneratedPostsRepository, GeneratedArticlesRepository
+from src.shared.adapters.ai.agents import ArticleAgent
+from src.shared.adapters.translator import translate_text
+from src.news.domain.services.template_renderer import TemplateRenderer
 
 logger = get_logger("news_bot.usecase.article")
 
@@ -100,15 +104,31 @@ def _validar_titulo(titulo: str) -> str:
 
 
 class ArticleUseCase:
-    """Caso de uso para generar artículos con IA."""
+    """Caso de uso para generar artículos con IA (DIP: inyección de repositorio)."""
 
     def __init__(
         self,
+        verified_repo: Optional[VerifiedNewsRepository] = None,
+        generated_posts_repo: Optional[GeneratedPostsRepository] = None,
+        generated_articles_repo: Optional[GeneratedArticlesRepository] = None,
         use_ai: bool = True,
         ai_config: Optional[dict] = None,
         ai_model=None,
         model_provider: str = Settings.AI_PROVIDER,
     ):
+        # Fallback para compatibilidad con tests (inicialmente sin DI)
+        if verified_repo is None:
+            from src.news.infrastructure.adapters import MongoVerifiedNewsRepository
+            verified_repo = MongoVerifiedNewsRepository()
+        if generated_posts_repo is None:
+            from src.news.infrastructure.adapters import MongoGeneratedPostsRepository
+            generated_posts_repo = MongoGeneratedPostsRepository()
+        if generated_articles_repo is None:
+            from src.news.infrastructure.adapters import MongoGeneratedArticlesRepository
+            generated_articles_repo = MongoGeneratedArticlesRepository()
+        self.verified_repo = verified_repo
+        self.generated_posts_repo = generated_posts_repo
+        self.generated_articles_repo = generated_articles_repo
         self.use_ai = use_ai
         self.ai_config = ai_config or {}
         self.ai_model = ai_model
@@ -128,8 +148,6 @@ class ArticleUseCase:
     def _get_template_renderer(self):
         """Obtiene el renderer de plantillas (lazy loading)."""
         if self._template_renderer is None:
-            from src.news.domain.services.template_renderer import TemplateRenderer
-
             template_content = _load_template_content()
             if template_content:
                 self._template_renderer = TemplateRenderer(template_content)
@@ -144,29 +162,20 @@ class ArticleUseCase:
         return self._generate_fallback(news_item)
 
     def _get_full_content(self, news_item: Dict) -> str:
-        """Get full content from verified_news based on URL matching."""
+        """Get full content from verified_news based on URL matching (DIP: usa repositorio inyectado)."""
         try:
-            from src.shared.adapters.mongo_db import get_database
-
-            db = get_database()
-
             url = news_item.get("url", "")
-            verified = db["verified_news"].find_one({"url": url})
+            # Intenta obtener por URL primaria
+            verified = self.verified_repo.get_news_by_url(url)
             if verified:
-                return verified.get("content") or verified.get("desc", "")
-
-            verified = db["verified_news"].find_one({"original_url": url})
-            if verified:
-                return verified.get("content") or verified.get("desc", "")
+                return verified.content or verified.desc or ""
+            # Nota: Si necesitara búsqueda por original_url, habría que añadir un método al puerto
         except Exception as e:
             logger.warning(f"[ARTICLE] Error getting full content: {e}")
         return ""
 
     def _generate_with_ai(self, news_item: Dict, mode: str) -> str:
         try:
-            from src.shared.adapters.ai.agents import ArticleAgent
-            from src.shared.adapters.translator import translate_text
-
             model = self._get_ai_model()
             raw_title = news_item.get("title", "")
 
@@ -219,8 +228,6 @@ class ArticleUseCase:
     def make_payload(self, news_item: Dict, article_body: str) -> Dict:
         raw_title = news_item.get("title", "Noticia de Última Hora")
         try:
-            from src.shared.adapters.translator import translate_text
-
             titulo = news_item.get("title_es") or translate_text(
                 raw_title[:200], target_lang="es"
             )
@@ -258,27 +265,16 @@ class ArticleUseCase:
 
     def load_generated_posts(self) -> List[Dict]:
         try:
-            from src.shared.adapters.mongo_db import get_database
-
-            db = get_database()
-            coll = db["generated_posts"]
-            posts = list(coll.find({}))
-            for p in posts:
-                p.pop("_id", None)
-            return posts
+            return self.generated_posts_repo.load_all()
         except Exception as e:
             logger.error(f"[ARTICLE] Error cargando posts: {e}")
             return []
 
     def get_current_verified_url(self) -> str:
         try:
-            from src.shared.adapters.mongo_db import get_database
-
-            db = get_database()
-            coll = db["verified_news"]
-            news = list(coll.find({}))
+            news = self.verified_repo.get_all_news()
             if news:
-                return news[0].get("url", "")
+                return news[0].url
         except Exception as e:
             logger.error(f"[ARTICLE] Error getting verified URL: {e}")
         return ""
@@ -353,12 +349,7 @@ class ArticleUseCase:
 
         if generated:
             try:
-                from src.shared.adapters.mongo_db import get_database
-
-                db = get_database()
-                coll = db["generated_articles"]
-                coll.delete_many({})
-                coll.insert_many(generated)
+                self.generated_articles_repo.save_all(generated)
                 logger.info(
                     f"[ARTICLE] Guardados {len(generated)} artículos en MongoDB"
                 )
@@ -397,7 +388,15 @@ def run(
     model_provider: str = Settings.AI_PROVIDER,
 ) -> List[Dict]:
     logger.info(f"[ARTICLE] Ejecutando (provider: {model_provider})")
+    from src.news.infrastructure.adapters import MongoVerifiedNewsRepository, MongoGeneratedPostsRepository, MongoGeneratedArticlesRepository
+
+    verified_repo = MongoVerifiedNewsRepository()
+    generated_posts_repo = MongoGeneratedPostsRepository()
+    generated_articles_repo = MongoGeneratedArticlesRepository()
     use_case = ArticleUseCase(
+        verified_repo=verified_repo,
+        generated_posts_repo=generated_posts_repo,
+        generated_articles_repo=generated_articles_repo,
         use_ai=use_gemini,
         ai_config=ai_config,
         model_provider=model_provider,

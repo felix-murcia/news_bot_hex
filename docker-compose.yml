@@ -33,6 +33,7 @@ services:
       - /tmp/images:/tmp/images
     networks:
       - cine-network
+      - mongo_default
     deploy:
       resources:
         reservations:
@@ -56,4 +57,6 @@ services:
 
 networks:
   cine-network:
+    external: true
+  mongo_default:
     external: true
