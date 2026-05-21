@@ -218,16 +218,50 @@ def news_content(
 
 @router.post("/pipeline", response_model=PipelineResponse)
 def news_full_pipeline():
-    """Execute the complete news pipeline with images, audio, video, and publishing."""
+    """Start the complete news pipeline asynchronously (returns job_id for polling)."""
     try:
-        from src.news.entrypoints.cli import main_pipeline
+        from src.news.application.usecases.pipeline_job import create_job
+        from src.news.application.usecases.pipeline_executor import execute_pipeline_async
 
-        main_pipeline()
+        job_id = create_job()
+        execute_pipeline_async(job_id)
 
         return PipelineResponse(
             status="ok",
-            message="Full pipeline executed successfully with RSS, verification, articles, posts, images, audio, video, and publishing"
+            message="Pipeline started",
+            data={"job_id": job_id}
         )
     except Exception as e:
-        logger.error(f"Error in full pipeline: {e}", exc_info=True)
+        logger.error(f"Error starting pipeline: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/pipeline/status/{job_id}", response_model=PipelineResponse)
+def get_pipeline_status(job_id: str):
+    """Get pipeline job status and progress."""
+    try:
+        from src.news.application.usecases.pipeline_job import get_job
+
+        job = get_job(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+
+        return PipelineResponse(
+            status="ok",
+            message=job.get("message", ""),
+            data={
+                "job_id": job_id,
+                "status": job["status"],
+                "progress": job["progress"],
+                "steps": job["steps"],
+                "error": job.get("error"),
+                "created_at": job.get("created_at"),
+                "started_at": job.get("started_at"),
+                "completed_at": job.get("completed_at"),
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting pipeline status: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
