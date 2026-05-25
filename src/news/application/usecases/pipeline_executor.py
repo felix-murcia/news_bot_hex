@@ -30,6 +30,8 @@ def execute_pipeline_async(job_id: str) -> None:
             except Exception as e:
                 logger.error(f"[PIPELINE-JOB] {job_id} Error en RSS: {e}")
                 add_step(job_id, "RSS Fetch", "error")
+                # Abort the pipeline on any error, especially AI provider failures
+                raise
 
             # Step 2: Full Verification
             add_step(job_id, "Full Verification", "running")
@@ -42,6 +44,7 @@ def execute_pipeline_async(job_id: str) -> None:
             except Exception as e:
                 logger.error(f"[PIPELINE-JOB] {job_id} Error en Verification: {e}")
                 add_step(job_id, "Full Verification", "error")
+                raise
 
             # Step 3: Generate Posts
             add_step(job_id, "Generate Posts", "running")
@@ -54,6 +57,7 @@ def execute_pipeline_async(job_id: str) -> None:
             except Exception as e:
                 logger.error(f"[PIPELINE-JOB] {job_id} Error en Posts: {e}")
                 add_step(job_id, "Generate Posts", "error")
+                raise
 
             # Step 4: Generate Articles
             add_step(job_id, "Generate Articles", "running")
@@ -66,6 +70,7 @@ def execute_pipeline_async(job_id: str) -> None:
             except Exception as e:
                 logger.error(f"[PIPELINE-JOB] {job_id} Error en Articles: {e}")
                 add_step(job_id, "Generate Articles", "error")
+                raise
 
             # Step 5: Fetch Images
             add_step(job_id, "Fetch Images", "running")
@@ -80,6 +85,7 @@ def execute_pipeline_async(job_id: str) -> None:
             except Exception as e:
                 logger.error(f"[PIPELINE-JOB] {job_id} Error en Images: {e}")
                 add_step(job_id, "Fetch Images", "error")
+                raise
 
             # Step 6: Enrich Images
             add_step(job_id, "Enrich Images", "running")
@@ -92,6 +98,7 @@ def execute_pipeline_async(job_id: str) -> None:
             except Exception as e:
                 logger.error(f"[PIPELINE-JOB] {job_id} Error en Enrichment: {e}")
                 add_step(job_id, "Enrich Images", "error")
+                raise
 
             # Step 7: Generate Audio (TTS)
             add_step(job_id, "Generate Audio", "running")
@@ -118,6 +125,7 @@ def execute_pipeline_async(job_id: str) -> None:
             except Exception as e:
                 logger.warning(f"[PIPELINE-JOB] {job_id} Warning en Audio: {e}")
                 add_step(job_id, "Generate Audio", "skipped")
+                raise
 
             # Step 8: Generate Video
             add_step(job_id, "Generate Video", "running")
@@ -150,6 +158,7 @@ def execute_pipeline_async(job_id: str) -> None:
             except Exception as e:
                 logger.warning(f"[PIPELINE-JOB] {job_id} Warning en Video: {e}")
                 add_step(job_id, "Generate Video", "skipped")
+                raise
 
             # Step 9: WordPress
             add_step(job_id, "Publish WordPress", "running")
@@ -162,6 +171,7 @@ def execute_pipeline_async(job_id: str) -> None:
             except Exception as e:
                 logger.error(f"[PIPELINE-JOB] {job_id} Error en WordPress: {e}")
                 add_step(job_id, "Publish WordPress", "error")
+                raise
 
             # Step 10: Social Networks
             add_step(job_id, "Publish Social", "running")
