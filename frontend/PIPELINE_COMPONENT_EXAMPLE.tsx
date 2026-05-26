@@ -24,6 +24,7 @@ interface PipelineJob {
   message: string;
   steps: PipelineStep[];
   error?: string;
+  last_log?: string;
   created_at: string;
   started_at?: string;
   completed_at?: string;
@@ -238,6 +239,18 @@ const PipelineAutomaticoTab: React.FC = () => {
               ))}
             </div>
           </div>
+
+          {/* Live Log Feedback */}
+          {job.last_log && (
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+              <div className="text-xs font-mono text-gray-600 dark:text-gray-400 mb-2">
+                📝 Último evento:
+              </div>
+              <div className="text-sm text-gray-700 dark:text-gray-300 font-mono break-words whitespace-pre-wrap max-h-20 overflow-y-auto bg-black bg-opacity-20 rounded p-3">
+                {job.last_log}
+              </div>
+            </div>
+          )}
 
           {/* Timing Info */}
           {job.started_at && (

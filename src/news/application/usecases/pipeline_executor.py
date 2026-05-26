@@ -7,6 +7,10 @@ from src.news.application.usecases.pipeline_job import (
     update_job_status,
     add_step,
 )
+from src.news.application.usecases.pipeline_log_handler import (
+    setup_pipeline_logging,
+    teardown_pipeline_logging,
+)
 
 logger = get_logger("news_bot.pipeline.executor")
 
@@ -15,6 +19,9 @@ def execute_pipeline_async(job_id: str) -> None:
     """Execute pipeline in background thread with job tracking."""
 
     def run_pipeline():
+        # Setup logging handler to capture real-time feedback for UI
+        log_handler = setup_pipeline_logging(job_id)
+
         try:
             update_job_status(job_id, JobStatus.RUNNING, "Pipeline iniciado")
             logger.info(f"[PIPELINE-JOB] {job_id} iniciado")
@@ -211,6 +218,10 @@ def execute_pipeline_async(job_id: str) -> None:
         except Exception as e:
             logger.error(f"[PIPELINE-JOB] {job_id} Error general: {e}", exc_info=True)
             update_job_status(job_id, JobStatus.FAILED, f"Error: {str(e)}", error=str(e))
+
+        finally:
+            # Cleanup logging handler
+            teardown_pipeline_logging(log_handler)
 
     # Run in background thread
     thread = threading.Thread(target=run_pipeline, daemon=True)

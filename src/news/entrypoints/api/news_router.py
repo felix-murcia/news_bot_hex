@@ -255,6 +255,7 @@ def get_pipeline_status(job_id: str):
                 "progress": job["progress"],
                 "steps": job["steps"],
                 "error": job.get("error"),
+                "last_log": job.get("last_log"),
                 "created_at": job.get("created_at"),
                 "started_at": job.get("started_at"),
                 "completed_at": job.get("completed_at"),

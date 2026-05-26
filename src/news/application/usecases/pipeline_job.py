@@ -26,6 +26,7 @@ def create_job() -> str:
         "progress": 0,
         "message": "Job creado",
         "steps": [],
+        "last_log": None,  # Última línea de log para feedback en tiempo real
         "created_at": datetime.utcnow().isoformat(),
         "started_at": None,
         "completed_at": None,
@@ -80,6 +81,18 @@ def add_step(job_id: str, step_name: str, status: str = "running") -> None:
     total_steps = len(job["steps"])
     completed = len([s for s in job["steps"] if s["status"] in ("completed", "ok")])
     job["progress"] = int((completed / total_steps * 100)) if total_steps > 0 else 0
+
+
+def update_job_log(job_id: str, log_message: str) -> None:
+    """Update the last log message for real-time feedback in UI."""
+    if job_id not in _jobs_store:
+        return
+
+    job = _jobs_store[job_id]
+    # Extraer solo la parte importante del mensaje de log
+    # Eliminar timestamps, prefijos de logger, etc.
+    log_text = str(log_message).strip()
+    job["last_log"] = log_text
 
 
 def cleanup_old_jobs(hours: int = 24) -> None:
