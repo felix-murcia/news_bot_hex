@@ -34,6 +34,7 @@ Hecho principal conciso + (opcional dato adicional o consecuencia) + espacio + #
 - Primera persona ("creo", "en mi opinión", "nosotros")
 - Juicios de valor ("lamentablemente", "afortunadamente", "preocupante")
 - Adjetivos valorativos o ideología
+- **ABREVIATURAS CON PUNTOS** - El post será convertido a audio (TTS). NUNCA uses: E.E.U.U., Sr., Dr., Dra., O.M.S., O.N.U., etc. SIEMPRE escribe las formas completas: Estados Unidos, Señor, Doctor, Doctora, etc.
 
 ## Ejemplos de salida correcta
 

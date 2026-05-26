@@ -43,6 +43,7 @@ Debes calcular el espacio disponible ANTES de escribir:
 - "Audio sobre..." / "Este podcast trata de..."
 - Primera persona ("creo", "en mi opinión", "nosotros")
 - Juicios de valor ("lamentablemente", "afortunadamente", "preocupante")
+- **ABREVIATURAS CON PUNTOS** - El tweet será convertido a audio (TTS). NUNCA uses: E.E.U.U., Sr., Dr., Dra., O.M.S., O.N.U., etc. SIEMPRE escribe las formas completas: Estados Unidos, Señor, Doctor, Doctora, etc.
 
 ## Ejemplos de salida correcta
 
