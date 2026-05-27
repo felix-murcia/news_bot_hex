@@ -132,12 +132,13 @@ def news_process_url(
 
 
 @router.get("/process_url/status/{job_id}", response_model=PipelineResponse)
-def get_process_url_status(job_id: str):
+def get_process_url_status(
+    job_id: str,
+    job_repository=Depends(get_process_url_job_repository),
+):
     """Get status and progress of a process_url job."""
     try:
-        from src.news.application.usecases.pipeline_job import get_job
-
-        job = get_job(job_id)
+        job = job_repository.get(job_id)
         if not job:
             raise HTTPException(status_code=404, detail="Job not found")
 
@@ -155,7 +156,7 @@ def get_process_url_status(job_id: str):
                 "created_at": job.get("created_at"),
                 "started_at": job.get("started_at"),
                 "completed_at": job.get("completed_at"),
-                "result": job.get("result"),  # Final result when completed
+                "result": job.get("result"),
             },
         )
     except HTTPException:
