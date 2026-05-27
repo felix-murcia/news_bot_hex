@@ -1,0 +1,17 @@
+[Unit]
+Description=News Bot Pipeline Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=%u
+WorkingDirectory=%h/Public/news_bot_hex
+ExecStart=%h/Public/news_bot_hex/scripts/run_pipeline.sh
+StandardOutput=journal
+StandardError=journal
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+TimeoutStartSec=3600
+
+[Install]
+WantedBy=default.target

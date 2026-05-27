@@ -1,0 +1,12 @@
+[Unit]
+Description=News Bot Pipeline Timer
+Requires=news-bot-pipeline.service
+
+[Timer]
+# Default schedule: every day at 08:00
+OnCalendar=*-*-* 08:00:00
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target
