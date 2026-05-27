@@ -13,7 +13,6 @@ import {
   generateArticle,
   generateContent,
   processUrl,
-  getProcessUrlStatus,
   runNewsPipeline,
   getSupportedProviders,
 } from "../../api/news";
