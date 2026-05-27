@@ -50,24 +50,8 @@ class NewsToNewsUseCase:
         self.ai_config = ai_config or {}
         self.ai_model = ai_model
         self.article_generator = None
-        self.video_generator = video_generator or self._get_default_video_generator()
+        self.video_generator = video_generator
         self.force_extract = force_extract
-
-    def _get_default_video_generator(self) -> VideoGeneratorPort:
-        """Obtiene el generador de videos por defecto."""
-        from src.shared.adapters.video_generator import get_video_generator
-
-        return get_video_generator()
-
-    def _get_ai_model(self):
-        """Obtiene el modelo de IA (lazy loading)."""
-        if self.ai_model is None:
-            from src.shared.adapters.ai.ai_factory import get_ai_adapter
-
-            provider = self.model_provider if self.use_ai else "mock"
-            self.ai_model = get_ai_adapter(provider, self.ai_config)
-            logger.info(f"[NEWS_TO_NEWS] Adapter '{provider}' instanciado")
-        return self.ai_model
 
     def _get_article_generator(self):
         if self.article_generator is None:
@@ -140,7 +124,13 @@ class NewsToNewsUseCase:
         desc = article_data.get("article", {}).get("desc", "")[:200]
 
         try:
-            model = self._get_ai_model()
+            model = self.ai_model
+            if model is None:
+                # Fallback: lazy-load AI model if not injected (TODO: refactor to require injection)
+                from src.shared.adapters.ai.ai_factory import get_ai_adapter
+                provider = self.model_provider if self.use_ai else "mock"
+                model = get_ai_adapter(provider, self.ai_config)
+
             agent = TweetGeopoliticsAgent(model)
             tweet = agent.generate(title=title, tema=tema, context=desc)
             tweet = truncate_social_post(tweet)
@@ -223,22 +213,25 @@ class NewsToNewsUseCase:
         # Step 6: Video Generation (from TTS audio + random image)
         logger.info("[NEWS_TO_NEWS] Generando video a partir del audio TTS...")
         try:
-            article = article_data.get("article", {})
-            tts_audio_path = article.get("tts_audio_path")
-            if tts_audio_path and os.path.exists(tts_audio_path):
-                video_path = self.video_generator.create_video_from_audio(
-                    audio_path=tts_audio_path
-                )
-                if video_path:
-                    article["generated_video_path"] = video_path
-                    article_data["article"] = article
-                    logger.info(f"[NEWS_TO_NEWS] Video generado: {video_path}")
+            if self.video_generator and self.video_generator.is_available():
+                article = article_data.get("article", {})
+                tts_audio_path = article.get("tts_audio_path")
+                if tts_audio_path and os.path.exists(tts_audio_path):
+                    video_path = self.video_generator.create_video_from_audio(
+                        audio_path=tts_audio_path
+                    )
+                    if video_path:
+                        article["generated_video_path"] = video_path
+                        article_data["article"] = article
+                        logger.info(f"[NEWS_TO_NEWS] Video generado: {video_path}")
+                    else:
+                        logger.warning("[NEWS_TO_NEWS] No se pudo generar el video")
                 else:
-                    logger.warning("[NEWS_TO_NEWS] No se pudo generar el video")
+                    logger.warning(
+                        "[NEWS_TO_NEWS] No hay audio TTS disponible para generar video"
+                    )
             else:
-                logger.warning(
-                    "[NEWS_TO_NEWS] No hay audio TTS disponible para generar video"
-                )
+                logger.warning("[NEWS_TO_NEWS] Video generator not available")
         except Exception as e:
             logger.warning(
                 f"[NEWS_TO_NEWS] Error en generación de video (no bloquea): {e}"

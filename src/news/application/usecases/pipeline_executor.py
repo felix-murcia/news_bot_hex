@@ -4,6 +4,8 @@ import threading
 from config.logging_config import get_logger
 from src.news.application.usecases.pipeline_job import (
     JobStatus,
+    ProcessingStepName,
+    ProcessingStepStatus,
     update_job_status,
     add_step,
 )
@@ -27,88 +29,88 @@ def execute_pipeline_async(job_id: str) -> None:
             logger.info(f"[PIPELINE-JOB] {job_id} iniciado")
 
             # Step 1: Fetch RSS
-            add_step(job_id, "RSS Fetch", "running")
+            add_step(job_id, ProcessingStepName.RSS_FETCH, ProcessingStepStatus.RUNNING)
             try:
                 from src.news.entrypoints.cli import main_rss
 
                 main_rss()
-                add_step(job_id, "RSS Fetch", "ok")
+                add_step(job_id, ProcessingStepName.RSS_FETCH, ProcessingStepStatus.OK)
                 logger.info(f"[PIPELINE-JOB] {job_id} RSS completado")
             except Exception as e:
                 logger.error(f"[PIPELINE-JOB] {job_id} Error en RSS: {e}")
-                add_step(job_id, "RSS Fetch", "error")
+                add_step(job_id, ProcessingStepName.RSS_FETCH, ProcessingStepStatus.ERROR)
                 # Abort the pipeline on any error, especially AI provider failures
                 raise
 
             # Step 2: Full Verification
-            add_step(job_id, "Full Verification", "running")
+            add_step(job_id, ProcessingStepName.FULL_VERIFICATION, ProcessingStepStatus.RUNNING)
             try:
                 from src.news.entrypoints.cli import main_full_verify
 
                 main_full_verify()
-                add_step(job_id, "Full Verification", "ok")
+                add_step(job_id, ProcessingStepName.FULL_VERIFICATION, ProcessingStepStatus.OK)
                 logger.info(f"[PIPELINE-JOB] {job_id} Verification completada")
             except Exception as e:
                 logger.error(f"[PIPELINE-JOB] {job_id} Error en Verification: {e}")
-                add_step(job_id, "Full Verification", "error")
+                add_step(job_id, ProcessingStepName.FULL_VERIFICATION, ProcessingStepStatus.ERROR)
                 raise
 
             # Step 3: Generate Posts
-            add_step(job_id, "Generate Posts", "running")
+            add_step(job_id, ProcessingStepName.GENERATE_POSTS, ProcessingStepStatus.RUNNING)
             try:
                 from src.news.application.usecases.content import run_content
 
                 run_content(use_gemini=True, mode="news")
-                add_step(job_id, "Generate Posts", "ok")
+                add_step(job_id, ProcessingStepName.GENERATE_POSTS, ProcessingStepStatus.OK)
                 logger.info(f"[PIPELINE-JOB] {job_id} Posts generados")
             except Exception as e:
                 logger.error(f"[PIPELINE-JOB] {job_id} Error en Posts: {e}")
-                add_step(job_id, "Generate Posts", "error")
+                add_step(job_id, ProcessingStepName.GENERATE_POSTS, ProcessingStepStatus.ERROR)
                 raise
 
             # Step 4: Generate Articles
-            add_step(job_id, "Generate Articles", "running")
+            add_step(job_id, ProcessingStepName.GENERATE_ARTICLES, ProcessingStepStatus.RUNNING)
             try:
                 from src.news.application.usecases.article import run as run_article
 
                 run_article(use_gemini=True)
-                add_step(job_id, "Generate Articles", "ok")
+                add_step(job_id, ProcessingStepName.GENERATE_ARTICLES, ProcessingStepStatus.OK)
                 logger.info(f"[PIPELINE-JOB] {job_id} Artículos generados")
             except Exception as e:
                 logger.error(f"[PIPELINE-JOB] {job_id} Error en Articles: {e}")
-                add_step(job_id, "Generate Articles", "error")
+                add_step(job_id, ProcessingStepName.GENERATE_ARTICLES, ProcessingStepStatus.ERROR)
                 raise
 
             # Step 5: Fetch Images
-            add_step(job_id, "Fetch Images", "running")
+            add_step(job_id, ProcessingStepName.FETCH_IMAGES, ProcessingStepStatus.RUNNING)
             try:
                 from src.shared.adapters.unsplash_fetcher import run as run_unsplash
                 from src.shared.adapters.google_images_fetcher import run as run_google
 
                 run_unsplash()
                 run_google()
-                add_step(job_id, "Fetch Images", "ok")
+                add_step(job_id, ProcessingStepName.FETCH_IMAGES, ProcessingStepStatus.OK)
                 logger.info(f"[PIPELINE-JOB] {job_id} Imágenes descargadas")
             except Exception as e:
                 logger.error(f"[PIPELINE-JOB] {job_id} Error en Images: {e}")
-                add_step(job_id, "Fetch Images", "error")
+                add_step(job_id, ProcessingStepName.FETCH_IMAGES, ProcessingStepStatus.ERROR)
                 raise
 
             # Step 6: Enrich Images
-            add_step(job_id, "Enrich Images", "running")
+            add_step(job_id, ProcessingStepName.ENRICH_IMAGES, ProcessingStepStatus.RUNNING)
             try:
                 from src.shared.adapters.image_enricher import run as run_enricher
 
                 run_enricher()
-                add_step(job_id, "Enrich Images", "ok")
+                add_step(job_id, ProcessingStepName.ENRICH_IMAGES, ProcessingStepStatus.OK)
                 logger.info(f"[PIPELINE-JOB] {job_id} Imágenes enriquecidas")
             except Exception as e:
                 logger.error(f"[PIPELINE-JOB] {job_id} Error en Enrichment: {e}")
-                add_step(job_id, "Enrich Images", "error")
+                add_step(job_id, ProcessingStepName.ENRICH_IMAGES, ProcessingStepStatus.ERROR)
                 raise
 
             # Step 7: Generate Audio (TTS)
-            add_step(job_id, "Generate Audio", "running")
+            add_step(job_id, ProcessingStepName.GENERATE_AUDIO, ProcessingStepStatus.RUNNING)
             try:
                 from src.shared.application.usecases.tts_from_article import (
                     run_tts_from_articles,
@@ -128,14 +130,14 @@ def execute_pipeline_async(job_id: str) -> None:
                                 {"$set": {"tts_audio_path": article["tts_audio_path"]}},
                             )
                     logger.info(f"[PIPELINE-JOB] {job_id} Audio generado")
-                add_step(job_id, "Generate Audio", "ok")
+                add_step(job_id, ProcessingStepName.GENERATE_AUDIO, ProcessingStepStatus.OK)
             except Exception as e:
                 logger.warning(f"[PIPELINE-JOB] {job_id} Warning en Audio: {e}")
-                add_step(job_id, "Generate Audio", "skipped")
+                add_step(job_id, ProcessingStepName.GENERATE_AUDIO, ProcessingStepStatus.SKIPPED)
                 raise
 
             # Step 8: Generate Video
-            add_step(job_id, "Generate Video", "running")
+            add_step(job_id, ProcessingStepName.GENERATE_VIDEO, ProcessingStepStatus.RUNNING)
             try:
                 from src.shared.adapters.video_generator import get_video_generator
                 import os
@@ -161,27 +163,27 @@ def execute_pipeline_async(job_id: str) -> None:
                             except Exception as e:
                                 logger.warning(f"Error generando video: {e}")
                     logger.info(f"[PIPELINE-JOB] {job_id} Videos generados")
-                add_step(job_id, "Generate Video", "ok")
+                add_step(job_id, ProcessingStepName.GENERATE_VIDEO, ProcessingStepStatus.OK)
             except Exception as e:
                 logger.warning(f"[PIPELINE-JOB] {job_id} Warning en Video: {e}")
-                add_step(job_id, "Generate Video", "skipped")
+                add_step(job_id, ProcessingStepName.GENERATE_VIDEO, ProcessingStepStatus.SKIPPED)
                 raise
 
             # Step 9: WordPress
-            add_step(job_id, "Publish WordPress", "running")
+            add_step(job_id, ProcessingStepName.PUBLISH_WORDPRESS, ProcessingStepStatus.RUNNING)
             try:
                 from src.shared.adapters.wordpress_publisher import run as run_wordpress
 
                 run_wordpress()
-                add_step(job_id, "Publish WordPress", "ok")
+                add_step(job_id, ProcessingStepName.PUBLISH_WORDPRESS, ProcessingStepStatus.OK)
                 logger.info(f"[PIPELINE-JOB] {job_id} WordPress publicado")
             except Exception as e:
                 logger.error(f"[PIPELINE-JOB] {job_id} Error en WordPress: {e}")
-                add_step(job_id, "Publish WordPress", "error")
+                add_step(job_id, ProcessingStepName.PUBLISH_WORDPRESS, ProcessingStepStatus.ERROR)
                 raise
 
             # Step 10: Social Networks
-            add_step(job_id, "Publish Social", "running")
+            add_step(job_id, ProcessingStepName.PUBLISH_SOCIAL, ProcessingStepStatus.RUNNING)
             social_ok = 0
             try:
                 from src.shared.adapters.bluesky_publisher import run as run_bluesky
@@ -207,7 +209,7 @@ def execute_pipeline_async(job_id: str) -> None:
             except Exception as e:
                 logger.warning(f"[PIPELINE-JOB] {job_id} Warning en Mastodon: {e}")
 
-            add_step(job_id, "Publish Social", "ok")
+            add_step(job_id, ProcessingStepName.PUBLISH_SOCIAL, ProcessingStepStatus.OK)
             logger.info(
                 f"[PIPELINE-JOB] {job_id} Redes sociales completadas ({social_ok}/3)"
             )

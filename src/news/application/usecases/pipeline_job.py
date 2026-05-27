@@ -2,6 +2,7 @@
 
 import uuid
 import time
+import threading
 from typing import Dict, Optional, Protocol
 from datetime import datetime
 from enum import Enum
@@ -22,6 +23,16 @@ class ProcessingStepName(str, Enum):
     """Valid pipeline step names to avoid magic strings"""
     INITIALIZING = "Inicializando"
     PROCESSING_URL = "Procesando URL"
+    RSS_FETCH = "RSS Fetch"
+    FULL_VERIFICATION = "Full Verification"
+    GENERATE_POSTS = "Generate Posts"
+    GENERATE_ARTICLES = "Generate Articles"
+    FETCH_IMAGES = "Fetch Images"
+    ENRICH_IMAGES = "Enrich Images"
+    GENERATE_AUDIO = "Generate Audio"
+    GENERATE_VIDEO = "Generate Video"
+    PUBLISH_WORDPRESS = "Publish WordPress"
+    PUBLISH_SOCIAL = "Publish Social"
     COMPLETED = "Completado"
 
 
@@ -68,70 +79,76 @@ class InMemoryJobRepository(JobRepositoryPort):
 
     def __init__(self, store: Dict[str, Dict] = None):
         self.store = store or {}
+        self._lock = threading.Lock()
 
     def create(self) -> str:
         job_id = str(uuid.uuid4())
-        self.store[job_id] = {
-            "id": job_id,
-            "status": JobStatus.PENDING,
-            "progress": 0,
-            "message": "Job creado",
-            "steps": [],
-            "last_log": None,
-            "created_at": datetime.now().isoformat(),
-            "started_at": None,
-            "completed_at": None,
-            "error": None,
-        }
+        with self._lock:
+            self.store[job_id] = {
+                "id": job_id,
+                "status": JobStatus.PENDING,
+                "progress": 0,
+                "message": "Job creado",
+                "steps": [],
+                "last_log": None,
+                "created_at": datetime.now().isoformat(),
+                "started_at": None,
+                "completed_at": None,
+                "error": None,
+            }
         return job_id
 
     def get(self, job_id: str) -> Optional[Dict]:
-        return self.store.get(job_id)
+        with self._lock:
+            return self.store.get(job_id)
 
     def update_status(self, job_id: str, status: JobStatus, message: str = "", error: str = None) -> None:
-        if job_id not in self.store:
-            return
+        with self._lock:
+            if job_id not in self.store:
+                return
 
-        job = self.store[job_id]
-        job["status"] = status
-        if message:
-            job["message"] = message
-        if error:
-            job["error"] = error
+            job = self.store[job_id]
+            job["status"] = status
+            if message:
+                job["message"] = message
+            if error:
+                job["error"] = error
 
-        if status == JobStatus.RUNNING and not job["started_at"]:
-            job["started_at"] = datetime.now().isoformat()
-        elif status in (JobStatus.COMPLETED, JobStatus.FAILED):
-            job["completed_at"] = datetime.now().isoformat()
+            if status == JobStatus.RUNNING and not job["started_at"]:
+                job["started_at"] = datetime.now().isoformat()
+            elif status in (JobStatus.COMPLETED, JobStatus.FAILED):
+                job["completed_at"] = datetime.now().isoformat()
 
     def add_step(self, job_id: str, step_name: str, status: str = "running") -> None:
-        if job_id not in self.store:
-            return
+        with self._lock:
+            if job_id not in self.store:
+                return
 
-        job = self.store[job_id]
-        step = {
-            "name": step_name,
-            "status": status,
-            "timestamp": datetime.now().isoformat(),
-        }
+            job = self.store[job_id]
+            step = {
+                "name": step_name,
+                "status": status,
+                "timestamp": datetime.now().isoformat(),
+            }
 
-        existing = next((s for s in job["steps"] if s["name"] == step_name), None)
-        if existing:
-            existing.update(step)
-        else:
-            job["steps"].append(step)
+            existing = next((s for s in job["steps"] if s["name"] == step_name), None)
+            if existing:
+                existing.update(step)
+            else:
+                job["steps"].append(step)
 
-        total_steps = len(job["steps"])
-        completed = len([s for s in job["steps"] if s["status"] in (ProcessingStepStatus.OK, "ok")])
-        job["progress"] = int((completed / total_steps * 100)) if total_steps > 0 else 0
+            total_steps = len(job["steps"])
+            completed = len([s for s in job["steps"] if s["status"] in (ProcessingStepStatus.OK, "ok")])
+            job["progress"] = int((completed / total_steps * 100)) if total_steps > 0 else 0
 
     def update_log(self, job_id: str, log_message: str) -> None:
-        if job_id not in self.store:
-            return
+        with self._lock:
+            if job_id not in self.store:
+                return
 
-        job = self.store[job_id]
-        log_text = str(log_message).strip()
-        job["last_log"] = log_text
+            job = self.store[job_id]
+            log_text = str(log_message).strip()
+            job["last_log"] = log_text
 
 
 # Global singleton repository instance (shared across all requests)
@@ -161,18 +178,3 @@ def add_step(job_id: str, step_name: str, status: str = "running") -> None:
 def update_job_log(job_id: str, log_message: str) -> None:
     """Update the last log message for real-time feedback in UI."""
     _default_repo.update_log(job_id, log_message)
-
-
-def cleanup_old_jobs(hours: int = 24) -> None:
-    """Remove completed jobs older than specified hours."""
-    cutoff = time.time() - (hours * 3600)
-    jobs_to_delete = []
-
-    for job_id, job in _jobs_store.items():
-        if job["completed_at"]:
-            completed_ts = datetime.fromisoformat(job["completed_at"]).timestamp()
-            if completed_ts < cutoff:
-                jobs_to_delete.append(job_id)
-
-    for job_id in jobs_to_delete:
-        del _jobs_store[job_id]

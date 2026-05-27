@@ -11,7 +11,7 @@ Does NOT handle:
 """
 
 import threading
-from typing import Callable, Dict, Any, Optional
+from typing import Callable, Dict, Any
 
 from config.logging_config import get_logger
 from src.news.application.usecases.pipeline_job import (
@@ -39,7 +39,7 @@ class ProcessUrlJobCoordinator:
         """
         Args:
             job_repository: Port for job persistence (status, steps, etc.)
-            process_url_usecase: UseCase function that processes URL
+            process_url_usecase: Pipeline executor that processes URL
         """
         self.job_repository = job_repository
         self.process_url_usecase = process_url_usecase
@@ -119,19 +119,3 @@ class ProcessUrlJobCoordinator:
         except Exception:
             # Error already logged and status updated above
             raise
-
-
-# Legacy function wrapper for backwards compatibility
-def execute_process_url_async(
-    job_id: str,
-    url: str,
-    model_provider: str,
-    use_ai: bool,
-) -> None:
-    """Legacy wrapper - delegates to ProcessUrlJobCoordinator."""
-    from src.news.entrypoints.api.dependencies import (
-        get_process_url_job_coordinator,
-    )
-
-    coordinator = get_process_url_job_coordinator()
-    coordinator.execute_async(job_id, url)

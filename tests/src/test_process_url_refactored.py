@@ -8,9 +8,6 @@ from src.news.application.usecases.pipeline_job import (
     ProcessingStepStatus,
     InMemoryJobRepository,
 )
-from src.news.application.usecases.process_url_with_publishing import (
-    ProcessUrlWithPublishingUseCase,
-)
 from src.news.application.usecases.process_url_executor import ProcessUrlJobCoordinator
 
 
@@ -77,65 +74,6 @@ class TestInMemoryJobRepository:
         repo.update_log(job_id, "Processing step 1")
         job = repo.get(job_id)
         assert job["last_log"] == "Processing step 1"
-
-
-class TestProcessUrlWithPublishingUseCase:
-    """Test refactored ProcessUrlWithPublishingUseCase (Dependency Injection)."""
-
-    def test_usecase_depends_on_injected_content_processor(self):
-        """UseCase should use injected content_processor, not instantiate."""
-        mock_processor = Mock(return_value={"post": "test tweet", "article_data": {}})
-        mock_publisher = Mock(return_value={})
-
-        usecase = ProcessUrlWithPublishingUseCase(
-            content_processor=mock_processor,
-            social_publisher=mock_publisher,
-            publish_to_social=True,
-        )
-
-        result = usecase.execute("https://example.com")
-
-        # Processor should be called
-        mock_processor.assert_called_once_with("https://example.com")
-        # Publisher should be called with result
-        mock_publisher.assert_called_once()
-
-    def test_usecase_skips_publisher_if_disabled(self):
-        """When publish_to_social=False, publisher should not be called."""
-        mock_processor = Mock(return_value={"post": "test tweet"})
-        mock_publisher = Mock()
-
-        usecase = ProcessUrlWithPublishingUseCase(
-            content_processor=mock_processor,
-            social_publisher=mock_publisher,
-            publish_to_social=False,
-        )
-
-        result = usecase.execute("https://example.com")
-
-        # Processor should be called
-        mock_processor.assert_called_once()
-        # Publisher should NOT be called
-        mock_publisher.assert_not_called()
-
-    def test_usecase_returns_combined_result(self):
-        """UseCase should return combined result with publish_results."""
-        mock_processor = Mock(
-            return_value={"post": "tweet", "article_data": {"article": {}}}
-        )
-        mock_publisher = Mock(return_value={"twitter": "success"})
-
-        usecase = ProcessUrlWithPublishingUseCase(
-            content_processor=mock_processor,
-            social_publisher=mock_publisher,
-            publish_to_social=True,
-        )
-
-        result = usecase.execute("https://example.com")
-
-        assert result["post"] == "tweet"
-        assert "publish_results" in result
-        assert result["publish_results"] == {"twitter": "success"}
 
 
 class TestProcessUrlJobCoordinator:
@@ -225,18 +163,6 @@ class TestProcessUrlJobCoordinator:
 
 class TestProcessUrlDependencyInjection:
     """Test that dependencies are properly injected (no dynamic imports)."""
-
-    def test_no_dynamic_imports_in_usecase(self):
-        """ProcessUrlWithPublishingUseCase should not import at runtime."""
-        # This test verifies the refactoring: no "from ... import ..." inside execute()
-        mock_processor = Mock(return_value={})
-        usecase = ProcessUrlWithPublishingUseCase(
-            content_processor=mock_processor, social_publisher=None
-        )
-
-        # If execute() has dynamic imports, it would fail here
-        # The fact that it doesn't means refactoring is successful
-        assert callable(usecase.execute)
 
     def test_no_dynamic_imports_in_coordinator(self):
         """ProcessUrlJobCoordinator should not import at runtime."""

@@ -135,39 +135,3 @@ class PublishersUseCase:
 
         logger.info("[PUBLISH] ========== Publicación completada ==========")
         return {"status": "ok", "message": "Publishing completed", "results": results}
-
-
-def main_images():
-    from src.news.infrastructure.adapters import MongoGeneratedPostsRepository
-    usecase = ImageFetcherUseCase(generated_posts_repo=MongoGeneratedPostsRepository())
-    return usecase.execute()
-
-
-def main_enrich():
-    from src.news.infrastructure.adapters import (
-        MongoGeneratedPostsRepository,
-        MongoGeneratedArticlesRepository,
-    )
-    usecase = ImageEnricherUseCase(
-        generated_posts_repo=MongoGeneratedPostsRepository(),
-        generated_articles_repo=MongoGeneratedArticlesRepository(),
-    )
-    return usecase.execute()
-
-
-def main_publish():
-    from src.news.infrastructure.adapters import (
-        MongoGeneratedPostsRepository,
-        MongoGeneratedArticlesRepository,
-    )
-    usecase = PublishersUseCase(
-        generated_posts_repo=MongoGeneratedPostsRepository(),
-        generated_articles_repo=MongoGeneratedArticlesRepository(),
-    )
-    return usecase.execute()
-
-
-if __name__ == "__main__":
-    main_images()
-    main_enrich()
-    main_publish()

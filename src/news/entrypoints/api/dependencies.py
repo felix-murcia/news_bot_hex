@@ -226,6 +226,62 @@ def get_process_url_job_repository():
     return _default_repo
 
 
+def get_image_fetcher_port():
+    """Port adapter for image fetching (Unsplash + Google)."""
+    from src.shared.adapters.image_fetcher_composite import ImageFetcherCompositeAdapter
+    return ImageFetcherCompositeAdapter()
+
+
+def get_image_enricher_port():
+    """Port adapter for image enrichment."""
+    from src.shared.adapters.image_enricher_adapter import ImageEnricherAdapter
+    return ImageEnricherAdapter()
+
+
+def get_wordpress_publisher_port():
+    """Port adapter for WordPress publishing."""
+    from src.shared.adapters.wordpress_publisher_adapter import WordPressPublisherAdapter
+    return WordPressPublisherAdapter()
+
+
+def get_social_publisher_ports():
+    """List of social publisher port adapters (Bluesky, Mastodon, Facebook)."""
+    from src.shared.adapters.publishers.bluesky_publisher_adapter import BlueskyPublisherAdapter
+    from src.shared.adapters.publishers.mastodon_publisher_adapter import MastodonPublisherAdapter
+    from src.shared.adapters.publishers.facebook_publisher_adapter import FacebookPublisherAdapter
+
+    publishers = []
+
+    try:
+        bluesky = BlueskyPublisherAdapter()
+        if bluesky.is_available():
+            publishers.append(bluesky)
+    except Exception as e:
+        logger.warning(f"Bluesky publisher not available: {e}")
+
+    try:
+        mastodon = MastodonPublisherAdapter()
+        if mastodon.is_available():
+            publishers.append(mastodon)
+    except Exception as e:
+        logger.warning(f"Mastodon publisher not available: {e}")
+
+    try:
+        facebook = FacebookPublisherAdapter()
+        if facebook.is_available():
+            publishers.append(facebook)
+    except Exception as e:
+        logger.warning(f"Facebook publisher not available: {e}")
+
+    return publishers
+
+
+def get_video_generator_port():
+    """Port adapter for video generation."""
+    from src.shared.adapters.video_generator import get_video_generator
+    return get_video_generator()
+
+
 def get_process_url_content_processor(
     content_extractor=Depends(get_content_extractor),
 ):
@@ -247,13 +303,30 @@ def get_process_url_content_processor(
     return process_url
 
 
-def get_process_url_usecase():
-    """ProcessUrlCompleteUseCase - orchestrates complete 9-step pipeline."""
-    from src.news.application.usecases.process_url_complete import (
-        ProcessUrlCompleteUseCase,
+def get_process_url_usecase(
+    content_processor=Depends(get_process_url_content_processor),
+    image_fetcher=Depends(get_image_fetcher_port),
+    image_enricher=Depends(get_image_enricher_port),
+    video_generator=Depends(get_video_generator_port),
+    wp_publisher=Depends(get_wordpress_publisher_port),
+    social_publishers=Depends(get_social_publisher_ports),
+    db=Depends(get_db),
+):
+    """ProcessUrlPipeline - unified orchestrator for complete 7-step pipeline."""
+    from src.news.application.usecases.process_url_pipeline import ProcessUrlPipeline
+
+    pipeline = ProcessUrlPipeline(
+        content_processor=content_processor,
+        image_fetcher=image_fetcher,
+        image_enricher=image_enricher,
+        video_generator=video_generator,
+        wp_publisher=wp_publisher,
+        social_publishers=social_publishers,
+        db=db,
     )
 
-    return ProcessUrlCompleteUseCase()
+    # Return the execute method as the callable usecase
+    return pipeline.execute
 
 
 def get_process_url_job_coordinator(
@@ -267,5 +340,5 @@ def get_process_url_job_coordinator(
 
     return ProcessUrlJobCoordinator(
         job_repository=job_repository,
-        process_url_usecase=process_url_usecase.execute,
+        process_url_usecase=process_url_usecase,
     )

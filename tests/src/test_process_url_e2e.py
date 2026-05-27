@@ -8,9 +8,6 @@ from src.news.application.usecases.pipeline_job import (
     ProcessingStepName,
 )
 from src.news.application.usecases.process_url_executor import ProcessUrlJobCoordinator
-from src.news.application.usecases.process_url_with_publishing import (
-    ProcessUrlWithPublishingUseCase,
-)
 
 
 class TestProcessUrlE2EFlow:
@@ -20,22 +17,16 @@ class TestProcessUrlE2EFlow:
         """Full flow: create job, execute processing, fetch status"""
         # Setup
         repo = InMemoryJobRepository()
-        mock_processor = Mock(
+        mock_usecase = Mock(
             return_value={
                 "post": "Test article",
                 "article_data": {"article": {"title": "Test Title"}},
+                "publish_results": {"twitter": "ok"},
             }
-        )
-        mock_publisher = Mock(return_value={"twitter": "ok"})
-
-        usecase = ProcessUrlWithPublishingUseCase(
-            content_processor=mock_processor,
-            social_publisher=mock_publisher,
-            publish_to_social=True,
         )
 
         coordinator = ProcessUrlJobCoordinator(
-            job_repository=repo, process_url_usecase=usecase.execute
+            job_repository=repo, process_url_usecase=mock_usecase
         )
 
         # Step 1: Create job
@@ -69,14 +60,10 @@ class TestProcessUrlE2EFlow:
         """Flow with error: create job → execute (fails) → fetch status"""
         # Setup
         repo = InMemoryJobRepository()
-        mock_processor = Mock(side_effect=ValueError("URL parsing failed"))
-
-        usecase = ProcessUrlWithPublishingUseCase(
-            content_processor=mock_processor, social_publisher=None
-        )
+        mock_usecase = Mock(side_effect=ValueError("URL parsing failed"))
 
         coordinator = ProcessUrlJobCoordinator(
-            job_repository=repo, process_url_usecase=usecase.execute
+            job_repository=repo, process_url_usecase=mock_usecase
         )
 
         # Step 1: Create job

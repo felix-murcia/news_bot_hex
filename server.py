@@ -14,6 +14,8 @@ setup_logging()
 logger = get_logger("news_bot.server")
 
 from src.news.entrypoints.api.news_router import router as news_router
+from src.news.entrypoints.api.admin_router import router as admin_router
+from src.news.entrypoints.api.error_handlers import register_error_handlers
 from src.audio.entrypoints.api.audio_router import router as audio_router
 from src.video.entrypoints.api.video_router import router as video_router
 
@@ -32,8 +34,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Register global error handlers
+register_error_handlers(app)
+
 # Register routers
 app.include_router(news_router, prefix="/news", tags=["news"])
+app.include_router(admin_router, prefix="/admin", tags=["admin"])
 app.include_router(audio_router, prefix="/audio", tags=["audio"])
 app.include_router(video_router, prefix="/video", tags=["video"])
 
