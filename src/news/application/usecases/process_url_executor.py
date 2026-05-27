@@ -71,20 +71,60 @@ def execute_process_url_async(
                 # Add final step
                 add_step(job_id, "Procesamiento completado", "ok")
 
-                # Update job with result
-                from src.news.application.usecases.pipeline_job import _jobs_store
-                _jobs_store[job_id]["result"] = {
-                    "title": title,
-                    "post": post,
-                    "mode": mode,
-                    "full_result": result,
-                }
+                # Step 3: Publish to social media
+                add_step(job_id, "Publicando en redes sociales", "running")
+                try:
+                    from src.shared.adapters.publishers.social import SocialMediaPublisher
 
-                update_job_status(
-                    job_id,
-                    JobStatus.COMPLETED,
-                    f"✅ Procesado: {title[:50]}...",
-                )
+                    publisher = SocialMediaPublisher(enable_bluesky=True, enable_mastodon=True)
+                    post_data = {
+                        "tweet": post,
+                        "url": url,
+                        "wp_url": "",
+                        "image_url": "",
+                    }
+
+                    publish_results = publisher.publish(post_data)
+                    logger.info(f"[PROCESS_URL_JOB] {job_id} Publicación completada: {len(publish_results)} plataformas")
+
+                    add_step(job_id, "Publicando en redes sociales", "ok")
+
+                    # Update job with result
+                    from src.news.application.usecases.pipeline_job import _jobs_store
+                    _jobs_store[job_id]["result"] = {
+                        "title": title,
+                        "post": post,
+                        "mode": mode,
+                        "full_result": result,
+                        "publish_results": publish_results,
+                    }
+
+                    update_job_status(
+                        job_id,
+                        JobStatus.COMPLETED,
+                        f"✅ Procesado y publicado: {title[:50]}...",
+                    )
+
+                except Exception as e:
+                    error_msg = str(e)
+                    logger.error(f"[PROCESS_URL_JOB] {job_id} Error publicando: {error_msg}")
+                    add_step(job_id, "Publicando en redes sociales", "error")
+
+                    # Still mark as completed but note the publication error
+                    from src.news.application.usecases.pipeline_job import _jobs_store
+                    _jobs_store[job_id]["result"] = {
+                        "title": title,
+                        "post": post,
+                        "mode": mode,
+                        "full_result": result,
+                        "publish_error": error_msg,
+                    }
+
+                    update_job_status(
+                        job_id,
+                        JobStatus.COMPLETED,
+                        f"✅ Procesado pero error en publicación: {error_msg[:50]}...",
+                    )
 
             except ValueError as e:
                 error_msg = str(e)
