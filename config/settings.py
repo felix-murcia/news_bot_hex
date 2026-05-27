@@ -293,10 +293,12 @@ class Settings:
     COQUI_LANGUAGE = os.getenv("COQUI_LANGUAGE", "es")
     COQUI_SPEED = float(os.getenv("COQUI_SPEED", "1.0"))
     COQUI_ATEMPO = float(os.getenv("COQUI_ATEMPO", "1.0"))
-    COQUI_TIMEOUT = int(os.getenv("COQUI_TIMEOUT", "990000"))
-    COQUI_LANGUAGE = os.getenv("COQUI_LANGUAGE", "es")
-    # Timeout in milliseconds (e.g., 120000), convert to seconds
-    COQUI_TIMEOUT = os.getenv("COQUI_TIMEOUT", "900000")
+    COQUI_TIMEOUT = int(os.getenv("COQUI_TIMEOUT", "900000"))
+
+    # Coqui stability parameters for artifact reduction
+    COQUI_LENGTH_SCALE = float(os.getenv("COQUI_LENGTH_SCALE", "1.0"))
+    COQUI_TEMPERATURE = float(os.getenv("COQUI_TEMPERATURE", "0.85"))
+    COQUI_POST_PROCESSING = os.getenv("COQUI_POST_PROCESSING", "true").lower() == "true"
   
     # === Audio Converter Configuration (ffmpeg) ===
     FFMPEG_API_URL = os.getenv("FFMPEG_API_URL", "http://localhost:8082")

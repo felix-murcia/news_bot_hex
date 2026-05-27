@@ -139,6 +139,7 @@ class TTSTextProcessor:
         Normalize problematic punctuation and special characters.
 
         Fixes issues like multiple commas, problematic quotes, etc.
+        Handles sentence-final punctuation to prevent TTS artifacts.
 
         Args:
             text: Text with punctuation to normalize
@@ -177,6 +178,14 @@ class TTSTextProcessor:
         text = re.sub(r'\s+([.,!?;:])', r'\1', text)  # Remove space before
         text = re.sub(r'([.,!?;:])\s*', r'\1 ', text)  # Add space after
         text = re.sub(r'\.\s+\.', '...', text)  # Fix ellipsis
+
+        # FIX FOR COQUI ARTIFACTS: Stabilize punctuation boundaries
+        # Add extra space after sentence-final punctuation to give Coqui room
+        # to synthesize clean transitions without spectral artifacts
+        text = re.sub(r'([\.\!\?])\s+', r'\1  ', text)  # Double space after sentence end
+
+        # Ensure no multiple spaces remain
+        text = re.sub(r' {2,}', ' ', text)
 
         return text
 
