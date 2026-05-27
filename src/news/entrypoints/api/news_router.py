@@ -309,25 +309,39 @@ def update_timer_config(config: TimerConfig):
             frequency=config.frequency
         )
 
-        # If enabled, ensure timer is running; if disabled, stop it
-        if config.enabled:
-            subprocess.run(
-                ["systemctl", "--user", "start", "news-bot-pipeline.timer"],
-                capture_output=True,
-                timeout=10
-            )
-        else:
-            subprocess.run(
-                ["systemctl", "--user", "stop", "news-bot-pipeline.timer"],
-                capture_output=True,
-                timeout=10
-            )
+        # Try to control systemctl timer (may fail due to permissions)
+        control_message = ""
+        try:
+            if config.enabled:
+                result = subprocess.run(
+                    ["systemctl", "--user", "start", "news-bot-pipeline.timer"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                if result.returncode == 0:
+                    control_message = " (Timer started)"
+            else:
+                result = subprocess.run(
+                    ["systemctl", "--user", "stop", "news-bot-pipeline.timer"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                if result.returncode == 0:
+                    control_message = " (Timer stopped)"
+        except Exception as e:
+            logger.warning(f"[TIMER] Could not control systemctl: {e}")
+            if not config.enabled:
+                control_message = " (Manual control via: systemctl --user stop news-bot-pipeline.timer)"
+            else:
+                control_message = " (Manual control via: systemctl --user start news-bot-pipeline.timer)"
 
-        logger.info(f"[TIMER] Configuration updated: {updated.to_dict()}")
+        logger.info(f"[TIMER] Configuration updated: {updated.to_dict()}{control_message}")
 
         return PipelineResponse(
             status="ok",
-            message="Timer configuration updated",
+            message=f"Timer configuration updated{control_message}",
             data={
                 "enabled": updated.enabled,
                 "schedule_time": updated.schedule_time,

@@ -169,18 +169,31 @@ export function TimerSettings() {
         )}
       </div>
 
-      {/* Installation info */}
-      <div className="bg-amber-950/20 rounded p-3 text-xs border border-amber-800 space-y-2">
-        <p className="font-semibold text-amber-200">⚙️ Instalación</p>
-        <p className="text-amber-300">
-          Si no has instalado el timer systemd, ejecuta en la terminal:
-        </p>
-        <code className="block bg-gray-950 p-2 rounded text-gray-300 font-mono text-xs overflow-x-auto">
-          bash ~/Public/news_bot_hex/scripts/install_timer.sh
-        </code>
-        <p className="text-amber-300 text-xs">
-          Ver logs: <code className="bg-gray-950 px-1 rounded">journalctl --user -u news-bot-pipeline.service -f</code>
-        </p>
+      {/* Installation and manual control info */}
+      <div className="space-y-3">
+        <div className="bg-amber-950/20 rounded p-3 text-xs border border-amber-800 space-y-2">
+          <p className="font-semibold text-amber-200">⚙️ Instalación</p>
+          <p className="text-amber-300">
+            Si no has instalado el timer systemd, ejecuta en la terminal:
+          </p>
+          <code className="block bg-gray-950 p-2 rounded text-gray-300 font-mono text-xs overflow-x-auto">
+            bash ~/Public/news_bot_hex/scripts/install_timer.sh
+          </code>
+          <p className="text-amber-300 text-xs">
+            Ver logs: <code className="bg-gray-950 px-1 rounded">journalctl --user -u news-bot-pipeline.service -f</code>
+          </p>
+        </div>
+
+        <div className="bg-blue-950/20 rounded p-3 text-xs border border-blue-800 space-y-2">
+          <p className="font-semibold text-blue-200">🖥️ Control Manual (Terminal)</p>
+          <p className="text-blue-300">Si la interfaz tiene problemas, usa estos comandos:</p>
+          <div className="space-y-1 font-mono text-gray-300 text-xs">
+            <div><span className="text-blue-400"># Iniciar timer:</span> systemctl --user start news-bot-pipeline.timer</div>
+            <div><span className="text-blue-400"># Detener timer:</span> systemctl --user stop news-bot-pipeline.timer</div>
+            <div><span className="text-blue-400"># Ver próxima ejecución:</span> systemctl --user list-timers news-bot-pipeline.timer</div>
+            <div><span className="text-blue-400"># Ejecutar ahora:</span> systemctl --user start news-bot-pipeline.service</div>
+          </div>
+        </div>
       </div>
     </div>
   );
