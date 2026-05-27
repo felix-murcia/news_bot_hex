@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 
 from config.settings import Settings
 from config.logging_config import get_logger
+from src.news.domain.services.validation_rules import ImageRelevanceValidator
+from src.shared.adapters.unsplash_config import UNSPLASH_SYNONYMS, STOPWORDS
 
 logger = get_logger("news_bot")
 
@@ -16,137 +18,6 @@ if not UNSPLASH_ACCESS_KEY:
     logger.warning("[UNSPLASH] Missing UNSPLASH_ACCESS_KEY in .env")
 
 UNSPLASH_API = Settings.UNSPLASH_API_URL
-
-UNSPLASH_SYNONYMS = {
-    "protesta": ["manifestación", "reclamo", "activismo"],
-    "tecnología": ["innovación", "dispositivo", "futuro"],
-    "guerra": ["conflicto", "militar", "soldado"],
-    "economía": ["finanzas", "mercado", "dinero"],
-    "clima": ["medio ambiente", "naturaleza", "tormenta"],
-    "salud": ["hospital", "médico", "enfermedad"],
-    "educación": ["escuela", "estudiante", "aula"],
-    "política": ["gobierno", "elecciones", "parlamento"],
-    "energía": ["electricidad", "solar", "infraestructura"],
-    "crimen": ["policía", "justicia", "investigación"],
-}
-
-
-# ============================================================
-# Nuevo sistema de generación de queries para imágenes
-# ============================================================
-
-from src.news.domain.services.validation_rules import ImageRelevanceValidator
-
-STOPWORDS = {
-    "el",
-    "la",
-    "los",
-    "las",
-    "un",
-    "una",
-    "unos",
-    "unas",
-    "de",
-    "del",
-    "en",
-    "y",
-    "o",
-    "que",
-    "es",
-    "son",
-    "se",
-    "con",
-    "por",
-    "para",
-    "sin",
-    "sobre",
-    "bajo",
-    "entre",
-    "hacia",
-    "desde",
-    "esta",
-    "este",
-    "estos",
-    "estas",
-    "ese",
-    "esa",
-    "esos",
-    "esas",
-    "aquel",
-    "aquella",
-    "como",
-    "cuando",
-    "donde",
-    "más",
-    "pero",
-    "si",
-    "no",
-    "ya",
-    "también",
-    "muy",
-    "todo",
-    "todos",
-    "todas",
-    "al",
-    "lo",
-    "le",
-    "les",
-    "su",
-    "sus",
-    "ser",
-    "estar",
-    "hay",
-    "tener",
-    "hacer",
-    "decir",
-    "poder",
-    "deber",
-    "querer",
-    "the",
-    "a",
-    "an",
-    "and",
-    "or",
-    "but",
-    "in",
-    "on",
-    "at",
-    "to",
-    "for",
-    "of",
-    "with",
-    "by",
-    "from",
-    "is",
-    "are",
-    "was",
-    "were",
-    "be",
-    "been",
-    "being",
-    "have",
-    "has",
-    "had",
-    "do",
-    "does",
-    "did",
-    "will",
-    "would",
-    "could",
-    "should",
-    "may",
-    "might",
-    "can",
-    "shall",
-    "it",
-    "its",
-    "this",
-    "that",
-    "these",
-    "those",
-    "not",
-    "no",
-}
 
 
 def clean_title(title: str) -> str:

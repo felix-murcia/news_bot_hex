@@ -1,9 +1,15 @@
 __pycache__/
+.pytest_cache/
+.vscode/
+.claude/
+.ruff_cache/
+.idea/
 *.py[cod]
 *$py.class
 *.so
 .Python
 .venv
+.venv/
 env/
 venv/
 .git/
@@ -15,3 +21,6 @@ logs/
 .DS_Store
 models/
 venv_news_bot/
+node_modules/
+tests/
+*.md
