@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { StepCard } from "../../components/StepCard";
 import { LogPanel } from "../../components/LogPanel";
@@ -31,9 +31,35 @@ const NETWORKS = [
   { label: "Facebook", value: "facebook" },
 ];
 
+const PIPELINE_JOB_KEY = "news-pipeline-job-id";
+
 export function NewsTab() {
-  // Pipeline Job Monitor state
-  const [pipelineJobId, setPipelineJobId] = useState<string | null>(null);
+  // Pipeline Job Monitor state - recover from localStorage if exists
+  const [pipelineJobId, setPipelineJobId] = useState<string | null>(() => {
+    // Try to restore job_id from localStorage on mount
+    try {
+      return localStorage.getItem(PIPELINE_JOB_KEY);
+    } catch {
+      return null;
+    }
+  });
+
+  // Persist/clear job_id in localStorage
+  useEffect(() => {
+    if (pipelineJobId) {
+      try {
+        localStorage.setItem(PIPELINE_JOB_KEY, pipelineJobId);
+      } catch {
+        // Silently ignore localStorage errors
+      }
+    } else {
+      try {
+        localStorage.removeItem(PIPELINE_JOB_KEY);
+      } catch {
+        // Silently ignore localStorage errors
+      }
+    }
+  }, [pipelineJobId]);
 
   // Step 1 – RSS
   const [articlesOpen, setArticlesOpen] = useState(false);
@@ -91,7 +117,7 @@ export function NewsTab() {
     mutationFn: runNewsPipeline,
     onSuccess: (data) => {
       // Extract job_id from response data
-      const jobId = data.data?.job_id;
+      const jobId = data.data?.job_id as string | undefined;
       if (jobId) {
         setPipelineJobId(jobId);
       }

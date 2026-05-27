@@ -30,7 +30,6 @@ interface PipelineJobMonitorProps {
 export function PipelineJobMonitor({ jobId, onComplete, onError }: PipelineJobMonitorProps) {
   const [job, setJob] = useState<PipelineJob | null>(null);
   const [isRunning, setIsRunning] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isRunning) return;
@@ -48,13 +47,11 @@ export function PipelineJobMonitor({ jobId, onComplete, onError }: PipelineJobMo
             onComplete?.(jobData);
           } else {
             const errorMsg = jobData.error || "Pipeline failed";
-            setError(errorMsg);
             onError?.(errorMsg);
           }
         }
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : "Error fetching job status";
-        setError(errorMsg);
         setIsRunning(false);
         onError?.(errorMsg);
       }
