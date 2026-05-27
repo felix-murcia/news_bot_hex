@@ -111,11 +111,11 @@ class AudioPipelineUseCase(BasePipelineUseCase):
         logger.info("[4/8] Generando audio TTS del artículo...")
         try:
             from src.shared.adapters.tts_adapter import text_to_speech
-            from src.shared.utils.text_cleaner import clean_text_for_tts
+            from src.shared.adapters.tts_text_processor import TTSTextProcessor
 
             article_text = enriched_article.get("content", "")
             if article_text:
-                cleaned_text = clean_text_for_tts(article_text)
+                cleaned_text = TTSTextProcessor.process(article_text)
                 tts_audio_path = text_to_speech(
                     text=cleaned_text,
                     voice=Settings.TTS_VOICE,

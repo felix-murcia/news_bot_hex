@@ -9,7 +9,7 @@ from datetime import datetime
 
 from src.shared.domain.ports.tts_port import TTSPort
 from src.shared.adapters.audio_converter import AudioConverter
-from src.shared.adapters.tts_text_normalizer import TTSTextNormalizer
+from src.shared.adapters.tts_text_processor import TTSTextProcessor
 from config.logging_config import get_logger
 
 logger = get_logger("news_bot.adapters.coqui_tts")
@@ -81,13 +81,13 @@ class CoquiTTSAdapter(TTSPort):
             logger.error("[COQUI TTS] Texto vacío")
             return ""
 
-        # Normalizar texto para evitar artefactos de síntesis
+        # Procesar texto para evitar artefactos de síntesis
         original_text = text
-        text = TTSTextNormalizer.normalize(text)
+        text = TTSTextProcessor.process(text)
         if text != original_text:
-            logger.debug(f"[COQUI TTS] Texto normalizado")
+            logger.debug(f"[COQUI TTS] Texto procesado")
             logger.debug(f"[COQUI TTS] Original: {original_text[:100]}...")
-            logger.debug(f"[COQUI TTS] Normalizado: {text[:100]}...")
+            logger.debug(f"[COQUI TTS] Procesado: {text[:100]}...")
 
         # Determinar ruta de salida WAV (temporal)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")

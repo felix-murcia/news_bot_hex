@@ -7,7 +7,7 @@ from typing import Dict, Any, List, Optional
 from config.logging_config import get_logger
 from src.shared.adapters.tts_adapter import text_to_speech, is_tts_available
 from src.shared.adapters.audio_converter import AudioConverter
-from src.shared.utils.text_cleaner import clean_text_for_tts
+from src.shared.adapters.tts_text_processor import TTSTextProcessor
 
 logger = get_logger("shared.usecases.tts")
 
@@ -36,7 +36,7 @@ class TTSFromArticleUseCase:
             logger.warning("[TTS] Artículo sin contenido, saltando generación de audio")
             return article
 
-        cleaned_content = clean_text_for_tts(content)
+        cleaned_content = TTSTextProcessor.process(content)
         if not cleaned_content:
             logger.warning(
                 "[TTS] Contenido vacío después de limpieza, saltando generación de audio"
