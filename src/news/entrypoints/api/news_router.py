@@ -355,34 +355,69 @@ def update_timer_config(config: TimerConfig):
 
 @router.get("/timer/status", response_model=PipelineResponse)
 def get_timer_status():
-    """Get systemd timer status."""
+    """Get systemd timer status (or fallback if running in Docker)."""
     try:
-        result = subprocess.run(
-            ["systemctl", "--user", "status", "news-bot-pipeline.timer"],
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
+        from config.timer_config import get_timer_config
 
-        is_active = result.returncode == 0
+        config = get_timer_config()
 
-        # Get next execution time
-        next_exec = subprocess.run(
-            ["systemctl", "--user", "list-timers", "news-bot-pipeline.timer", "--no-pager"],
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
+        # Try to get systemd status (may fail in Docker)
+        is_active = None
+        status_output = ""
+        timers_output = ""
+
+        try:
+            result = subprocess.run(
+                ["systemctl", "--user", "status", "news-bot-pipeline.timer"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            is_active = result.returncode == 0
+            status_output = result.stdout
+
+            # Get next execution time
+            next_exec = subprocess.run(
+                ["systemctl", "--user", "list-timers", "news-bot-pipeline.timer", "--no-pager"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            timers_output = next_exec.stdout
+        except FileNotFoundError:
+            # systemctl not available (e.g., running in Docker)
+            # Use config to determine status instead
+            logger.info("[TIMER] systemctl not available (running in Docker?), using config status")
+            is_active = config.enabled
+            status_output = f"Timer is {'enabled' if config.enabled else 'disabled'} (systemctl unavailable)"
+            timers_output = f"Schedule: {config.schedule_time} ({config.frequency})"
+        except Exception as e:
+            logger.warning(f"[TIMER] Could not get systemd status: {e}")
+            is_active = config.enabled
+            status_output = f"Timer is {'enabled' if config.enabled else 'disabled'} (status unavailable)"
+            timers_output = f"Schedule: {config.schedule_time} ({config.frequency})"
 
         return PipelineResponse(
             status="ok",
             message="Timer status retrieved",
             data={
                 "active": is_active,
-                "status_output": result.stdout,
-                "timers_output": next_exec.stdout,
+                "enabled": config.enabled,
+                "schedule_time": config.schedule_time,
+                "frequency": config.frequency,
+                "status_output": status_output,
+                "timers_output": timers_output,
             }
         )
     except Exception as e:
         logger.error(f"Error getting timer status: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        # Return fallback response instead of 500 error
+        return PipelineResponse(
+            status="ok",
+            message="Timer status (fallback)",
+            data={
+                "active": False,
+                "status_output": "Status unavailable",
+                "error": str(e)
+            }
+        )
