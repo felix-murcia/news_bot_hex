@@ -125,29 +125,29 @@ class NewsToNewsUseCase:
     def _generate_tweet(self, article_data: Dict) -> str:
         """Genera tweet a partir del artículo."""
         from src.shared.adapters.ai.agents import TweetGeopoliticsAgent
+        from src.shared.adapters.social_post_adapter import truncate_social_post
 
         title = article_data.get("article", {}).get("title", "")
-        url = article_data.get("article", {}).get("url", "")
+        url = article_data.get("article", {}).get("url", Settings.WP_SITE_URL)
         tema = article_data.get("news_item", {}).get("tema", "Noticias")
         desc = article_data.get("article", {}).get("desc", "")[:200]
 
-        model = self._get_ai_model()
-        agent = TweetGeopoliticsAgent(model)
-        tweet = agent.generate(title=title, tema=tema, context=desc)
+        try:
+            model = self._get_ai_model()
+            agent = TweetGeopoliticsAgent(model)
+            tweet = agent.generate(title=title, tema=tema, context=desc)
+            tweet = truncate_social_post(tweet)
 
-        from src.shared.adapters.social_post_adapter import truncate_social_post
+            if tweet:
+                logger.info(f"[NEWS_TO_NEWS] Tweet generado: {tweet[:80]}...")
+                return tweet
+        except Exception as e:
+            logger.warning(f"[NEWS_TO_NEWS] Error generando tweet con IA: {e}")
 
-        tweet = truncate_social_post(tweet)
-
-        if not tweet:
-            logger.error(
-                f"[NEWS_TO_NEWS] Tweet generado vacío para: {title[:80]}... "
-                f"(tema: {tema}). Se aborta la publicación."
-            )
-            raise RuntimeError(
-                f"Tweet vacío para '{title[:80]}...'. No se publica contenido de baja calidad."
-            )
-
+        # Fallback: usar título + URL
+        fallback_tweet = f"📰 {title[:150]}\n\nLeer más: {url}"
+        tweet = truncate_social_post(fallback_tweet)
+        logger.info(f"[NEWS_TO_NEWS] Tweet fallback generado: {tweet[:80]}...")
         return tweet
 
     def _save_outputs(self, article_data: Dict, content: str, content_path: Path):

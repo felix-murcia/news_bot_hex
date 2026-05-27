@@ -111,14 +111,16 @@ class ArticleFromNewsUseCase:
             f"[ARTICLE_NEWS] Artículo generado: {parrafos} párrafos, {subtitulos} subtítulos"
         )
 
+        # Extract title from article_body if it contains <h1>
+        extracted_title = self._extract_title_from_html(article_body)
+        title = extracted_title or "Noticia de Última Hora"
+
         payload = {
-            "title": news_item.get("title", "Noticia de Última Hora"),
-            "title_es": news_item.get(
-                "title_es", news_item.get("title", "Noticia de Última Hora")
-            ),
+            "title": title,
+            "title_es": title,
             "content": article_body,
             "desc": content_es[:500],
-            "slug": self._generate_slug(news_item.get("title", "noticia")),
+            "slug": self._generate_slug(title),
             "labels": [tema],
             "source_type": "news_man",
             "image_url": "https://api.nbes.blog/image-310/",
@@ -216,6 +218,16 @@ Requisitos:
 
         tweet = truncate_social_post(tweet)
         return tweet
+
+    def _extract_title_from_html(self, html: str) -> str:
+        """Extract title from HTML <h1> tag if present."""
+        import re
+        match = re.search(r"<h1[^>]*>([^<]+)</h1>", html, re.IGNORECASE)
+        if match:
+            title = match.group(1).strip()
+            if title:
+                return title
+        return ""
 
     def _generate_slug(self, title: str) -> str:
         import re

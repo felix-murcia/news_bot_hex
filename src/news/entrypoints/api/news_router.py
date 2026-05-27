@@ -69,6 +69,9 @@ def news_process_url(
     try:
         from src.news.application.usecases.news_to_news import process_news_url
 
+        if not req.url or not req.url.strip():
+            raise ValueError("URL no puede estar vacía")
+
         model_provider = req.provider or Settings.AI_PROVIDER
         result = process_news_url(
             url=req.url,
@@ -76,18 +79,26 @@ def news_process_url(
             model_provider=model_provider,
             use_ai=req.use_ai,
         )
+
+        title = result.get("article_data", {}).get("article", {}).get("title", "")
+        post = result.get("post", "")[:200] if result.get("post") else ""
+        mode = result.get("mode", "")
+
         return PipelineResponse(
             status="ok",
             message="News processed successfully",
             data={
-                "title": result.get("article_data", {}).get("article", {}).get("title", ""),
-                "post": result.get("post", "")[:200],
-                "mode": result.get("mode", ""),
+                "title": title,
+                "post": post,
+                "mode": mode,
             },
         )
+    except ValueError as e:
+        logger.error(f"Validation error processing URL: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Error processing news URL: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error processing news URL: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)[:200]}")
 
 
 @router.post("/rss", response_model=PipelineResponse)
