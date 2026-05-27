@@ -235,12 +235,12 @@ class VideoToNewsUseCase:
         agent = TweetAgent(model)
         tweet = agent.generate(f"Video: {title[:100]}")
 
-        from src.shared.utils.tweet_truncation import truncate_social_post
+        from src.shared.adapters.social_post_adapter import truncate_social_post
 
         tweet = truncate_social_post(tweet)
 
         # Aplicar post-edición automática
-        from src.shared.utils.content_post_editor import post_edit_content
+        from src.shared.adapters.content_post_editor import post_edit_content
 
         tweet = post_edit_content(tweet)
 

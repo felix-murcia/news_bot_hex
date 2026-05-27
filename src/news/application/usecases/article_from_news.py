@@ -102,7 +102,7 @@ class ArticleFromNewsUseCase:
             raise RuntimeError("No se pudo generar el artículo desde noticia")
 
         # Aplicar post-edición automática al artículo
-        from src.shared.utils.content_post_editor import post_edit_content
+        from src.shared.adapters.content_post_editor import post_edit_content
         article_body = post_edit_content(article_body)
 
         parrafos = article_body.count("<p>")
@@ -212,7 +212,7 @@ Requisitos:
         tema = news_item.get("tema", "Noticias")
         tweet = f"📰 {title[:200]}\n\nLeer más: {url}"
 
-        from src.shared.utils.tweet_truncation import truncate_social_post
+        from src.shared.adapters.social_post_adapter import truncate_social_post
 
         tweet = truncate_social_post(tweet)
         return tweet

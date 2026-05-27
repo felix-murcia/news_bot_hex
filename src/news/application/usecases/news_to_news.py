@@ -135,7 +135,7 @@ class NewsToNewsUseCase:
         agent = TweetGeopoliticsAgent(model)
         tweet = agent.generate(title=title, tema=tema, context=desc)
 
-        from src.shared.utils.tweet_truncation import truncate_social_post
+        from src.shared.adapters.social_post_adapter import truncate_social_post
 
         tweet = truncate_social_post(tweet)
 

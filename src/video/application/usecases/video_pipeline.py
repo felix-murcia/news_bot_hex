@@ -222,7 +222,7 @@ class VideoPipelineUseCase(BasePipelineUseCase):
                     # Append URL if not present
                     if wordpress_url not in tweet:
                         tweet = f"{tweet}\n\nMás info: {wordpress_url}"
-                        from src.shared.utils.tweet_truncation import (
+                        from src.shared.adapters.social_post_adapter import (
                             truncate_social_post,
                         )
 
@@ -242,7 +242,7 @@ class VideoPipelineUseCase(BasePipelineUseCase):
                 )
                 if fallback_url and fallback_url not in tweet:
                     tweet = f"{tweet}\n\nMás: {fallback_url}"
-                    from src.shared.utils.tweet_truncation import truncate_social_post
+                    from src.shared.adapters.social_post_adapter import truncate_social_post
 
                     tweet = truncate_social_post(tweet)
                     tweets = [tweet]

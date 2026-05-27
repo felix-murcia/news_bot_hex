@@ -116,7 +116,7 @@ class ArticleFromTranscriptUseCase:
         )
 
         # 4. Apply post-editing
-        from src.shared.utils.content_post_editor import post_edit_content
+        from src.shared.adapters.content_post_editor import post_edit_content
         content = post_edit_content(content)
 
         # 5. Clean markdown fences if present
@@ -252,11 +252,11 @@ class ArticleFromTranscriptUseCase:
         tweet = re.sub(r"^\s*#\w+\s*$", "", tweet, flags=re.MULTILINE)
         tweet = tweet.strip()
 
-        from src.shared.utils.tweet_truncation import truncate_social_post
+        from src.shared.adapters.social_post_adapter import truncate_social_post
         tweet = truncate_social_post(tweet)
 
         # Apply post-editing
-        from src.shared.utils.content_post_editor import post_edit_content
+        from src.shared.adapters.content_post_editor import post_edit_content
         tweet = post_edit_content(tweet)
 
         if not tweet:

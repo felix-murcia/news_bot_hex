@@ -7,8 +7,8 @@ from config.settings import Settings
 from config.logging_config import get_logger
 from src.news.domain.ports import VerifiedNewsRepository, GeneratedPostsRepository
 from src.shared.adapters.ai.agents import TweetGeopoliticsAgent
-from src.shared.utils.tweet_truncation import truncate_social_post
-from src.shared.utils.content_post_editor import post_edit_content
+from src.shared.adapters.social_post_adapter import truncate_social_post
+from src.shared.adapters.content_post_editor import post_edit_content
 
 logger = get_logger("news_bot.usecase.content")
 
