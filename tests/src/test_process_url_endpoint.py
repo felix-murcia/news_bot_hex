@@ -84,39 +84,37 @@ class TestNewsToNewsUseCaseForceExtractParameter:
 class TestProcessUrlRequestModel:
     """Test ProcessUrlRequest Pydantic model."""
 
-    def test_process_url_request_has_force_extract_field(self):
-        """ProcessUrlRequest should have force_extract field."""
+    def test_process_url_request_has_required_fields(self):
+        """ProcessUrlRequest should have required fields."""
         from src.news.entrypoints.api.news_router import ProcessUrlRequest
 
         request = ProcessUrlRequest(
             url="https://example.com",
             provider="gemini",
             use_ai=True,
-            force_extract=True,
         )
-        assert request.force_extract is True
+        assert request.url == "https://example.com"
+        assert request.provider == "gemini"
+        assert request.use_ai is True
 
-    def test_process_url_request_force_extract_defaults_to_false(self):
-        """force_extract should default to False."""
+    def test_process_url_request_use_ai_defaults_to_true(self):
+        """use_ai should default to True."""
         from src.news.entrypoints.api.news_router import ProcessUrlRequest
 
         request = ProcessUrlRequest(url="https://example.com")
-        assert request.force_extract is False
+        assert request.use_ai is True
 
-    def test_process_url_request_all_fields(self):
-        """All ProcessUrlRequest fields should work together."""
+    def test_process_url_request_provider_optional(self):
+        """provider should be optional."""
         from src.news.entrypoints.api.news_router import ProcessUrlRequest
 
         request = ProcessUrlRequest(
             url="https://example.com/article",
-            provider="openrouter",
             use_ai=False,
-            force_extract=True,
         )
         assert request.url == "https://example.com/article"
-        assert request.provider == "openrouter"
+        assert request.provider is None
         assert request.use_ai is False
-        assert request.force_extract is True
 
 
 class TestProcessNewsUrlFunction:
@@ -243,8 +241,8 @@ class TestProcessUrlInputValidation:
         assert response.status_code in [422, 400]
 
     @patch("src.news.entrypoints.api.news_router.get_content_extractor")
-    def test_accepts_valid_url_with_force_extract(self, mock_get_extractor):
-        """Endpoint should accept valid URL with force_extract flag."""
+    def test_accepts_valid_url_and_forces_fresh_extraction(self, mock_get_extractor):
+        """Endpoint should always force fresh extraction (no cache) for manual URL processing."""
         from fastapi.testclient import TestClient
         from src.news.entrypoints.api.news_router import router
         from fastapi import FastAPI
@@ -270,13 +268,13 @@ class TestProcessUrlInputValidation:
                 "/news/process_url",
                 json={
                     "url": "https://example.com/article",
-                    "force_extract": True,
+                    "use_ai": True,
                 },
             )
 
             # Should succeed
             assert response.status_code == 200
-            # Verify process_news_url was called with force_extract=True
+            # Verify process_news_url was called with force_extract=True (always)
             call_kwargs = mock_process.call_args[1]
             assert call_kwargs["force_extract"] is True
 

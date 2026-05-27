@@ -125,14 +125,12 @@ export function NewsTab() {
   const [processUrlValue, setProcessUrlValue] = useState("");
   const [processProvider, setProcessProvider] = useState("");
   const [useAi, setUseAi] = useState(true);
-  const [forceExtract, setForceExtract] = useState(false);
   const urlProc = useMutation({
     mutationFn: () =>
       processUrl({
         url: processUrlValue,
         provider: processProvider || undefined,
         use_ai: useAi,
-        force_extract: forceExtract,
       }),
   });
 
@@ -403,26 +401,15 @@ export function NewsTab() {
               onChange={setProcessProvider}
               options={aiProviders}
             />
-            <div className="flex flex-col gap-2">
-              <label className="flex items-center gap-2 text-xs text-gray-400">
-                <input
-                  type="checkbox"
-                  checked={useAi}
-                  onChange={(e) => setUseAi(e.target.checked)}
-                  className="accent-accent"
-                />
-                Usar IA
-              </label>
-              <label className="flex items-center gap-2 text-xs text-gray-400">
-                <input
-                  type="checkbox"
-                  checked={forceExtract}
-                  onChange={(e) => setForceExtract(e.target.checked)}
-                  className="accent-accent"
-                />
-                Forzar extracción con Jina
-              </label>
-            </div>
+            <label className="flex items-center gap-2 text-xs text-gray-400">
+              <input
+                type="checkbox"
+                checked={useAi}
+                onChange={(e) => setUseAi(e.target.checked)}
+                className="accent-accent"
+              />
+              Usar IA
+            </label>
           </div>
         </div>
         <Btn

@@ -55,7 +55,6 @@ class ProcessUrlRequest(BaseModel):
     url: str
     provider: str | None = None
     use_ai: bool = True
-    force_extract: bool = False  # Skip cache and force Jina extraction
 
 
 class PipelineResponse(BaseModel):
@@ -109,7 +108,7 @@ def news_process_url(
             content_extractor=extractor,
             model_provider=model_provider,
             use_ai=req.use_ai,
-            force_extract=req.force_extract,
+            force_extract=True,  # Always force fresh extraction for manual URL processing
         )
 
         title = result.get("article_data", {}).get("article", {}).get("title", "")
