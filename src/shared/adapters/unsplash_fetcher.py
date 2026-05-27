@@ -6,15 +6,16 @@ from dotenv import load_dotenv
 
 from config.settings import Settings
 from config.logging_config import get_logger
-from src.news.domain.services.validation_rules import ImageRelevanceValidator
-from src.shared.adapters.unsplash_config import (
+from config.unsplash_config import (
     UNSPLASH_SYNONYMS,
     STOPWORDS,
     ARTICULOS_CAPITALIZADOS,
     LUGARES_VISUALES,
     CONCEPTOS_VISUALES,
     EVENTOS_VISUALES,
+    PALABRAS_NO_VISUALES,
 )
+from src.news.domain.services.validation_rules import ImageRelevanceValidator
 
 logger = get_logger("news_bot")
 
@@ -114,44 +115,8 @@ def generar_query_imagen(
 
     # 2. Añadir entidades que sean visualmente descriptivas
     #    Filtrar palabras abstractas o verbos que no son buenos para imágenes
-    palabras_no_visuales = {
-        "accelerate",
-        "demand",
-        "claim",
-        "state",
-        "say",
-        "tell",
-        "report",
-        "announce",
-        "declare",
-        "propose",
-        "consider",
-        "discuss",
-        "analyze",
-        "acelerar",
-        "demandar",
-        "afirmar",
-        "decir",
-        "informar",
-        "anunciar",
-        "declarar",
-        "proponer",
-        "considerar",
-        "discutir",
-        "analizar",
-        "strong",
-        "issues",
-        "rebuke",
-        "criticism",
-        "decision",
-        "action",
-        "fuerte",
-        "crítica",
-        "decisión",
-        "acción",
-        "cuestión",
-        "tema",
-    }
+    palabras_no_visuales = set(p.lower() for p in PALABRAS_NO_VISUALES)
+    
     if entidades:
         entidades_visuales = [
             e for e in entidades[:3] if e.lower() not in palabras_no_visuales
