@@ -4,11 +4,13 @@ import { Tabs } from "./components/Tabs";
 import { NewsTab } from "./features/news/NewsTab";
 import { AudioTab } from "./features/audio/AudioTab";
 import { VideoTab } from "./features/video/VideoTab";
+import { TimerSettings } from "./components/TimerSettings";
 
 const TABS = [
   { id: "news", label: "News" },
   { id: "audio", label: "Audio" },
   { id: "video", label: "Video" },
+  { id: "settings", label: "⚙️ Configuración" },
 ];
 
 export default function App() {
@@ -20,6 +22,7 @@ export default function App() {
       <div className={activeTab === "news" ? undefined : "hidden"}><NewsTab /></div>
       <div className={activeTab === "audio" ? undefined : "hidden"}><AudioTab /></div>
       <div className={activeTab === "video" ? undefined : "hidden"}><VideoTab /></div>
+      <div className={activeTab === "settings" ? undefined : "hidden"}><TimerSettings /></div>
     </Layout>
   );
 }
