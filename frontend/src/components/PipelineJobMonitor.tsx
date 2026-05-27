@@ -27,6 +27,13 @@ interface PipelineJobMonitorProps {
   onError?: (error: string) => void;
 }
 
+function formatSeconds(totalSeconds: number): string {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+  return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+}
+
 export function PipelineJobMonitor({ jobId, onComplete, onError }: PipelineJobMonitorProps) {
   const [job, setJob] = useState<PipelineJob | null>(null);
   const [isRunning, setIsRunning] = useState(true);
@@ -188,17 +195,18 @@ export function PipelineJobMonitor({ jobId, onComplete, onError }: PipelineJobMo
           {job.started_at && job.completed_at && (
             <div>
               Duración:{" "}
-              {Math.round(
-                (new Date(job.completed_at).getTime() - new Date(job.started_at).getTime()) /
-                  1000
-              )}{" "}
-              segundos
+              {formatSeconds(
+                Math.round(
+                  (new Date(job.completed_at).getTime() - new Date(job.started_at).getTime()) /
+                    1000
+                )
+              )}
             </div>
           )}
           {isRunning && job.started_at && (
             <div>
               Tiempo transcurrido:{" "}
-              {Math.round((Date.now() - new Date(job.started_at).getTime()) / 1000)} segundos
+              {formatSeconds(Math.round((Date.now() - new Date(job.started_at).getTime()) / 1000))}
             </div>
           )}
         </div>
