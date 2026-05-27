@@ -78,7 +78,7 @@ class InMemoryJobRepository(JobRepositoryPort):
             "message": "Job creado",
             "steps": [],
             "last_log": None,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now().isoformat(),
             "started_at": None,
             "completed_at": None,
             "error": None,
@@ -100,9 +100,9 @@ class InMemoryJobRepository(JobRepositoryPort):
             job["error"] = error
 
         if status == JobStatus.RUNNING and not job["started_at"]:
-            job["started_at"] = datetime.utcnow().isoformat()
+            job["started_at"] = datetime.now().isoformat()
         elif status in (JobStatus.COMPLETED, JobStatus.FAILED):
-            job["completed_at"] = datetime.utcnow().isoformat()
+            job["completed_at"] = datetime.now().isoformat()
 
     def add_step(self, job_id: str, step_name: str, status: str = "running") -> None:
         if job_id not in self.store:
@@ -112,7 +112,7 @@ class InMemoryJobRepository(JobRepositoryPort):
         step = {
             "name": step_name,
             "status": status,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now().isoformat(),
         }
 
         existing = next((s for s in job["steps"] if s["name"] == step_name), None)
