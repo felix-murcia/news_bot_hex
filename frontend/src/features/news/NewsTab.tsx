@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { StepCard } from "../../components/StepCard";
 import { LogPanel } from "../../components/LogPanel";
+import { PipelineJobMonitor } from "../../components/PipelineJobMonitor";
 import { Btn } from "../../components/Btn";
 import { Field, SelectField } from "../../components/Field";
 import {
@@ -31,6 +32,9 @@ const NETWORKS = [
 ];
 
 export function NewsTab() {
+  // Pipeline Job Monitor state
+  const [pipelineJobId, setPipelineJobId] = useState<string | null>(null);
+
   // Step 1 – RSS
   const [articlesOpen, setArticlesOpen] = useState(false);
   const [dateOrder, setDateOrder] = useState<"asc" | "desc">("desc");
@@ -83,7 +87,16 @@ export function NewsTab() {
   });
 
   // Auto pipeline
-  const pipeline = useMutation({ mutationFn: runNewsPipeline });
+  const pipeline = useMutation({
+    mutationFn: runNewsPipeline,
+    onSuccess: (data) => {
+      // Extract job_id from response data
+      const jobId = data.data?.job_id;
+      if (jobId) {
+        setPipelineJobId(jobId);
+      }
+    },
+  });
 
   return (
     <div>
@@ -96,14 +109,36 @@ export function NewsTab() {
           </p>
         </div>
         <Btn
-          loading={pipeline.isPending}
-          onClick={() => pipeline.mutate()}
+          loading={pipeline.isPending || !!pipelineJobId}
+          onClick={() => {
+            setPipelineJobId(null);
+            pipeline.mutate();
+          }}
           variant="ghost"
+          disabled={!!pipelineJobId}
         >
           Ejecutar pipeline
         </Btn>
       </div>
-      <LogPanel {...mutationState(pipeline)} />
+
+      {/* Pipeline Job Monitor (shows real-time feedback) */}
+      {pipelineJobId && (
+        <PipelineJobMonitor
+          jobId={pipelineJobId}
+          onComplete={() => setPipelineJobId(null)}
+          onError={() => setPipelineJobId(null)}
+        />
+      )}
+
+      {/* Fallback error display */}
+      {pipeline.isError && !pipelineJobId && (
+        <div className="mt-4 p-4 rounded-lg bg-red-950/40 border border-red-800">
+          <p className="text-sm font-semibold text-red-300 mb-1">Error al iniciar pipeline</p>
+          <p className="text-xs text-red-400">
+            {pipeline.error instanceof Error ? pipeline.error.message : "Error desconocido"}
+          </p>
+        </div>
+      )}
 
       <hr className="border-surface-border my-6" />
 
