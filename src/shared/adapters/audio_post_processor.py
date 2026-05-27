@@ -139,36 +139,53 @@ class AudioPostProcessor:
         """
         Remove breathing sounds and low-frequency rumble.
 
-        Uses high-pass filter (>80Hz) to remove rumble and noise gate to silence
-        low-energy segments that contain breathing artifacts.
+        Uses high-pass filter (>80Hz) to remove rumble. Attempts to use noise gate
+        if available, otherwise falls back to high-pass filter only.
         """
         output_path = self._get_temp_path(f"step{step}_debreathe")
 
         try:
-            # Chain filters:
-            # 1. highpass: remove low-frequency rumble below 80Hz
-            # 2. gate: silence segments below noise_gate_threshold with smooth attack/release
-            filters = (
-                f"highpass=f=80,"  # Remove sub-80Hz rumble
+            # Try with gate filter first (best quality)
+            filters_with_gate = (
+                f"highpass=f=80,"
                 f"gate=threshold={noise_gate_threshold}dB:ratio=10:attack=0.005:release=0.1"
-                # Smooth gate with short attack/release to avoid clicks
             )
 
             cmd = [
                 "ffmpeg",
                 "-i", input_path,
-                "-af", filters,
+                "-af", filters_with_gate,
                 "-q:a", "9",
                 output_path,
                 "-y"
             ]
             result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-            logger.debug(f"[AUDIO POST] Breathing removal applied")
+            logger.debug(f"[AUDIO POST] Breathing removal applied (with gate)")
             return output_path
 
         except subprocess.CalledProcessError as e:
-            logger.error(f"[AUDIO POST] Breathing removal error: {e.stderr}")
-            return None
+            # If gate filter fails (not available), fall back to high-pass only
+            if "No such filter: 'gate'" in e.stderr or "Filter not found" in e.stderr:
+                logger.warning(f"[AUDIO POST] Gate filter unavailable, using high-pass only")
+                try:
+                    filters_fallback = "highpass=f=80"
+                    cmd = [
+                        "ffmpeg",
+                        "-i", input_path,
+                        "-af", filters_fallback,
+                        "-q:a", "9",
+                        output_path,
+                        "-y"
+                    ]
+                    result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+                    logger.debug(f"[AUDIO POST] Breathing removal applied (high-pass only)")
+                    return output_path
+                except subprocess.CalledProcessError as e2:
+                    logger.error(f"[AUDIO POST] Fallback breathing removal error: {e2.stderr}")
+                    return None
+            else:
+                logger.error(f"[AUDIO POST] Breathing removal error: {e.stderr}")
+                return None
 
     def _stabilize_artifacts(self, input_path: str, step: int) -> Optional[str]:
         """
