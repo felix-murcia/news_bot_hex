@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { PipelineResponse } from "../api/client";
 import { fetchLogTail } from "../api/logs";
+import { ErrorAlert } from "./ErrorAlert";
+import { APIError } from "../hooks/useErrorHandler";
 
 interface LogPanelProps {
   response: PipelineResponse | null;
-  error?: string | null;
+  error?: string | null | APIError;
   loading?: boolean;
 }
 
@@ -54,7 +56,22 @@ export function LogPanel({ response, error, loading }: LogPanelProps) {
     );
   }
 
-  if (error) {
+  // Handle structured API errors
+  if (error && typeof error === "object" && "error_code" in error) {
+    const apiError = error as APIError;
+    return (
+      <div className="mt-3">
+        <ErrorAlert
+          message={apiError.message}
+          details={apiError.details}
+          errorCode={apiError.error_code}
+        />
+      </div>
+    );
+  }
+
+  // Handle string errors (legacy)
+  if (error && typeof error === "string") {
     return (
       <div className="mt-3 p-3 rounded-lg bg-red-950/40 border border-red-800 text-xs text-red-300">
         <strong className="block mb-1">Error</strong>

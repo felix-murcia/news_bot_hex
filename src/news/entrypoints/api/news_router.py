@@ -30,6 +30,7 @@ from src.news.entrypoints.api.dependencies import (
     get_soft_verify_usecase,
     get_generated_posts_repo,
 )
+from src.news.entrypoints.api.error_handler import http_error, get_error_message
 
 logger = get_logger("news_bot.api.router")
 
@@ -70,7 +71,13 @@ def news_process_url(
         from src.news.application.usecases.news_to_news import process_news_url
 
         if not req.url or not req.url.strip():
-            raise ValueError("URL no puede estar vacía")
+            msg, details = get_error_message("INVALID_URL")
+            raise http_error(
+                status_code=400,
+                error_code="INVALID_URL",
+                message=msg,
+                details=details,
+            )
 
         model_provider = req.provider or Settings.AI_PROVIDER
         result = process_news_url(
@@ -93,12 +100,35 @@ def news_process_url(
                 "mode": mode,
             },
         )
+    except HTTPException:
+        raise
     except ValueError as e:
-        logger.error(f"Validation error processing URL: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        error_msg = str(e)
+        if "No se pudo extraer" in error_msg:
+            code = "CONTENT_EXTRACTION_FAILED"
+        elif "insuficiente" in error_msg:
+            code = "CONTENT_TOO_SHORT"
+        else:
+            code = "INVALID_REQUEST"
+        msg, details = get_error_message(code)
+        raise http_error(
+            status_code=400,
+            error_code=code,
+            message=msg,
+            exception=e,
+            details=details,
+            context={"original_error": str(e)},
+        )
     except Exception as e:
-        logger.error(f"Error processing news URL: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)[:200]}")
+        msg, details = get_error_message("PIPELINE_ERROR")
+        raise http_error(
+            status_code=500,
+            error_code="PIPELINE_ERROR",
+            message=msg,
+            exception=e,
+            details=details,
+            context={"url": req.url, "provider": model_provider},
+        )
 
 
 @router.post("/rss", response_model=PipelineResponse)
@@ -112,11 +142,23 @@ def news_rss(fetch_usecase=Depends(get_fetch_rss_usecase)):
             data={"new_articles": result.get("new_articles", 0), "total_articles": result.get("total_articles", 0)},
         )
     except RepositoryError as e:
-        logger.error(f"Database error fetching RSS: {e}")
-        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+        msg, details = get_error_message("DATABASE_ERROR")
+        raise http_error(
+            status_code=503,
+            error_code="DATABASE_ERROR",
+            message=msg,
+            exception=e,
+            details=details,
+        )
     except Exception as e:
-        logger.error(f"Error fetching RSS: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        msg, details = get_error_message("PIPELINE_ERROR")
+        raise http_error(
+            status_code=500,
+            error_code="PIPELINE_ERROR",
+            message=msg,
+            exception=e,
+            details=details,
+        )
 
 
 class ArticleItem(BaseModel):
@@ -155,11 +197,23 @@ def news_verify(verify_usecase=Depends(get_full_verify_usecase)):
         result = verify_usecase.execute()
         return PipelineResponse(status="ok", message="News verification completed", data=result)
     except RepositoryError as e:
-        logger.error(f"Database error during verification: {e}")
-        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+        msg, details = get_error_message("DATABASE_ERROR")
+        raise http_error(
+            status_code=503,
+            error_code="DATABASE_ERROR",
+            message=msg,
+            exception=e,
+            details=details,
+        )
     except Exception as e:
-        logger.error(f"Error during verification: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        msg, details = get_error_message("PIPELINE_ERROR")
+        raise http_error(
+            status_code=500,
+            error_code="PIPELINE_ERROR",
+            message=msg,
+            exception=e,
+            details=details,
+        )
 
 
 @router.post("/soft", response_model=PipelineResponse)
@@ -173,11 +227,23 @@ def news_soft(soft_usecase=Depends(get_soft_verify_usecase)):
             data={"title": result.get("title", ""), "score": result.get("score", 0), "url": result.get("url", "")},
         )
     except RepositoryError as e:
-        logger.error(f"Database error during soft verify: {e}")
-        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+        msg, details = get_error_message("DATABASE_ERROR")
+        raise http_error(
+            status_code=503,
+            error_code="DATABASE_ERROR",
+            message=msg,
+            exception=e,
+            details=details,
+        )
     except Exception as e:
-        logger.error(f"Error during soft verify: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        msg, details = get_error_message("PIPELINE_ERROR")
+        raise http_error(
+            status_code=500,
+            error_code="PIPELINE_ERROR",
+            message=msg,
+            exception=e,
+            details=details,
+        )
 
 
 @router.post("/article", response_model=PipelineResponse)
@@ -195,11 +261,23 @@ def news_article(
             data={"count": len(results)},
         )
     except RepositoryError as e:
-        logger.error(f"Database error generating articles: {e}")
-        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+        msg, details = get_error_message("DATABASE_ERROR")
+        raise http_error(
+            status_code=503,
+            error_code="DATABASE_ERROR",
+            message=msg,
+            exception=e,
+            details=details,
+        )
     except Exception as e:
-        logger.error(f"Error generating articles: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        msg, details = get_error_message("ARTICLE_GENERATION_FAILED")
+        raise http_error(
+            status_code=500,
+            error_code="ARTICLE_GENERATION_FAILED",
+            message=msg,
+            exception=e,
+            details=details,
+        )
 
 
 @router.post("/content", response_model=PipelineResponse)
@@ -227,11 +305,23 @@ def news_content(
             data={"count": len(results)},
         )
     except RepositoryError as e:
-        logger.error(f"Database error generating content: {e}")
-        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+        msg, details = get_error_message("DATABASE_ERROR")
+        raise http_error(
+            status_code=503,
+            error_code="DATABASE_ERROR",
+            message=msg,
+            exception=e,
+            details=details,
+        )
     except Exception as e:
-        logger.error(f"Error generating content: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        msg, details = get_error_message("TWEET_GENERATION_FAILED")
+        raise http_error(
+            status_code=500,
+            error_code="TWEET_GENERATION_FAILED",
+            message=msg,
+            exception=e,
+            details=details,
+        )
 
 
 @router.post("/pipeline", response_model=PipelineResponse)
@@ -250,8 +340,14 @@ def news_full_pipeline():
             data={"job_id": job_id}
         )
     except Exception as e:
-        logger.error(f"Error starting pipeline: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        msg, details = get_error_message("PIPELINE_ERROR")
+        raise http_error(
+            status_code=500,
+            error_code="PIPELINE_ERROR",
+            message=msg,
+            exception=e,
+            details=details,
+        )
 
 
 @router.get("/pipeline/status/{job_id}", response_model=PipelineResponse)
