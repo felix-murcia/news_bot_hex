@@ -247,42 +247,13 @@ def get_process_url_content_processor(
     return process_url
 
 
-def get_process_url_social_publisher():
-    """Social publisher function for process_url."""
-    from src.shared.adapters.publishers.social import SocialMediaPublisher
-
-    def publish_to_social(result: dict):
-        """Publish generated tweet to all social networks"""
-        post_text = result.get("post", "")
-        url = result.get("article_data", {}).get("article", {}).get("url", "")
-
-        post_data = {
-            "tweet": post_text,
-            "url": url,
-            "wp_url": "",
-            "image_url": "",
-        }
-
-        publisher = SocialMediaPublisher(enable_bluesky=True, enable_mastodon=True)
-        return publisher.publish(post_data)
-
-    return publish_to_social
-
-
-def get_process_url_usecase(
-    content_processor=Depends(get_process_url_content_processor),
-    social_publisher=Depends(get_process_url_social_publisher),
-):
-    """ProcessUrlWithPublishingUseCase with all dependencies injected."""
-    from src.news.application.usecases.process_url_with_publishing import (
-        ProcessUrlWithPublishingUseCase,
+def get_process_url_usecase():
+    """ProcessUrlCompleteUseCase - orchestrates complete 9-step pipeline."""
+    from src.news.application.usecases.process_url_complete import (
+        ProcessUrlCompleteUseCase,
     )
 
-    return ProcessUrlWithPublishingUseCase(
-        content_processor=content_processor,
-        social_publisher=social_publisher,
-        publish_to_social=True,
-    )
+    return ProcessUrlCompleteUseCase()
 
 
 def get_process_url_job_coordinator(
