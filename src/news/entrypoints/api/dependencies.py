@@ -215,3 +215,89 @@ def get_publishers_usecase(
     """Use case para publicar en redes sociales."""
     from src.news.application.usecases.publishing_pipeline import PublishersUseCase
     return PublishersUseCase(generated_posts_repo, generated_articles_repo)
+
+
+# ============================================================
+# Process URL ("Procesar URL Concreta") Dependencies
+# ============================================================
+def get_process_url_job_repository():
+    """Job repository port for process_url async tracking."""
+    from src.news.application.usecases.pipeline_job import (
+        InMemoryJobRepository,
+        _jobs_store,
+    )
+    return InMemoryJobRepository(_jobs_store)
+
+
+def get_process_url_content_processor(
+    content_extractor=Depends(get_content_extractor),
+):
+    """Content processor function for process_url (wraps NewsToNewsUseCase)."""
+    from src.news.application.usecases.news_to_news import process_news_url
+    from config.settings import Settings
+
+    def process_url(url: str):
+        """Process URL → extract content + generate article/tweet/TTS/video"""
+        return process_news_url(
+            url=url,
+            content_extractor=content_extractor,
+            model_provider=Settings.AI_PROVIDER,
+            use_ai=True,
+            ai_config={},
+            force_extract=True,
+        )
+
+    return process_url
+
+
+def get_process_url_social_publisher():
+    """Social publisher function for process_url."""
+    from src.shared.adapters.publishers.social import SocialMediaPublisher
+
+    def publish_to_social(result: dict):
+        """Publish generated tweet to all social networks"""
+        post_text = result.get("post", "")
+        url = result.get("article_data", {}).get("article", {}).get("url", "")
+
+        post_data = {
+            "tweet": post_text,
+            "url": url,
+            "wp_url": "",
+            "image_url": "",
+        }
+
+        publisher = SocialMediaPublisher(enable_bluesky=True, enable_mastodon=True)
+        return publisher.publish(post_data)
+
+    return publish_to_social
+
+
+def get_process_url_usecase(
+    content_processor=Depends(get_process_url_content_processor),
+    social_publisher=Depends(get_process_url_social_publisher),
+):
+    """ProcessUrlWithPublishingUseCase with all dependencies injected."""
+    from src.news.application.usecases.process_url_with_publishing import (
+        ProcessUrlWithPublishingUseCase,
+    )
+
+    return ProcessUrlWithPublishingUseCase(
+        content_processor=content_processor,
+        social_publisher=social_publisher,
+        publish_to_social=True,
+    )
+
+
+def get_process_url_job_coordinator(
+    job_repository=Depends(get_process_url_job_repository),
+    process_url_usecase=Depends(get_process_url_usecase),
+):
+    """ProcessUrlJobCoordinator with all dependencies injected."""
+    from src.news.application.usecases.process_url_executor import (
+        ProcessUrlJobCoordinator,
+    )
+
+    return ProcessUrlJobCoordinator(
+        job_repository=job_repository,
+        process_url_usecase=process_url_usecase.execute,
+    )

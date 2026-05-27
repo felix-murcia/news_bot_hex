@@ -29,6 +29,8 @@ from src.news.entrypoints.api.dependencies import (
     get_full_verify_usecase,
     get_soft_verify_usecase,
     get_generated_posts_repo,
+    get_process_url_job_coordinator,
+    get_process_url_job_repository,
 )
 from src.news.entrypoints.api.error_handler import http_error, get_error_message
 
@@ -73,7 +75,11 @@ class TimerConfig(BaseModel):
 # Endpoints
 # ============================================================
 @router.post("/process_url", response_model=PipelineResponse)
-def news_process_url(req: ProcessUrlRequest):
+def news_process_url(
+    req: ProcessUrlRequest,
+    job_coordinator=Depends(get_process_url_job_coordinator),
+    job_repository=Depends(get_process_url_job_repository),
+):
     """Start async processing of a news URL. Returns job_id for polling status."""
     try:
         if not req.url or not req.url.strip():
@@ -99,16 +105,8 @@ def news_process_url(req: ProcessUrlRequest):
             )
 
         # Create job and start async processing
-        from src.news.application.usecases.pipeline_job import create_job
-        from src.news.application.usecases.process_url_executor import execute_process_url_async
-
-        job_id = create_job()
-        execute_process_url_async(
-            job_id=job_id,
-            url=req.url,
-            model_provider=model_provider,
-            use_ai=req.use_ai,
-        )
+        job_id = job_repository.create()
+        job_coordinator.execute_async(job_id=job_id, url=req.url)
 
         return PipelineResponse(
             status="ok",
