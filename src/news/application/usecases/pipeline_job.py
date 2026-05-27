@@ -134,7 +134,7 @@ class InMemoryJobRepository(JobRepositoryPort):
         job["last_log"] = log_text
 
 
-# Legacy wrappers - use InMemoryJobRepository for new code
+# Global singleton repository instance (shared across all requests)
 _default_repo = InMemoryJobRepository(_jobs_store)
 
 

@@ -221,12 +221,9 @@ def get_publishers_usecase(
 # Process URL ("Procesar URL Concreta") Dependencies
 # ============================================================
 def get_process_url_job_repository():
-    """Job repository port for process_url async tracking."""
-    from src.news.application.usecases.pipeline_job import (
-        InMemoryJobRepository,
-        _jobs_store,
-    )
-    return InMemoryJobRepository(_jobs_store)
+    """Job repository port for process_url async tracking (singleton)."""
+    from src.news.application.usecases.pipeline_job import _default_repo
+    return _default_repo
 
 
 def get_process_url_content_processor(
