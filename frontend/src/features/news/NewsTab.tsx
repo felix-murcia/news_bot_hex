@@ -14,10 +14,11 @@ import {
   generateContent,
   processUrl,
   runNewsPipeline,
+  getSupportedProviders,
 } from "../../api/news";
 import { mutationState } from "../../api/mutationState";
 
-const AI_PROVIDERS = [
+const DEFAULT_AI_PROVIDERS = [
   { label: "Default (settings)", value: "" },
   { label: "gemini", value: "gemini" },
   { label: "openai", value: "openai" },
@@ -34,6 +35,27 @@ const NETWORKS = [
 const PIPELINE_JOB_KEY = "news-pipeline-job-id";
 
 export function NewsTab() {
+  // Fetch supported providers on mount
+  const [aiProviders, setAiProviders] = useState(DEFAULT_AI_PROVIDERS);
+
+  useEffect(() => {
+    getSupportedProviders()
+      .then((data) => {
+        const providers = [
+          { label: "Default (settings)", value: "" },
+          ...data.providers.map((p) => ({
+            label: p,
+            value: p,
+          })),
+        ];
+        setAiProviders(providers);
+      })
+      .catch(() => {
+        // Fallback to defaults if fetch fails
+        setAiProviders(DEFAULT_AI_PROVIDERS);
+      });
+  }, []);
+
   // Pipeline Job Monitor state - recover from localStorage if exists
   const [pipelineJobId, setPipelineJobId] = useState<string | null>(() => {
     // Try to restore job_id from localStorage on mount
@@ -315,7 +337,7 @@ export function NewsTab() {
             label="Proveedor IA"
             value={articleProvider}
             onChange={setArticleProvider}
-            options={AI_PROVIDERS}
+            options={aiProviders}
           />
           <Field
             label="Límite de artículos"
@@ -349,7 +371,7 @@ export function NewsTab() {
             label="Proveedor IA"
             value={contentProvider}
             onChange={setContentProvider}
-            options={AI_PROVIDERS}
+            options={aiProviders}
           />
         </div>
         <Btn loading={content.isPending} onClick={() => content.mutate()}>
@@ -377,7 +399,7 @@ export function NewsTab() {
               label="Proveedor IA"
               value={processProvider}
               onChange={setProcessProvider}
-              options={AI_PROVIDERS}
+              options={aiProviders}
             />
             <label className="flex items-center gap-2 text-xs text-gray-400 self-end pb-1">
               <input

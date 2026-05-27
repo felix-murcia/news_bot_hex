@@ -26,6 +26,11 @@ export const fetchRss = (): Promise<PipelineResponse> =>
 export const listRssArticles = (): Promise<RssArticle[]> =>
   api.get<RssArticle[]>("/news/rss").then((r) => r.data);
 
+export const getSupportedProviders = (): Promise<{ providers: string[] }> =>
+  api.get<PipelineResponse>("/news/providers").then((r) => ({
+    providers: (r.data.data?.providers as string[]) || [],
+  }));
+
 export const verifyNews = (): Promise<PipelineResponse> =>
   api.post<PipelineResponse>("/news/verify").then((r) => r.data);
 

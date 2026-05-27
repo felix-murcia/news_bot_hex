@@ -37,6 +37,17 @@ logger = get_logger("news_bot.api.router")
 router = APIRouter()
 
 
+def validate_provider(provider: str | None) -> str | None:
+    """Validate that provider is supported, return the provider or None."""
+    if not provider or not provider.strip():
+        return None
+    provider_lower = provider.lower()
+    if provider_lower not in Settings.AI_ADAPTER_MAP:
+        available = ", ".join(Settings.AI_ADAPTER_MAP.keys())
+        raise ValueError(f"Proveedor no soportado: {provider}. Disponibles: {available}")
+    return provider_lower
+
+
 # ============================================================
 # Request/Response Models
 # ============================================================
@@ -80,6 +91,18 @@ def news_process_url(
             )
 
         model_provider = req.provider or Settings.AI_PROVIDER
+        # Validate provider is supported
+        try:
+            validate_provider(model_provider)
+        except ValueError as e:
+            logger.error(f"[PROCESS_URL] {str(e)}")
+            raise http_error(
+                status_code=400,
+                error_code="INVALID_REQUEST",
+                message="Proveedor de IA no válido",
+                exception=e,
+                details=str(e),
+            )
         result = process_news_url(
             url=req.url,
             content_extractor=extractor,
@@ -104,9 +127,10 @@ def news_process_url(
         raise
     except ValueError as e:
         error_msg = str(e)
+        logger.error(f"[PROCESS_URL] ValueError: {error_msg}")
         if "No se pudo extraer" in error_msg:
             code = "CONTENT_EXTRACTION_FAILED"
-        elif "insuficiente" in error_msg:
+        elif "contenido insuficiente" in error_msg.lower() or len(error_msg) > 0 and "100" in error_msg:
             code = "CONTENT_TOO_SHORT"
         else:
             code = "INVALID_REQUEST"
@@ -117,9 +141,12 @@ def news_process_url(
             message=msg,
             exception=e,
             details=details,
-            context={"original_error": str(e)},
+            context={"original_error": error_msg},
         )
     except Exception as e:
+        error_type = type(e).__name__
+        error_msg = str(e)
+        logger.error(f"[PROCESS_URL] {error_type}: {error_msg}")
         msg, details = get_error_message("PIPELINE_ERROR")
         raise http_error(
             status_code=500,
@@ -127,7 +154,7 @@ def news_process_url(
             message=msg,
             exception=e,
             details=details,
-            context={"url": req.url, "provider": model_provider},
+            context={"url": req.url, "provider": model_provider, "error_type": error_type},
         )
 
 
@@ -457,6 +484,21 @@ def update_timer_config(config: TimerConfig):
         )
     except Exception as e:
         logger.error(f"Error updating timer config: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/providers", response_model=PipelineResponse)
+def get_supported_providers():
+    """Get list of supported AI providers."""
+    try:
+        providers = list(Settings.AI_ADAPTER_MAP.keys())
+        return PipelineResponse(
+            status="ok",
+            message="Supported providers retrieved",
+            data={"providers": providers}
+        )
+    except Exception as e:
+        logger.error(f"Error getting supported providers: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
