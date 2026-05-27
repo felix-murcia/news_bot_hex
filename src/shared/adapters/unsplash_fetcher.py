@@ -7,7 +7,14 @@ from dotenv import load_dotenv
 from config.settings import Settings
 from config.logging_config import get_logger
 from src.news.domain.services.validation_rules import ImageRelevanceValidator
-from src.shared.adapters.unsplash_config import UNSPLASH_SYNONYMS, STOPWORDS
+from src.shared.adapters.unsplash_config import (
+    UNSPLASH_SYNONYMS,
+    STOPWORDS,
+    ARTICULOS_CAPITALIZADOS,
+    LUGARES_VISUALES,
+    CONCEPTOS_VISUALES,
+    EVENTOS_VISUALES,
+)
 
 logger = get_logger("news_bot")
 
@@ -42,146 +49,18 @@ def extraer_entidades_imagen(texto: str, max_entidades: int = 4) -> list:
 
     # 1. Nombres propios (palabras que empiezan con mayúscula, >2 letras)
     #    Excluir palabras vacías en inglés que suelen ir capitalizadas
-    articulos = {
-        "El",
-        "La",
-        "Los",
-        "Las",
-        "Un",
-        "Una",
-        "De",
-        "En",
-        "Por",
-        "Para",
-        "Con",
-        "Sin",
-        "The",
-        "And",
-        "For",
-        "Of",
-        "In",
-        "To",
-        "Is",
-        "Are",
-        "Was",
-        "Were",
-        "Be",
-        "Been",
-        "Have",
-        "Has",
-        "Had",
-        "Do",
-        "Does",
-        "Did",
-        "Will",
-        "Would",
-        "Could",
-        "Should",
-        "From",
-        "With",
-        "By",
-        "At",
-        "Or",
-        "But",
-        "Not",
-        "You",
-        "All",
-        "Can",
-        "Her",
-        "Was",
-        "One",
-        "Our",
-        "Out",
-        "Has",
-        "This",
-        "That",
-        "These",
-        "Those",
-        "It",
-        "Hours",
-        "Before",
-        "News",
-        "After",
-        "What",
-        "When",
-        "Where",
-        "Why",
-        "How",
-    }
     nombres_propios = re.findall(r"\b[A-Z][a-záéíóúñü]{2,}\b", texto)
-    nombres_filtrados = [n for n in nombres_propios if n not in articulos]
+    nombres_filtrados = [n for n in nombres_propios if n not in ARTICULOS_CAPITALIZADOS]
     entidades.extend(nombres_filtrados[:3])
 
     # 2. Lugares y organizaciones conocidas (visualmente reconocibles)
-    lugares_visuales = [
-        "Rusia",
-        "Ucrania",
-        "Estados Unidos",
-        "Washington",
-        "Moscú",
-        "Kiev",
-        "China",
-        "Pekín",
-        "Europa",
-        "Irán",
-        "Teherán",
-        "Israel",
-        "Jerusalén",
-        "Gaza",
-        "Oriente Medio",
-        "Casa Blanca",
-        "Kremlin",
-        "Pentágono",
-        "OTAN",
-        "ONU",
-        "Naciones Unidas",
-        "Congreso",
-        "Parlamento",
-    ]
     texto_lower = texto.lower()
-    for lugar in lugares_visuales:
+    for lugar in LUGARES_VISUALES:
         if lugar.lower() in texto_lower and lugar not in entidades:
             entidades.append(lugar)
 
     # 3. Conceptos visuales específicos (eventos, objetos, lugares)
-    conceptos_visuales = [
-        "refinería",
-        "fábrica",
-        "edificio",
-        "iglesia",
-        "catedral",
-        "mezquita",
-        "manifestación",
-        "protesta",
-        "marcha",
-        "conferencia",
-        "cumbre",
-        "reunión",
-        "hospital",
-        "escuela",
-        "universidad",
-        "estadio",
-        "puerto",
-        "aeropuerto",
-        "misil",
-        "cohetes",
-        "tanque",
-        "avión",
-        "barco",
-        "submarino",
-        "presidente",
-        "ministro",
-        "papa",
-        "pope",
-        "líder",
-        "general",
-        "terremoto",
-        "inundación",
-        "incendio",
-        "tormenta",
-        "huracán",
-    ]
-    for concepto in conceptos_visuales:
+    for concepto in CONCEPTOS_VISUALES:
         if concepto in texto_lower and concepto not in [e.lower() for e in entidades]:
             entidades.append(concepto.capitalize())
             if len(entidades) >= max_entidades:
@@ -197,24 +76,7 @@ def extraer_concepto_visual_principal(texto: str):
     """
     texto_lower = texto.lower()
 
-    eventos_visuales = {
-        "manifestación": "protest",
-        "protesta": "protest",
-        "marcha": "march",
-        "reunión": "meeting",
-        "cumbre": "summit",
-        "conferencia": "conference",
-        "ataque": "conflict",
-        "guerra": "war",
-        "conflicto": "conflict",
-        "terremoto": "earthquake",
-        "inundación": "flood",
-        "incendio": "fire",
-        "elección": "election",
-        "elecciones": "election",
-    }
-
-    for palabra, concepto in eventos_visuales.items():
+    for palabra, concepto in EVENTOS_VISUALES.items():
         if palabra in texto_lower:
             return concepto
 
