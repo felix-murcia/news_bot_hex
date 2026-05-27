@@ -253,6 +253,7 @@ def get_pipeline_status(job_id: str):
                 "job_id": job_id,
                 "status": job["status"],
                 "progress": job["progress"],
+                "message": job.get("message", ""),
                 "steps": job["steps"],
                 "error": job.get("error"),
                 "last_log": job.get("last_log"),
