@@ -13,6 +13,7 @@ import {
   generateArticle,
   generateContent,
   processUrl,
+  getProcessUrlStatus,
   runNewsPipeline,
   getSupportedProviders,
 } from "../../api/news";
@@ -121,10 +122,12 @@ export function NewsTab() {
     mutationFn: () => generateContent(network, contentProvider || undefined),
   });
 
-  // Step 4 – Process a specific URL
+  // Step 4 – Process a specific URL (async)
   const [processUrlValue, setProcessUrlValue] = useState("");
   const [processProvider, setProcessProvider] = useState("");
   const [useAi, setUseAi] = useState(true);
+  const [processUrlJobId, setProcessUrlJobId] = useState<string | null>(null);
+
   const urlProc = useMutation({
     mutationFn: () =>
       processUrl({
@@ -132,6 +135,13 @@ export function NewsTab() {
         provider: processProvider || undefined,
         use_ai: useAi,
       }),
+    onSuccess: (data) => {
+      // Extract job_id from response data
+      const jobId = data.data?.job_id as string | undefined;
+      if (jobId) {
+        setProcessUrlJobId(jobId);
+      }
+    },
   });
 
   // Auto pipeline
@@ -386,40 +396,58 @@ export function NewsTab() {
         title="Procesar URL concreta"
         description="Extrae contenido, genera artículo y tweet desde una URL de noticia."
       >
-        <div className="grid grid-cols-1 gap-3 mb-3">
-          <Field
-            label="URL de la noticia"
-            type="url"
-            placeholder="https://ejemplo.com/noticia"
-            value={processUrlValue}
-            onChange={(e) => setProcessUrlValue(e.target.value)}
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <SelectField
-              label="Proveedor IA"
-              value={processProvider}
-              onChange={setProcessProvider}
-              options={aiProviders}
-            />
-            <label className="flex items-center gap-2 text-xs text-gray-400">
-              <input
-                type="checkbox"
-                checked={useAi}
-                onChange={(e) => setUseAi(e.target.checked)}
-                className="accent-accent"
+        {!processUrlJobId ? (
+          <>
+            <div className="grid grid-cols-1 gap-3 mb-3">
+              <Field
+                label="URL de la noticia"
+                type="url"
+                placeholder="https://ejemplo.com/noticia"
+                value={processUrlValue}
+                onChange={(e) => setProcessUrlValue(e.target.value)}
               />
-              Usar IA
-            </label>
-          </div>
-        </div>
-        <Btn
-          loading={urlProc.isPending}
-          disabled={!processUrlValue}
-          onClick={() => urlProc.mutate()}
-        >
-          Procesar URL
-        </Btn>
-        <LogPanel {...mutationState(urlProc)} />
+              <div className="grid grid-cols-2 gap-3">
+                <SelectField
+                  label="Proveedor IA"
+                  value={processProvider}
+                  onChange={setProcessProvider}
+                  options={aiProviders}
+                />
+                <label className="flex items-center gap-2 text-xs text-gray-400">
+                  <input
+                    type="checkbox"
+                    checked={useAi}
+                    onChange={(e) => setUseAi(e.target.checked)}
+                    className="accent-accent"
+                  />
+                  Usar IA
+                </label>
+              </div>
+            </div>
+            <Btn
+              loading={urlProc.isPending}
+              disabled={!processUrlValue}
+              onClick={() => urlProc.mutate()}
+            >
+              Procesar URL
+            </Btn>
+            {urlProc.isError && (
+              <div className="mt-4 p-4 rounded-lg bg-red-950/40 border border-red-800">
+                <p className="text-sm font-semibold text-red-300 mb-1">Error al iniciar procesamiento</p>
+                <p className="text-xs text-red-400">
+                  {urlProc.error instanceof Error ? urlProc.error.message : "Error desconocido"}
+                </p>
+              </div>
+            )}
+          </>
+        ) : (
+          <PipelineJobMonitor
+            jobId={processUrlJobId}
+            endpoint="process_url"
+            onComplete={() => setProcessUrlJobId(null)}
+            onError={() => setProcessUrlJobId(null)}
+          />
+        )}
       </StepCard>
     </div>
   );

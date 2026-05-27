@@ -23,6 +23,7 @@ interface PipelineJob {
 
 interface PipelineJobMonitorProps {
   jobId: string;
+  endpoint?: "pipeline" | "process_url";  // Specify which endpoint to poll (default: pipeline)
   onComplete?: (job: PipelineJob) => void;
   onError?: (error: string) => void;
 }
@@ -34,7 +35,7 @@ function formatSeconds(totalSeconds: number): string {
   return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 }
 
-export function PipelineJobMonitor({ jobId, onComplete, onError }: PipelineJobMonitorProps) {
+export function PipelineJobMonitor({ jobId, endpoint = "pipeline", onComplete, onError }: PipelineJobMonitorProps) {
   const [job, setJob] = useState<PipelineJob | null>(null);
   const [isRunning, setIsRunning] = useState(true);
 
@@ -43,7 +44,8 @@ export function PipelineJobMonitor({ jobId, onComplete, onError }: PipelineJobMo
 
     const pollJob = async () => {
       try {
-        const response = await api.get(`/news/pipeline/status/${jobId}`);
+        const statusEndpoint = endpoint === "process_url" ? `/news/process_url/status/${jobId}` : `/news/pipeline/status/${jobId}`;
+        const response = await api.get(statusEndpoint);
         const jobData = response.data.data as PipelineJob;
         setJob(jobData);
 

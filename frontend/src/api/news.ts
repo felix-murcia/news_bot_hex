@@ -62,5 +62,8 @@ export const processUrl = (
 ): Promise<PipelineResponse> =>
   api.post<PipelineResponse>("/news/process_url", req).then((r) => r.data);
 
+export const getProcessUrlStatus = (jobId: string): Promise<PipelineResponse> =>
+  api.get<PipelineResponse>(`/news/process_url/status/${jobId}`).then((r) => r.data);
+
 export const runNewsPipeline = (): Promise<PipelineResponse> =>
   api.post<PipelineResponse>("/news/pipeline").then((r) => r.data);

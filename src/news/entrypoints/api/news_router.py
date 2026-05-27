@@ -73,14 +73,9 @@ class TimerConfig(BaseModel):
 # Endpoints
 # ============================================================
 @router.post("/process_url", response_model=PipelineResponse)
-def news_process_url(
-    req: ProcessUrlRequest,
-    extractor: ContentExtractor = Depends(get_content_extractor),
-):
-    """Process a news URL and generate article + tweet."""
+def news_process_url(req: ProcessUrlRequest):
+    """Start async processing of a news URL. Returns job_id for polling status."""
     try:
-        from src.news.application.usecases.news_to_news import process_news_url
-
         if not req.url or not req.url.strip():
             msg, details = get_error_message("INVALID_URL")
             raise http_error(
@@ -91,7 +86,6 @@ def news_process_url(
             )
 
         model_provider = req.provider or Settings.AI_PROVIDER
-        # Validate provider is supported
         try:
             validate_provider(model_provider)
         except ValueError as e:
@@ -103,47 +97,27 @@ def news_process_url(
                 exception=e,
                 details=str(e),
             )
-        result = process_news_url(
+
+        # Create job and start async processing
+        from src.news.application.usecases.pipeline_job import create_job
+        from src.news.application.usecases.process_url_executor import execute_process_url_async
+
+        job_id = create_job()
+        execute_process_url_async(
+            job_id=job_id,
             url=req.url,
-            content_extractor=extractor,
             model_provider=model_provider,
             use_ai=req.use_ai,
-            force_extract=True,  # Always force fresh extraction for manual URL processing
         )
-
-        title = result.get("article_data", {}).get("article", {}).get("title", "")
-        post = result.get("post", "")[:200] if result.get("post") else ""
-        mode = result.get("mode", "")
 
         return PipelineResponse(
             status="ok",
-            message="News processed successfully",
-            data={
-                "title": title,
-                "post": post,
-                "mode": mode,
-            },
+            message="URL processing started",
+            data={"job_id": job_id},
         )
+
     except HTTPException:
         raise
-    except ValueError as e:
-        error_msg = str(e)
-        logger.error(f"[PROCESS_URL] ValueError: {error_msg}")
-        if "No se pudo extraer" in error_msg:
-            code = "CONTENT_EXTRACTION_FAILED"
-        elif "contenido insuficiente" in error_msg.lower() or len(error_msg) > 0 and "100" in error_msg:
-            code = "CONTENT_TOO_SHORT"
-        else:
-            code = "INVALID_REQUEST"
-        msg, details = get_error_message(code)
-        raise http_error(
-            status_code=400,
-            error_code=code,
-            message=msg,
-            exception=e,
-            details=details,
-            context={"original_error": error_msg},
-        )
     except Exception as e:
         error_type = type(e).__name__
         error_msg = str(e)
@@ -155,8 +129,42 @@ def news_process_url(
             message=msg,
             exception=e,
             details=details,
-            context={"url": req.url, "provider": model_provider, "error_type": error_type},
+            context={"url": req.url, "error_type": error_type},
         )
+
+
+@router.get("/process_url/status/{job_id}", response_model=PipelineResponse)
+def get_process_url_status(job_id: str):
+    """Get status and progress of a process_url job."""
+    try:
+        from src.news.application.usecases.pipeline_job import get_job
+
+        job = get_job(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+
+        return PipelineResponse(
+            status="ok",
+            message=job.get("message", ""),
+            data={
+                "job_id": job_id,
+                "status": job["status"],
+                "progress": job["progress"],
+                "message": job.get("message", ""),
+                "steps": job["steps"],
+                "error": job.get("error"),
+                "last_log": job.get("last_log"),
+                "created_at": job.get("created_at"),
+                "started_at": job.get("started_at"),
+                "completed_at": job.get("completed_at"),
+                "result": job.get("result"),  # Final result when completed
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting process_url status: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/rss", response_model=PipelineResponse)
