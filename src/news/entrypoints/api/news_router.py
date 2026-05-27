@@ -7,6 +7,7 @@ Usa FastAPI Depends() para inyecciones de dependencias (Composition Root).
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional, List
+import subprocess
 
 from config.logging_config import get_logger
 from config.settings import Settings
@@ -48,6 +49,12 @@ class PipelineResponse(BaseModel):
     status: str
     message: str
     data: Optional[dict] = None
+
+
+class TimerConfig(BaseModel):
+    enabled: bool
+    schedule_time: str
+    frequency: str = "daily"
 
 
 # ============================================================
@@ -266,4 +273,102 @@ def get_pipeline_status(job_id: str):
         raise
     except Exception as e:
         logger.error(f"Error getting pipeline status: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/timer/config", response_model=PipelineResponse)
+def get_timer_config():
+    """Get current timer configuration."""
+    try:
+        from config.timer_config import get_timer_config
+
+        config = get_timer_config()
+        return PipelineResponse(
+            status="ok",
+            message="Timer configuration retrieved",
+            data={
+                "enabled": config.enabled,
+                "schedule_time": config.schedule_time,
+                "frequency": config.frequency,
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error getting timer config: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/timer/config", response_model=PipelineResponse)
+def update_timer_config(config: TimerConfig):
+    """Update timer configuration."""
+    try:
+        from config.timer_config import update_timer_config
+
+        updated = update_timer_config(
+            enabled=config.enabled,
+            schedule_time=config.schedule_time,
+            frequency=config.frequency
+        )
+
+        # If enabled, ensure timer is running; if disabled, stop it
+        if config.enabled:
+            subprocess.run(
+                ["systemctl", "--user", "start", "news-bot-pipeline.timer"],
+                capture_output=True,
+                timeout=10
+            )
+        else:
+            subprocess.run(
+                ["systemctl", "--user", "stop", "news-bot-pipeline.timer"],
+                capture_output=True,
+                timeout=10
+            )
+
+        logger.info(f"[TIMER] Configuration updated: {updated.to_dict()}")
+
+        return PipelineResponse(
+            status="ok",
+            message="Timer configuration updated",
+            data={
+                "enabled": updated.enabled,
+                "schedule_time": updated.schedule_time,
+                "frequency": updated.frequency,
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error updating timer config: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/timer/status", response_model=PipelineResponse)
+def get_timer_status():
+    """Get systemd timer status."""
+    try:
+        result = subprocess.run(
+            ["systemctl", "--user", "status", "news-bot-pipeline.timer"],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+
+        is_active = result.returncode == 0
+
+        # Get next execution time
+        next_exec = subprocess.run(
+            ["systemctl", "--user", "list-timers", "news-bot-pipeline.timer", "--no-pager"],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+
+        return PipelineResponse(
+            status="ok",
+            message="Timer status retrieved",
+            data={
+                "active": is_active,
+                "status_output": result.stdout,
+                "timers_output": next_exec.stdout,
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error getting timer status: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
