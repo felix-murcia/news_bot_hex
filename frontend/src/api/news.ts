@@ -4,6 +4,7 @@ export interface ProcessUrlRequest {
   url: string;
   provider?: string;
   use_ai?: boolean;
+  force_extract?: boolean;
 }
 
 // Adjust these types if the backend response shape changes

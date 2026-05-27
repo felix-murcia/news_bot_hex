@@ -42,6 +42,7 @@ class NewsToNewsUseCase:
         ai_config: Optional[dict] = None,
         ai_model=None,
         video_generator: Optional[VideoGeneratorPort] = None,
+        force_extract: bool = False,
     ):
         self.content_extractor = content_extractor
         self.use_ai = use_ai
@@ -50,6 +51,7 @@ class NewsToNewsUseCase:
         self.ai_model = ai_model
         self.article_generator = None
         self.video_generator = video_generator or self._get_default_video_generator()
+        self.force_extract = force_extract
 
     def _get_default_video_generator(self) -> VideoGeneratorPort:
         """Obtiene el generador de videos por defecto."""
@@ -102,10 +104,15 @@ class NewsToNewsUseCase:
 
     def _extract_content(self, url: str) -> tuple[str, Path]:
         """Extrae contenido de la URL."""
-        cached = self._load_from_cache(url)
-        if cached:
-            logger.info("[NEWS_TO_NEWS] Usando contenido desde caché")
-            return cached
+        # Check cache only if force_extract is False
+        if not self.force_extract:
+            cached = self._load_from_cache(url)
+            if cached:
+                logger.info("[NEWS_TO_NEWS] Usando contenido desde caché")
+                return cached
+
+        if self.force_extract:
+            logger.info("[NEWS_TO_NEWS] Forzando extracción fresca (omitiendo caché)")
 
         content, method = self.content_extractor.extract(url)
 
@@ -261,6 +268,7 @@ def process_news_url(
     use_ai: bool = True,
     ai_config: Optional[dict] = None,
     video_generator: Optional[VideoGeneratorPort] = None,
+    force_extract: bool = False,
 ) -> Dict[str, Any]:
     """Función principal para procesar URL de noticia."""
     processor = NewsToNewsUseCase(
@@ -269,6 +277,7 @@ def process_news_url(
         use_ai=use_ai,
         ai_config=ai_config,
         video_generator=video_generator,
+        force_extract=force_extract,
     )
     return processor.process_url(url)
 
@@ -291,6 +300,11 @@ def main():
         help="Modelo de IA a usar",
     )
     parser.add_argument("--local", action="store_true", help="Usar solo modelo local")
+    parser.add_argument(
+        "--force-extract",
+        action="store_true",
+        help="Omitir caché y forzar extracción fresca con Jina",
+    )
 
     args = parser.parse_args()
 
@@ -306,6 +320,7 @@ def main():
             url=args.url,
             model_provider=args.model,
             use_ai=not args.local,
+            force_extract=args.force_extract,
         )
 
         print("✅ PROCESAMIENTO COMPLETADO")
