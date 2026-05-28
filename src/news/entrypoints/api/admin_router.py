@@ -53,17 +53,20 @@ def get_timer_config():
 def update_timer_config(config: TimerConfig):
     """Update timer configuration."""
     try:
-        from config.timer_config import update_timer_config, regenerate_systemd_timer
+        from config.timer_config import update_timer_config as save_timer_config
+        from config.timer_config import regenerate_systemd_timer
 
         # Save configuration to file
-        updated = update_timer_config(
+        updated = save_timer_config(
             enabled=config.enabled,
             schedule_time=config.schedule_time,
             frequency=config.frequency
         )
+        logger.info(f"[TIMER] Config saved: {updated.to_dict()}")
 
         # Regenerate systemd timer file with new configuration
         regenerate_systemd_timer(updated)
+        logger.info(f"[TIMER] Timer file regenerated")
 
         control_message = ""
         try:
