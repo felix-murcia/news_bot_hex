@@ -25,7 +25,7 @@ export function TimerSettings() {
   const { data: configData, isLoading: configLoading, refetch: refetchConfig } = useQuery({
     queryKey: ["timer-config"],
     queryFn: async () => {
-      const response = await api.get<TimerResponse>("/news/timer/config");
+      const response = await api.get<TimerResponse>("/admin/timer/config");
       return response.data.data as Record<string, unknown>;
     },
     staleTime: 30000,
@@ -35,7 +35,7 @@ export function TimerSettings() {
   const { data: statusData, isLoading: statusLoading, refetch: refetchStatus } = useQuery({
     queryKey: ["timer-status"],
     queryFn: async () => {
-      const response = await api.get<TimerResponse>("/news/timer/status");
+      const response = await api.get<TimerResponse>("/admin/timer/status");
       return response.data.data as Record<string, unknown>;
     },
     staleTime: 30000,
@@ -44,7 +44,7 @@ export function TimerSettings() {
   // Update config mutation
   const updateMutation = useMutation({
     mutationFn: async (config: TimerConfig) => {
-      const response = await api.post<TimerResponse>("/news/timer/config", config);
+      const response = await api.post<TimerResponse>("/admin/timer/config", config);
       return response.data;
     },
     onSuccess: () => {

@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import List
 from src.news.domain.entities.article import Article
 from src.news.domain.entities.verified_article import VerifiedArticle
+from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
 
 
 class RSSSourceRepository(ABC):

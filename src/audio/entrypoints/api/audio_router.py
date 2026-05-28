@@ -2,11 +2,12 @@
 FastAPI Router for Audio Pipeline.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
 
 from config.logging_config import get_logger
+from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
 
 logger = get_logger("audio_bot.api.router")
 
@@ -67,12 +68,20 @@ class PipelineRequest(BaseModel):
 
 
 @router.post("/pipeline", response_model=PipelineResponse)
-def audio_pipeline(req: PipelineRequest):
+def audio_pipeline(
+    req: PipelineRequest,
+    metrics_repo: MetricsRepositoryPort = Depends(lambda: None),
+):
     """Execute the complete audio pipeline: fetch → transcribe → article → publish."""
     try:
         from src.audio.application.usecases.audio_pipeline import AudioPipelineUseCase
+        from src.news.entrypoints.api.dependencies import get_metrics_repository, get_db
 
-        usecase = AudioPipelineUseCase(no_publish=req.no_publish)
+        if not metrics_repo:
+            db = get_db()
+            metrics_repo = get_metrics_repository(db=db)
+
+        usecase = AudioPipelineUseCase(no_publish=req.no_publish, metrics_repo=metrics_repo)
         result = usecase.run(url=req.url, tema=req.tema)
 
         return PipelineResponse(

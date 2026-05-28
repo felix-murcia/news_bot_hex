@@ -84,7 +84,7 @@ class ProcessUrlJobCoordinator:
 
             try:
                 logger.info(f"[PROCESS_URL_JOB] {job_id} Procesando {url}")
-                result = self.process_url_usecase(url)
+                result = self.process_url_usecase(url, job_id=job_id)
                 self.job_repository.add_step(job_id, ProcessingStepName.PROCESSING_URL, ProcessingStepStatus.OK)
                 logger.info(f"[PROCESS_URL_JOB] {job_id} Procesamiento completado")
             except Exception as e:

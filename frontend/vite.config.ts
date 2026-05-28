@@ -4,6 +4,7 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   server: {
+    host: "0.0.0.0",
     port: 5173,
     proxy: {
       // Dev proxy: forward /api calls to the backend
@@ -11,6 +12,11 @@ export default defineConfig({
         target: "http://localhost:8000",
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ""),
+      },
+      // Also proxy /metrics directly to backend
+      "/metrics": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
       },
     },
   },

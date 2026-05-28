@@ -1,5 +1,6 @@
 """Unified pipeline orchestrator for URL processing with pluggable steps."""
 
+import time
 from typing import Callable, Dict, Any, List, Optional
 from abc import ABC, abstractmethod
 from config.logging_config import get_logger
@@ -8,6 +9,9 @@ from src.shared.domain.ports.image_enricher_port import ImageEnricherPort
 from src.shared.domain.ports.wordpress_publisher_port import WordPressPublisherPort
 from src.shared.domain.ports.social_publisher_port import SocialPublisherPort
 from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
+from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
+from src.news.domain.entities.processing_metric import PipelineType
+from src.news.application.usecases.metrics_collector import MetricsCollector
 
 logger = get_logger("news_bot.pipeline.orchestrator")
 
@@ -216,6 +220,7 @@ class ProcessUrlPipeline:
         wp_publisher: WordPressPublisherPort,
         social_publishers: List[SocialPublisherPort],
         db,
+        metrics_repo: Optional[MetricsRepositoryPort] = None,
     ):
         """Initialize with all dependencies."""
         self.steps: List[PipelineStep] = [
@@ -228,10 +233,29 @@ class ProcessUrlPipeline:
             PublishSocialStep(social_publishers),
         ]
         self.db = db
+        self.metrics_repo = metrics_repo
 
-    def execute(self, url: str) -> Dict[str, Any]:
-        """Execute complete pipeline for a URL."""
+    def execute(self, url: str, job_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Execute complete pipeline for a URL.
+
+        Args:
+            url: URL to process
+            job_id: Unique job identifier for metrics tracking
+
+        Returns:
+            Context dict with results
+        """
         logger.info(f"[PIPELINE] Starting pipeline for: {url}")
+
+        # Initialize metrics collector if available
+        metrics = None
+        if self.metrics_repo and job_id:
+            metrics = MetricsCollector(
+                execution_id=job_id,
+                pipeline_type=PipelineType.NEWS,
+                metrics_repo=self.metrics_repo,
+            )
 
         context = {
             "url": url,
@@ -250,19 +274,53 @@ class ProcessUrlPipeline:
             articles_coll = self.db["generated_articles"]
 
             for step in self.steps:
+                step_name = step.name()
+                step_start_ns = time.time_ns()
+
                 try:
                     context = step.execute(context)
+                    step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
+
+                    if metrics:
+                        metrics.record_step(step_name, "OK", step_duration_ms)
+                    logger.debug(f"[PIPELINE] Step {step_name} completed in {step_duration_ms}ms")
+
                 except Exception as e:
-                    logger.error(f"[PIPELINE] Step {step.name()} failed: {e}", exc_info=True)
+                    step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
+                    logger.error(
+                        f"[PIPELINE] Step {step_name} failed after {step_duration_ms}ms: {e}",
+                        exc_info=True,
+                    )
+
+                    if metrics:
+                        metrics.record_step(step_name, "FAILED", step_duration_ms, str(e))
+
                     # For critical steps (ProcessURL, Publish), re-raise
-                    if step.name() in ["Process URL", "Publish WordPress"]:
+                    if step_name in ["Process URL", "Publish WordPress"]:
                         raise
-                    # For non-critical steps, continue
-                    logger.warning(f"[PIPELINE] Continuing after {step.name()} error")
+
+                    # For non-critical steps, mark as skipped and continue
+                    logger.warning(f"[PIPELINE] Continuing after {step_name} error")
 
             logger.info("[PIPELINE] ✅ Pipeline completed successfully")
+
+            # Flush metrics asynchronously (non-blocking)
+            if metrics:
+                import asyncio
+                try:
+                    asyncio.create_task(metrics.flush())
+                except Exception as e:
+                    logger.warning(f"[PIPELINE] Could not flush metrics: {e}")
+
             return context
 
         except Exception as e:
             logger.error(f"[PIPELINE] Pipeline failed: {e}", exc_info=True)
+            # Flush failure metrics
+            if metrics:
+                import asyncio
+                try:
+                    asyncio.create_task(metrics.flush())
+                except Exception as flush_error:
+                    logger.warning(f"[PIPELINE] Could not flush error metrics: {flush_error}")
             raise

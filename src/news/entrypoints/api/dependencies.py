@@ -85,6 +85,13 @@ def get_scoring_config_repo(db=Depends(get_db)):
     return MongoScoringConfigRepository(db)
 
 
+def get_metrics_repository(db=Depends(get_db)):
+    """Repositorio de métricas de pipeline."""
+    from src.news.infrastructure.adapters.mongo_metrics_repository import MongoMetricsRepository
+    from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
+    return MongoMetricsRepository(db)
+
+
 # ============================================================
 # Adapter Dependencies
 # ============================================================
@@ -311,6 +318,7 @@ def get_process_url_usecase(
     wp_publisher=Depends(get_wordpress_publisher_port),
     social_publishers=Depends(get_social_publisher_ports),
     db=Depends(get_db),
+    metrics_repo=Depends(get_metrics_repository),
 ):
     """ProcessUrlPipeline - unified orchestrator for complete 7-step pipeline."""
     from src.news.application.usecases.process_url_pipeline import ProcessUrlPipeline
@@ -323,6 +331,7 @@ def get_process_url_usecase(
         wp_publisher=wp_publisher,
         social_publishers=social_publishers,
         db=db,
+        metrics_repo=metrics_repo,
     )
 
     # Return the execute method as the callable usecase
