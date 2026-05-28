@@ -30,9 +30,30 @@ export function StepDurationChart({ pipelineType, days }: StepDurationChartProps
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    setLoading(true)
-    setData(generateMockData())
-    setLoading(false)
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        const response = await fetch(`/api/metrics/step-breakdown?pipeline_type=${pipelineType}&days=${days}`)
+        const json = await response.json()
+
+        if (json.status === 'ok' && json.data) {
+          const chartData = json.data.map((step: any) => ({
+            name: step.name,
+            duration: step.avg_duration_ms,
+          }))
+          setData(chartData)
+        } else {
+          setData(generateMockData())
+        }
+      } catch (error) {
+        console.error('Error fetching step breakdown data:', error)
+        setData(generateMockData())
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
   }, [pipelineType, days])
 
   return (

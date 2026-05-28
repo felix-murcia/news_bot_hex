@@ -16,9 +16,32 @@ export function LogsTable({ pipelineType }: LogsTableProps) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    setLoading(true)
-    setLogs(generateMockLogs())
-    setLoading(false)
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        const response = await fetch(`/api/metrics/recent-executions?pipeline_type=${pipelineType}&limit=10`)
+        const json = await response.json()
+
+        if (json.status === 'ok' && json.data) {
+          const logEntries: LogEntry[] = json.data.map((exec: any) => ({
+            timestamp: new Date(exec.timestamp).toLocaleTimeString(),
+            level: exec.status === 'OK' ? 'INFO' : 'ERROR',
+            message: `Pipeline ${exec.status === 'OK' ? 'completed' : 'failed'} (${exec.step_count} steps)`,
+            duration: exec.duration_ms,
+          }))
+          setLogs(logEntries)
+        } else {
+          setLogs(generateMockLogs())
+        }
+      } catch (error) {
+        console.error('Error fetching recent executions:', error)
+        setLogs(generateMockLogs())
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
   }, [pipelineType])
 
   const getLevelColor = (level: string) => {

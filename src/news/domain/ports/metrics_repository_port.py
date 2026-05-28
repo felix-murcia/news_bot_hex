@@ -72,3 +72,81 @@ class MetricsRepositoryPort(ABC):
             ]
         """
         pass
+
+    @abstractmethod
+    def get_recent_executions(
+        self,
+        pipeline_type: Optional[PipelineType] = None,
+        limit: int = 10,
+    ) -> List[dict]:
+        """
+        Get recent pipeline executions.
+
+        Args:
+            pipeline_type: Filter by pipeline type (None = all types)
+            limit: Maximum number of executions to return
+
+        Returns:
+            List of recent execution dicts:
+            [
+                {
+                    "execution_id": str,
+                    "pipeline_type": str,
+                    "timestamp": datetime,
+                    "duration_ms": int,
+                    "status": "OK" | "FAILED",
+                    "step_count": int,
+                }
+            ]
+        """
+        pass
+
+    @abstractmethod
+    def get_step_breakdown(
+        self,
+        pipeline_type: PipelineType,
+        start: datetime,
+        end: datetime,
+    ) -> List[dict]:
+        """
+        Get average duration and success rate per pipeline step.
+
+        Args:
+            pipeline_type: Pipeline type to analyze
+            start: Start datetime
+            end: End datetime
+
+        Returns:
+            List of step breakdown dicts:
+            [
+                {
+                    "name": str (step name),
+                    "avg_duration_ms": float,
+                    "success_count": int,
+                    "error_count": int,
+                    "success_rate": float (0.0-1.0),
+                }
+            ]
+        """
+        pass
+
+    @abstractmethod
+    def get_activity_heatmap(
+        self,
+        pipeline_type: PipelineType,
+        start: datetime,
+        end: datetime,
+    ) -> List[List[int]]:
+        """
+        Get execution count by hour and day for heatmap visualization.
+
+        Args:
+            pipeline_type: Pipeline type to analyze
+            start: Start datetime
+            end: End datetime
+
+        Returns:
+            2D array [hour (0-23)][day (0-6)]:
+            [[count_h0_d0, count_h0_d1, ...], [count_h1_d0, ...], ...]
+        """
+        pass

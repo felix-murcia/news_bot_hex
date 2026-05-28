@@ -192,6 +192,157 @@ class MongoMetricsRepository(MetricsRepositoryPort):
             logger.error(f"Error retrieving aggregated metrics: {e}")
             return []
 
+    def get_recent_executions(
+        self,
+        pipeline_type: Optional[PipelineType] = None,
+        limit: int = 10,
+    ) -> List[dict]:
+        """Get recent pipeline executions (synchronous)."""
+        try:
+            query = {}
+            if pipeline_type:
+                query["pipeline_type"] = pipeline_type.value
+
+            results = list(
+                self._collection.find(query, {"_id": 0, "steps": 0}).sort(
+                    "created_at", -1
+                ).limit(limit)
+            )
+
+            executions = []
+            for doc in results:
+                executions.append({
+                    "execution_id": doc["execution_id"],
+                    "pipeline_type": doc["pipeline_type"],
+                    "timestamp": doc["created_at"].isoformat(),
+                    "duration_ms": doc["total_duration_ms"],
+                    "status": "OK" if doc["success"] else "FAILED",
+                    "step_count": doc["step_count"],
+                })
+
+            logger.debug(f"Retrieved {len(executions)} recent executions")
+            return executions
+        except Exception as e:
+            logger.error(f"Error retrieving recent executions: {e}")
+            return []
+
+    def get_step_breakdown(
+        self,
+        pipeline_type: PipelineType,
+        start: datetime,
+        end: datetime,
+    ) -> List[dict]:
+        """Get average duration and success rate per pipeline step (synchronous)."""
+        try:
+            pipeline = [
+                {
+                    "$match": {
+                        "pipeline_type": pipeline_type.value,
+                        "created_at": {"$gte": start, "$lte": end},
+                    }
+                },
+                {
+                    "$unwind": "$steps"
+                },
+                {
+                    "$group": {
+                        "_id": "$steps.name",
+                        "avg_duration_ms": {"$avg": "$steps.duration_ms"},
+                        "success_count": {
+                            "$sum": {
+                                "$cond": [
+                                    {"$eq": ["$steps.status", "OK"]},
+                                    1,
+                                    0
+                                ]
+                            }
+                        },
+                        "error_count": {
+                            "$sum": {
+                                "$cond": [
+                                    {"$eq": ["$steps.status", "FAILED"]},
+                                    1,
+                                    0
+                                ]
+                            }
+                        },
+                    }
+                },
+                {
+                    "$project": {
+                        "name": "$_id",
+                        "avg_duration_ms": {"$round": ["$avg_duration_ms", 0]},
+                        "success_count": 1,
+                        "error_count": 1,
+                        "success_rate": {
+                            "$divide": [
+                                "$success_count",
+                                {"$add": ["$success_count", "$error_count"]}
+                            ]
+                        },
+                        "_id": 0,
+                    }
+                },
+                {"$sort": {"name": 1}},
+            ]
+
+            results = list(self._collection.aggregate(pipeline))
+            logger.debug(f"Retrieved step breakdown for {pipeline_type.value}")
+            return results
+        except Exception as e:
+            logger.error(f"Error retrieving step breakdown: {e}")
+            return []
+
+    def get_activity_heatmap(
+        self,
+        pipeline_type: PipelineType,
+        start: datetime,
+        end: datetime,
+    ) -> List[List[int]]:
+        """Get execution count by hour and day for heatmap (synchronous)."""
+        try:
+            # Initialize 24x7 grid with zeros
+            heatmap = [[0 for _ in range(7)] for _ in range(24)]
+
+            # Aggregate count by hour and day of week
+            pipeline = [
+                {
+                    "$match": {
+                        "pipeline_type": pipeline_type.value,
+                        "created_at": {"$gte": start, "$lte": end},
+                    }
+                },
+                {
+                    "$group": {
+                        "_id": {
+                            "hour": {"$hour": "$created_at"},
+                            "day_of_week": {"$dayOfWeek": "$created_at"},
+                        },
+                        "count": {"$sum": 1},
+                    }
+                },
+            ]
+
+            results = list(self._collection.aggregate(pipeline))
+
+            # Fill heatmap with counts
+            for doc in results:
+                hour = doc["_id"]["hour"]
+                # dayOfWeek: 1=Sunday, 2=Monday, ..., 7=Saturday
+                # Convert to 0=Monday, ..., 6=Sunday for consistency
+                day_of_week = (doc["_id"]["day_of_week"] - 2) % 7
+                count = doc["count"]
+
+                if 0 <= hour < 24 and 0 <= day_of_week < 7:
+                    heatmap[hour][day_of_week] = count
+
+            logger.debug(f"Retrieved activity heatmap for {pipeline_type.value}")
+            return heatmap
+        except Exception as e:
+            logger.error(f"Error retrieving activity heatmap: {e}")
+            # Return empty heatmap on error
+            return [[0 for _ in range(7)] for _ in range(24)]
+
     def _doc_to_metric(self, doc: dict) -> ProcessingMetric:
         """Convert MongoDB document to ProcessingMetric value object."""
         steps = [

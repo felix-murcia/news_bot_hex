@@ -9,9 +9,26 @@ export function ActivityHeatmap({ pipelineType }: ActivityHeatmapProps) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    setLoading(true)
-    setData(generateHeatmapData())
-    setLoading(false)
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        const response = await fetch(`/api/metrics/activity-heatmap?pipeline_type=${pipelineType}&days=7`)
+        const json = await response.json()
+
+        if (json.status === 'ok' && json.data) {
+          setData(json.data)
+        } else {
+          setData(generateHeatmapData())
+        }
+      } catch (error) {
+        console.error('Error fetching activity heatmap:', error)
+        setData(generateHeatmapData())
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
   }, [pipelineType])
 
   const getHeatColor = (value: number) => {

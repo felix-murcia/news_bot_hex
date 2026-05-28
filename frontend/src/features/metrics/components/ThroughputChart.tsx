@@ -19,9 +19,31 @@ export function ThroughputChart({ pipelineType, days }: ThroughputChartProps) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    setLoading(true)
-    setData(generateMockData(days))
-    setLoading(false)
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        const hours = days * 24
+        const response = await fetch(`/api/metrics/hourly?pipeline_type=${pipelineType}&hours=${hours}`)
+        const json = await response.json()
+
+        if (json.status === 'ok' && json.data) {
+          const chartData = json.data.map((item: any) => ({
+            time: item.timestamp,
+            throughput: Math.round((item.count || 0) / 24), // normalize to executions per hour
+          }))
+          setData(chartData)
+        } else {
+          setData(generateMockData(days))
+        }
+      } catch (error) {
+        console.error('Error fetching throughput data:', error)
+        setData(generateMockData(days))
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
   }, [pipelineType, days])
 
   return (

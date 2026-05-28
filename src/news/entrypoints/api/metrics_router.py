@@ -9,8 +9,120 @@ from src.news.domain.entities.processing_metric import PipelineType
 router = APIRouter()
 
 
+@router.get("/recent-executions")
+def get_recent_executions(
+    pipeline_type: Optional[str] = Query(None, description="Filter by pipeline type (NEWS, AUDIO, VIDEO)"),
+    limit: int = Query(10, ge=1, le=100, description="Number of recent executions to return"),
+    metrics_repo=Depends(get_metrics_repository),
+):
+    """
+    Get recent pipeline executions with their status and duration.
+
+    Returns: List of recent executions with execution_id, timestamp, duration, status, step_count.
+    """
+    try:
+        pipeline_type_enum = None
+        if pipeline_type:
+            pipeline_type_enum = PipelineType(pipeline_type.upper())
+
+        executions = metrics_repo.get_recent_executions(
+            pipeline_type=pipeline_type_enum,
+            limit=limit
+        )
+
+        return {
+            "status": "ok",
+            "pipeline_type": pipeline_type or "ALL",
+            "data": executions,
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "data": [],
+        }
+
+
+@router.get("/step-breakdown")
+def get_step_breakdown(
+    pipeline_type: Optional[str] = Query(None, description="Filter by pipeline type (NEWS, AUDIO, VIDEO)"),
+    days: int = Query(7, ge=1, le=90, description="Number of days to aggregate"),
+    metrics_repo=Depends(get_metrics_repository),
+):
+    """
+    Get average duration and success rate per pipeline step.
+
+    Returns: List of steps with avg_duration_ms, success_count, error_count.
+    """
+    try:
+        pipeline_type_enum = None
+        if pipeline_type:
+            pipeline_type_enum = PipelineType(pipeline_type.upper())
+
+        end = datetime.now()
+        start = end - timedelta(days=days)
+
+        steps_data = metrics_repo.get_step_breakdown(
+            pipeline_type=pipeline_type_enum or PipelineType.NEWS,
+            start=start,
+            end=end,
+        )
+
+        return {
+            "status": "ok",
+            "pipeline_type": pipeline_type or "NEWS",
+            "days": days,
+            "data": steps_data,
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "data": [],
+        }
+
+
+@router.get("/activity-heatmap")
+def get_activity_heatmap(
+    pipeline_type: Optional[str] = Query(None, description="Filter by pipeline type (NEWS, AUDIO, VIDEO)"),
+    days: int = Query(7, ge=1, le=30, description="Number of days to include (max 30)"),
+    metrics_repo=Depends(get_metrics_repository),
+):
+    """
+    Get execution activity count by hour and day for heatmap visualization.
+
+    Returns: 2D array [hour][day] with execution counts.
+    """
+    try:
+        pipeline_type_enum = None
+        if pipeline_type:
+            pipeline_type_enum = PipelineType(pipeline_type.upper())
+
+        end = datetime.now()
+        start = end - timedelta(days=days)
+
+        heatmap_data = metrics_repo.get_activity_heatmap(
+            pipeline_type=pipeline_type_enum or PipelineType.NEWS,
+            start=start,
+            end=end,
+        )
+
+        return {
+            "status": "ok",
+            "pipeline_type": pipeline_type or "NEWS",
+            "days": days,
+            "data": heatmap_data,
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "data": [],
+        }
+
+
 @router.get("/daily-average")
-async def get_daily_average(
+def get_daily_average(
     pipeline_type: Optional[str] = Query(None, description="Filter by pipeline type (NEWS, AUDIO, VIDEO)"),
     days: int = Query(7, ge=1, le=90, description="Number of days to aggregate"),
     metrics_repo=Depends(get_metrics_repository),
@@ -29,7 +141,7 @@ async def get_daily_average(
         end = datetime.now()
         start = end - timedelta(days=days)
 
-        aggregated = await metrics_repo.get_aggregated(
+        aggregated = metrics_repo.get_aggregated(
             pipeline_type=pipeline_type_enum or PipelineType.NEWS,
             period="daily",
             start=start,
@@ -51,7 +163,7 @@ async def get_daily_average(
 
 
 @router.get("/hourly")
-async def get_hourly_metrics(
+def get_hourly_metrics(
     pipeline_type: Optional[str] = Query(None, description="Filter by pipeline type (NEWS, AUDIO, VIDEO)"),
     hours: int = Query(24, ge=1, le=240, description="Number of hours to aggregate"),
     metrics_repo=Depends(get_metrics_repository),
@@ -70,7 +182,7 @@ async def get_hourly_metrics(
         end = datetime.now()
         start = end - timedelta(hours=hours)
 
-        aggregated = await metrics_repo.get_aggregated(
+        aggregated = metrics_repo.get_aggregated(
             pipeline_type=pipeline_type_enum or PipelineType.NEWS,
             period="hourly",
             start=start,
@@ -92,7 +204,7 @@ async def get_hourly_metrics(
 
 
 @router.get("/health")
-async def get_health_metrics(
+def get_health_metrics(
     metrics_repo=Depends(get_metrics_repository),
 ):
     """
@@ -113,7 +225,7 @@ async def get_health_metrics(
         results = {}
         for pipeline_type in [PipelineType.NEWS, PipelineType.AUDIO, PipelineType.VIDEO]:
             try:
-                aggregated = await metrics_repo.get_aggregated(
+                aggregated = metrics_repo.get_aggregated(
                     pipeline_type=pipeline_type,
                     period="hourly",
                     start=start,
