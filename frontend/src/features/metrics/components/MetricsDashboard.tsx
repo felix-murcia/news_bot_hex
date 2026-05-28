@@ -24,13 +24,11 @@ export function MetricsDashboard() {
   const [loading, setLoading] = useState(true)
   const [health, setHealth] = useState<HealthData | null>(null)
 
-  const apiBase = 'http://localhost:8000'
-
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const res = await axios.get(`${apiBase}/metrics/health`)
+        const res = await axios.get('/metrics/health')
         if (res.data.data && res.data.data[pipelineType]) {
           setHealth(res.data.data[pipelineType])
         }

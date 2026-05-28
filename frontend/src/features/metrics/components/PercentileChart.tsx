@@ -24,7 +24,7 @@ export function PercentileChart({ pipelineType, days }: PercentileChartProps) {
     const fetchData = async () => {
       try {
         const res = await axios.get(
-          `http://localhost:8000/metrics/daily-average?pipeline_type=${pipelineType}&days=${days}`
+          `/metrics/daily-average?pipeline_type=${pipelineType}&days=${days}`
         )
         const chartData = res.data.data?.map((d: any) => ({
           timestamp: d.timestamp?.split('T')[0] || '',

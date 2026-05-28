@@ -24,3 +24,4 @@ venv_news_bot/
 node_modules/
 tests/
 *.md
+docs/
