@@ -13,6 +13,10 @@ from config.logging_config import setup_logging, get_logger
 setup_logging()
 logger = get_logger("news_bot.server")
 
+# Validate critical infrastructure before initializing application
+from src.shared.infrastructure.startup_validator import validate_startup_infrastructure
+validate_startup_infrastructure()
+
 from src.news.entrypoints.api.news_router import router as news_router
 from src.news.entrypoints.api.admin_router import router as admin_router
 from src.news.entrypoints.api.metrics_router import router as metrics_router
@@ -48,7 +52,40 @@ app.include_router(video_router, prefix="/video", tags=["video"])
 
 @app.get("/health")
 def health_check() -> dict:
-    return {"status": "ok", "service": "news_bot_hex"}
+    """Health check endpoint that returns infrastructure status.
+
+    Returns:
+        dict with status, service name, and infrastructure details including:
+        - database name (validates correct database is configured)
+        - article count (validates data exists)
+        - RSS sources count (validates pipeline can run)
+    """
+    from src.shared.adapters.mongo_db import get_database
+
+    try:
+        db = get_database()
+        db.command("ping")
+
+        article_count = db["raw_news"].count_documents({})
+        sources_doc = db["sources_rss"].find_one({"_id": "sources"})
+        sources_count = len(sources_doc.get("sources", [])) if sources_doc else 0
+
+        return {
+            "status": "ok",
+            "service": "news_bot_hex",
+            "database": {
+                "name": db.name,
+                "article_count": article_count,
+                "rss_sources_count": sources_count,
+            },
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return {
+            "status": "error",
+            "service": "news_bot_hex",
+            "error": str(e),
+        }
 
 
 @app.get("/logs/tail")
