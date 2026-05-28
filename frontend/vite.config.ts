@@ -9,13 +9,13 @@ export default defineConfig({
     proxy: {
       // Dev proxy: forward /api calls to the backend
       "/api": {
-        target: "http://localhost:9000",
+        target: "http://localhost:8000",
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ""),
       },
       // Also proxy /metrics directly to backend
       "/metrics": {
-        target: "http://localhost:9000",
+        target: "http://localhost:8000",
         changeOrigin: true,
       },
     },

@@ -92,6 +92,13 @@ def get_metrics_repository(db=Depends(get_db)):
     return MongoMetricsRepository(db)
 
 
+def get_timer_config_repository(db=Depends(get_db)):
+    """Repositorio de configuración del timer."""
+    from src.news.infrastructure.adapters.mongo_timer_config_repository import MongoTimerConfigRepository
+    from src.news.domain.ports.timer_config_repository_port import TimerConfigRepositoryPort
+    return MongoTimerConfigRepository(db)
+
+
 # ============================================================
 # Adapter Dependencies
 # ============================================================

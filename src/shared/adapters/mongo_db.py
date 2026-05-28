@@ -27,14 +27,17 @@ class MongoDBClient:
 
     def get_client(self):
         if self._client is None:
-            self._client = MongoClient(
-                host=self._host,
-                port=self._port,
-                username=self._user,
-                password=self._password,
-                authSource="admin",
-                serverSelectionTimeoutMS=5000,
-            )
+            kwargs = {
+                "host": self._host,
+                "port": self._port,
+                "serverSelectionTimeoutMS": 5000,
+            }
+            # Only add authentication if credentials are provided
+            if self._user and self._password:
+                kwargs["username"] = self._user
+                kwargs["password"] = self._password
+                kwargs["authSource"] = "admin"
+            self._client = MongoClient(**kwargs)
         return self._client
 
     def get_database(self):

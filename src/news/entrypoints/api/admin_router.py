@@ -3,13 +3,17 @@
 Handles infrastructure configuration: timers, providers, and system status.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
 import subprocess
+from datetime import datetime
 
 from config.logging_config import get_logger
 from config.settings import Settings
+from src.news.domain.entities.timer_config import TimerFrequency
+from src.news.domain.ports.timer_config_repository_port import TimerConfigRepositoryPort
+from src.news.entrypoints.api.dependencies import get_timer_config_repository
 
 logger = get_logger("news_bot.api.admin")
 
@@ -29,43 +33,55 @@ class TimerConfig(BaseModel):
 
 
 @router.get("/timer/config", response_model=PipelineResponse)
-def get_timer_config():
+async def get_timer_config(timer_repo: TimerConfigRepositoryPort = Depends(get_timer_config_repository)):
     """Get current timer configuration."""
     try:
-        from config.timer_config import get_timer_config
+        config = await timer_repo.get_current()
+        if not config:
+            raise HTTPException(status_code=404, detail="Timer configuration not found")
 
-        config = get_timer_config()
         return PipelineResponse(
             status="ok",
             message="Timer configuration retrieved",
             data={
                 "enabled": config.enabled,
                 "schedule_time": config.schedule_time,
-                "frequency": config.frequency,
+                "frequency": config.frequency.value,
             }
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting timer config: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/timer/config", response_model=PipelineResponse)
-def update_timer_config(config: TimerConfig):
+async def update_timer_config(
+    config: TimerConfig,
+    timer_repo: TimerConfigRepositoryPort = Depends(get_timer_config_repository)
+):
     """Update timer configuration."""
     try:
-        from config.timer_config import update_timer_config as save_timer_config
-        from config.timer_config import regenerate_systemd_timer
+        from src.news.infrastructure.adapters.systemd_timer_adapter import SystemdTimerAdapter
+        from src.news.domain.entities.timer_config import TimerConfig as DomainTimerConfig
 
-        # Save configuration to file
-        updated = save_timer_config(
+        # Create domain entity from request
+        domain_config = DomainTimerConfig(
             enabled=config.enabled,
             schedule_time=config.schedule_time,
-            frequency=config.frequency
+            frequency=TimerFrequency(config.frequency),
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
         )
+
+        # Save configuration to MongoDB
+        updated = await timer_repo.save(domain_config)
         logger.info(f"[TIMER] Config saved: {updated.to_dict()}")
 
         # Regenerate systemd timer file with new configuration
-        regenerate_systemd_timer(updated)
+        systemd_adapter = SystemdTimerAdapter()
+        systemd_adapter.regenerate_timer_file(updated)
         logger.info(f"[TIMER] Timer file regenerated")
 
         control_message = ""
@@ -114,7 +130,7 @@ def update_timer_config(config: TimerConfig):
             else:
                 control_message = " (Manual control via: systemctl --user start news-bot-pipeline.timer)"
 
-        logger.info(f"[TIMER] Configuration updated: enabled={updated.enabled}, schedule={updated.frequency} at {updated.schedule_time}{control_message}")
+        logger.info(f"[TIMER] Configuration updated: enabled={updated.enabled}, schedule={updated.frequency.value} at {updated.schedule_time}{control_message}")
 
         return PipelineResponse(
             status="ok",
@@ -122,7 +138,7 @@ def update_timer_config(config: TimerConfig):
             data={
                 "enabled": updated.enabled,
                 "schedule_time": updated.schedule_time,
-                "frequency": updated.frequency,
+                "frequency": updated.frequency.value,
             }
         )
     except Exception as e:
@@ -146,12 +162,19 @@ def get_supported_providers():
 
 
 @router.get("/timer/status", response_model=PipelineResponse)
-def get_timer_status():
+async def get_timer_status(timer_repo: TimerConfigRepositoryPort = Depends(get_timer_config_repository)):
     """Get systemd timer status (or fallback if running in Docker)."""
     try:
-        from config.timer_config import get_timer_config
-
-        config = get_timer_config()
+        config = await timer_repo.get_current()
+        if not config:
+            return PipelineResponse(
+                status="ok",
+                message="Timer status (no configuration)",
+                data={
+                    "active": False,
+                    "status_output": "No timer configuration found",
+                }
+            )
 
         is_active = None
         status_output = ""
@@ -178,12 +201,12 @@ def get_timer_status():
             logger.info("[TIMER] systemctl not available (running in Docker?), using config status")
             is_active = config.enabled
             status_output = f"Timer is {'enabled' if config.enabled else 'disabled'} (systemctl unavailable)"
-            timers_output = f"Schedule: {config.schedule_time} ({config.frequency})"
+            timers_output = f"Schedule: {config.schedule_time} ({config.frequency.value})"
         except Exception as e:
             logger.warning(f"[TIMER] Could not get systemd status: {e}")
             is_active = config.enabled
             status_output = f"Timer is {'enabled' if config.enabled else 'disabled'} (status unavailable)"
-            timers_output = f"Schedule: {config.schedule_time} ({config.frequency})"
+            timers_output = f"Schedule: {config.schedule_time} ({config.frequency.value})"
 
         return PipelineResponse(
             status="ok",
@@ -192,7 +215,7 @@ def get_timer_status():
                 "active": is_active,
                 "enabled": config.enabled,
                 "schedule_time": config.schedule_time,
-                "frequency": config.frequency,
+                "frequency": config.frequency.value,
                 "status_output": status_output,
                 "timers_output": timers_output,
             }
