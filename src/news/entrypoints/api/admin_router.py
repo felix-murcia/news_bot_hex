@@ -53,17 +53,38 @@ def get_timer_config():
 def update_timer_config(config: TimerConfig):
     """Update timer configuration."""
     try:
-        from config.timer_config import update_timer_config
+        from config.timer_config import update_timer_config, regenerate_systemd_timer
 
+        # Save configuration to file
         updated = update_timer_config(
             enabled=config.enabled,
             schedule_time=config.schedule_time,
             frequency=config.frequency
         )
 
+        # Regenerate systemd timer file with new configuration
+        regenerate_systemd_timer(updated)
+
         control_message = ""
         try:
+            # Reload systemd daemon to pick up timer file changes
+            result = subprocess.run(
+                ["systemctl", "--user", "daemon-reload"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if result.returncode != 0:
+                logger.warning(f"[TIMER] daemon-reload failed: {result.stderr}")
+
             if config.enabled:
+                # Stop and start to apply new schedule
+                subprocess.run(
+                    ["systemctl", "--user", "stop", "news-bot-pipeline.timer"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
                 result = subprocess.run(
                     ["systemctl", "--user", "start", "news-bot-pipeline.timer"],
                     capture_output=True,
@@ -71,7 +92,9 @@ def update_timer_config(config: TimerConfig):
                     timeout=10
                 )
                 if result.returncode == 0:
-                    control_message = " (Timer started)"
+                    control_message = " (Timer reloaded and started)"
+                else:
+                    control_message = f" (Timer reload failed: {result.stderr})"
             else:
                 result = subprocess.run(
                     ["systemctl", "--user", "stop", "news-bot-pipeline.timer"],
@@ -88,7 +111,7 @@ def update_timer_config(config: TimerConfig):
             else:
                 control_message = " (Manual control via: systemctl --user start news-bot-pipeline.timer)"
 
-        logger.info(f"[TIMER] Configuration updated: {updated.to_dict()}{control_message}")
+        logger.info(f"[TIMER] Configuration updated: enabled={updated.enabled}, schedule={updated.frequency} at {updated.schedule_time}{control_message}")
 
         return PipelineResponse(
             status="ok",
