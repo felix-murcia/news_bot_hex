@@ -96,6 +96,9 @@ def regenerate_systemd_timer(config: TimerConfig) -> bool:
             on_calendar = f"Mon *-*-* {hour}:{minute}:00"
         elif config.frequency == "monthly":
             on_calendar = f"*-*-01 {hour}:{minute}:00"
+        elif config.frequency == "hourly":
+            # Every hour starting from the specified hour (e.g., 14/1:00:00 = every hour at 14:00, 15:00, 16:00, etc.)
+            on_calendar = f"*-*-* {hour}/1:{minute}:00"
         else:
             on_calendar = f"*-*-* {hour}:{minute}:00"  # Default to daily
 
