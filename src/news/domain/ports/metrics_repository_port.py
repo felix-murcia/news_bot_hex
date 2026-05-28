@@ -8,9 +8,9 @@ class MetricsRepositoryPort(ABC):
     """Port for persisting and querying pipeline execution metrics."""
 
     @abstractmethod
-    async def save(self, metric: ProcessingMetric) -> None:
+    def save(self, metric: ProcessingMetric) -> None:
         """
-        Persist a pipeline execution metric.
+        Persist a pipeline execution metric (synchronous, non-blocking).
 
         Args:
             metric: ProcessingMetric value object to persist
@@ -21,14 +21,14 @@ class MetricsRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    async def get_by_date_range(
+    def get_by_date_range(
         self,
         start: datetime,
         end: datetime,
         pipeline_type: Optional[PipelineType] = None,
     ) -> List[ProcessingMetric]:
         """
-        Retrieve metrics for a date range.
+        Retrieve metrics for a date range (synchronous).
 
         Args:
             start: Start datetime (inclusive)
@@ -41,7 +41,7 @@ class MetricsRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    async def get_aggregated(
+    def get_aggregated(
         self,
         pipeline_type: PipelineType,
         period: Literal["hourly", "daily", "weekly"],

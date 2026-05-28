@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, Query
-from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
+from src.news.entrypoints.api.dependencies import get_metrics_repository
 from src.news.domain.entities.processing_metric import PipelineType
 
 router = APIRouter()
@@ -13,20 +13,13 @@ router = APIRouter()
 async def get_daily_average(
     pipeline_type: Optional[str] = Query(None, description="Filter by pipeline type (NEWS, AUDIO, VIDEO)"),
     days: int = Query(7, ge=1, le=90, description="Number of days to aggregate"),
-    metrics_repo: MetricsRepositoryPort = Depends(lambda: None),
+    metrics_repo=Depends(get_metrics_repository),
 ):
     """
     Get average metrics aggregated daily.
 
     Returns metrics like P50, P95, P99 latencies, success rate, and throughput.
     """
-    # This endpoint needs metrics_repo injected via dependency
-    # For now, returning a sample response structure
-    if not metrics_repo:
-        from src.news.entrypoints.api.dependencies import get_metrics_repository
-        from src.news.entrypoints.api.dependencies import get_db
-        db = get_db()
-        metrics_repo = get_metrics_repository(db=db)
 
     try:
         pipeline_type_enum = None
@@ -61,18 +54,13 @@ async def get_daily_average(
 async def get_hourly_metrics(
     pipeline_type: Optional[str] = Query(None, description="Filter by pipeline type (NEWS, AUDIO, VIDEO)"),
     hours: int = Query(24, ge=1, le=240, description="Number of hours to aggregate"),
-    metrics_repo: MetricsRepositoryPort = Depends(lambda: None),
+    metrics_repo=Depends(get_metrics_repository),
 ):
     """
     Get average metrics aggregated hourly.
 
     Useful for detailed time-series analysis of recent performance.
     """
-    if not metrics_repo:
-        from src.news.entrypoints.api.dependencies import get_metrics_repository
-        from src.news.entrypoints.api.dependencies import get_db
-        db = get_db()
-        metrics_repo = get_metrics_repository(db=db)
 
     try:
         pipeline_type_enum = None
@@ -105,7 +93,7 @@ async def get_hourly_metrics(
 
 @router.get("/health")
 async def get_health_metrics(
-    metrics_repo: MetricsRepositoryPort = Depends(lambda: None),
+    metrics_repo=Depends(get_metrics_repository),
 ):
     """
     Get health summary for last 24 hours.
@@ -116,11 +104,6 @@ async def get_health_metrics(
     - Throughput (executions per hour)
     - Last execution timestamp
     """
-    if not metrics_repo:
-        from src.news.entrypoints.api.dependencies import get_metrics_repository
-        from src.news.entrypoints.api.dependencies import get_db
-        db = get_db()
-        metrics_repo = get_metrics_repository(db=db)
 
     try:
         end = datetime.now()

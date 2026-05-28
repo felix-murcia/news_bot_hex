@@ -31,6 +31,113 @@ Each pipeline follows the same flow:
 - FFmpeg (audio/video processing)
 - NVIDIA GPU (optional, for local LLM)
 
+## 🚨 Infrastructure Requirements
+
+**CRITICAL:** This application requires a specific MongoDB database configuration to function. Without these prerequisites, the system will fail at startup.
+
+### Database Configuration
+
+| Requirement | Value | Purpose |
+|------------|-------|---------|
+| **Database Name** | `MONGO_DB_NAME=appdb` | **CRITICAL** - Must be set to `appdb` in `.env` |
+| **Minimum Articles** | 1,000+ | Ensures pipeline has data to process (currently ~21,000) |
+| **Minimum RSS Sources** | 10+ | Ensures pipeline can fetch articles (currently 18) |
+| **Collections Required** | `sources_rss`, `raw_news`, `verified_news` | Schema validation |
+
+### Why This Matters
+
+⚠️ **Common Mistake:** If you copy `.env.example` to `.env` without modification, `MONGO_DB_NAME` defaults to `news_bot` (empty database). This causes:
+- Pipeline runs but processes zero articles
+- Tests pass but system is non-functional  
+- Silent failure with no clear error
+
+✅ **Correct Setup:** Change `.env` to `MONGO_DB_NAME=appdb`
+
+### Verification
+
+Verify your infrastructure is correct:
+
+```bash
+# Check database configuration
+curl http://localhost:8000/health | jq .database
+
+# Expected output:
+# {
+#   "name": "appdb",
+#   "article_count": 21257,
+#   "rss_sources_count": 18
+# }
+```
+
+If you see wrong database name or low counts:
+1. Check `.env` file: `MONGO_DB_NAME=appdb`
+2. Verify MongoDB is running: `curl mongodb:27017`
+3. Restart application: `docker compose restart` or restart Python server
+4. Check health endpoint again
+
+### Startup Validation
+
+The application validates infrastructure at startup and **will exit with code 1** if:
+- ❌ `MONGO_DB_NAME` is not `appdb`
+- ❌ MongoDB connection fails
+- ❌ Database has < 1,000 articles
+- ❌ Database has < 10 RSS sources
+- ❌ Required collections are missing
+
+Example error:
+```
+INFRASTRUCTURE VALIDATION FAILED
+❌ MONGO_DB_NAME is 'news_bot' but MUST be 'appdb'
+Application cannot start. Fix infrastructure and retry.
+```
+
+### Database Schema
+
+The application expects these collections in `appdb`:
+
+| Collection | Documents | Purpose |
+|-----------|-----------|---------|
+| `sources_rss` | 1 document | RSS feed definitions (`{_id: "sources", sources: [...]})` |
+| `raw_news` | 21,000+ | Raw articles fetched from RSS feeds |
+| `verified_news` | ~9,000 | Processed/verified articles ready for publishing |
+
+### For Development/Testing
+
+If you don't have the production `appdb`:
+
+1. **Local Development:** Set up MongoDB locally with test data
+   ```bash
+   # Start MongoDB
+   docker run -d -p 27017:27017 mongo:latest
+   
+   # Initialize with test data
+   python scripts/initialize_appdb.py  # (if available)
+   ```
+
+2. **Docker Setup:** Use `docker compose` which includes MongoDB
+   ```bash
+   docker compose up -d
+   # Database initializes automatically
+   ```
+
+3. **Check Status:**
+   ```bash
+   # Verify database and data
+   docker compose logs app | grep "INFRASTRUCTURE VALIDATION"
+   # Should show: ✅ ALL INFRASTRUCTURE VALIDATIONS PASSED
+   ```
+
+### Common Issues
+
+| Issue | Symptom | Fix |
+|-------|---------|-----|
+| Wrong database | `MONGO_DB_NAME=news_bot` in .env | Change to `appdb` |
+| Empty database | Health check shows `article_count: 0` | Load production data into `appdb` |
+| No RSS sources | Pipeline logs "No se encontraron fuentes" | Verify `sources_rss` collection exists |
+| MongoDB not running | Connection timeout errors | `docker compose up -d` or start MongoDB |
+
+---
+
 ### 1. Install dependencies
 
 ```bash

@@ -42,8 +42,8 @@ class MongoMetricsRepository(MetricsRepositoryPort):
         except Exception as e:
             logger.warning(f"Could not create indices: {e}")
 
-    async def save(self, metric: ProcessingMetric) -> None:
-        """Persist a pipeline execution metric."""
+    def save(self, metric: ProcessingMetric) -> None:
+        """Persist a pipeline execution metric (synchronous, non-blocking)."""
         try:
             doc = {
                 "execution_id": metric.execution_id,
@@ -73,13 +73,13 @@ class MongoMetricsRepository(MetricsRepositoryPort):
             logger.error(f"Error saving metrics: {e}")
             raise
 
-    async def get_by_date_range(
+    def get_by_date_range(
         self,
         start: datetime,
         end: datetime,
         pipeline_type: Optional[PipelineType] = None,
     ) -> List[ProcessingMetric]:
-        """Retrieve metrics for a date range."""
+        """Retrieve metrics for a date range (synchronous)."""
         try:
             query = {"created_at": {"$gte": start, "$lte": end}}
             if pipeline_type:
@@ -99,14 +99,14 @@ class MongoMetricsRepository(MetricsRepositoryPort):
             logger.error(f"Error retrieving metrics by date range: {e}")
             return []
 
-    async def get_aggregated(
+    def get_aggregated(
         self,
         pipeline_type: PipelineType,
         period: Literal["hourly", "daily", "weekly"],
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
     ) -> List[dict]:
-        """Get aggregated metrics with percentiles."""
+        """Get aggregated metrics with percentiles (synchronous)."""
         try:
             if end is None:
                 end = datetime.now()

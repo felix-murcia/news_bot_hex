@@ -304,11 +304,10 @@ class ProcessUrlPipeline:
 
             logger.info("[PIPELINE] ✅ Pipeline completed successfully")
 
-            # Flush metrics asynchronously (non-blocking)
+            # Flush metrics (synchronous, non-blocking)
             if metrics:
-                import asyncio
                 try:
-                    asyncio.create_task(metrics.flush())
+                    metrics.flush()
                 except Exception as e:
                     logger.warning(f"[PIPELINE] Could not flush metrics: {e}")
 
@@ -318,9 +317,8 @@ class ProcessUrlPipeline:
             logger.error(f"[PIPELINE] Pipeline failed: {e}", exc_info=True)
             # Flush failure metrics
             if metrics:
-                import asyncio
                 try:
-                    asyncio.create_task(metrics.flush())
+                    metrics.flush()
                 except Exception as flush_error:
                     logger.warning(f"[PIPELINE] Could not flush error metrics: {flush_error}")
             raise

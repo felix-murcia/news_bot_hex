@@ -352,8 +352,11 @@ class VideoPipelineUseCase(BasePipelineUseCase):
             social_results=social_results,
         )
 
-        # Flush metrics asynchronously (non-blocking)
+        # Flush metrics (synchronous, non-blocking)
         if metrics:
-            asyncio.create_task(metrics.flush())
+            try:
+                metrics.flush()
+            except Exception as e:
+                logger.warning(f"Could not flush metrics: {e}")
 
         return result_data

@@ -70,19 +70,28 @@ class PipelineRequest(BaseModel):
 @router.post("/pipeline", response_model=PipelineResponse)
 def video_pipeline(
     req: PipelineRequest,
-    metrics_repo: MetricsRepositoryPort = Depends(lambda: None),
+    metrics_repo=Depends(lambda: None),  # Optional: metrics collection is non-fatal
 ):
     """Execute the complete video pipeline: fetch → transcribe → article → publish."""
     try:
         from src.video.application.usecases.video_pipeline import VideoPipelineUseCase
         from src.news.entrypoints.api.dependencies import get_metrics_repository, get_db
 
+        # Try to get metrics repo if not provided
         if not metrics_repo:
-            db = get_db()
-            metrics_repo = get_metrics_repository(db=db)
+            try:
+                db = get_db()
+                metrics_repo = get_metrics_repository(db=db)
+            except Exception as e:
+                logger.warning(f"Could not initialize metrics repository: {e}")
+                metrics_repo = None
+
+        # Generate job ID for metrics tracking
+        import uuid
+        job_id = str(uuid.uuid4())
 
         usecase = VideoPipelineUseCase(no_publish=req.no_publish, metrics_repo=metrics_repo)
-        result = usecase.run(url=req.url, tema=req.tema)
+        result = usecase.run(url=req.url, tema=req.tema, job_id=job_id)
 
         return PipelineResponse(
             status="ok",

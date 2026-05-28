@@ -73,9 +73,9 @@ class MetricsCollector:
             f"({status}, {duration_ms}ms)"
         )
 
-    async def flush(self) -> bool:
+    def flush(self) -> bool:
         """
-        Create and persist the complete execution metric.
+        Create and persist the complete execution metric (synchronous, non-blocking).
 
         Returns:
             True if flush succeeded, False otherwise
@@ -99,7 +99,7 @@ class MetricsCollector:
                 created_at=datetime.now(),
             )
 
-            await self.metrics_repo.save(metric)
+            self.metrics_repo.save(metric)
             logger.info(
                 f"[{self.pipeline_type.value}] Metrics flushed for {self.execution_id}: "
                 f"{total_duration_ms}ms, {len(self.steps)} steps, success={success}"
