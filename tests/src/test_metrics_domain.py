@@ -135,7 +135,7 @@ class TestProcessingMetric:
 
     def test_total_duration_validation_fails_if_less(self, sample_steps):
         """Total duration must not be less than sum of steps."""
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
             ProcessingMetric(
                 execution_id="exec-invalid",
                 pipeline_type=PipelineType.NEWS,
@@ -188,19 +188,17 @@ class TestProcessingMetric:
         )
         assert metric.step_count() == 3
 
-    def test_step_count_empty(self):
-        """Handle empty steps."""
-        metric = ProcessingMetric(
-            execution_id="exec-empty",
-            pipeline_type=PipelineType.NEWS,
-            steps=[],
-            total_duration_ms=0,
-            success=True,
-            created_at=datetime.now(),
-        )
-        assert metric.step_count() == 0
-        assert metric.error_count() == 0
-        assert metric.success_count() == 0
+    def test_step_count_empty_raises(self):
+        """ProcessingMetric requires at least one step."""
+        with pytest.raises(ValueError):
+            ProcessingMetric(
+                execution_id="exec-empty",
+                pipeline_type=PipelineType.NEWS,
+                steps=[],
+                total_duration_ms=0,
+                success=True,
+                created_at=datetime.now(),
+            )
 
     def test_metric_immutable(self, sample_steps):
         """ProcessingMetric should be immutable."""

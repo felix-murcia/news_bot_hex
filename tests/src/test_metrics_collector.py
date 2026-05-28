@@ -47,9 +47,9 @@ class TestMetricsCollector:
         collector.record_step("Download", "OK", 1000)
 
         assert len(collector.steps) == 1
-        assert collector.steps[0]["name"] == "Download"
-        assert collector.steps[0]["status"] == "OK"
-        assert collector.steps[0]["duration_ms"] == 1000
+        assert collector.steps[0].name == "Download"
+        assert collector.steps[0].status == "OK"
+        assert collector.steps[0].duration_ms == 1000
 
     def test_record_multiple_steps(self, mock_repo):
         """Record multiple steps in sequence."""
@@ -63,10 +63,10 @@ class TestMetricsCollector:
         collector.record_step("Generate", "FAILED", 200, "Timeout")
 
         assert len(collector.steps) == 3
-        assert collector.steps[0]["name"] == "Download"
-        assert collector.steps[1]["name"] == "Transcribe"
-        assert collector.steps[2]["name"] == "Generate"
-        assert collector.steps[2]["error"] == "Timeout"
+        assert collector.steps[0].name == "Download"
+        assert collector.steps[1].name == "Transcribe"
+        assert collector.steps[2].name == "Generate"
+        assert collector.steps[2].error == "Timeout"
 
     def test_record_step_with_error(self, mock_repo):
         """Record a failed step with error message."""
@@ -82,8 +82,8 @@ class TestMetricsCollector:
             "Connection refused",
         )
 
-        assert collector.steps[0]["status"] == "FAILED"
-        assert collector.steps[0]["error"] == "Connection refused"
+        assert collector.steps[0].status == "FAILED"
+        assert collector.steps[0].error == "Connection refused"
 
     def test_flush_saves_to_repo(self, mock_repo):
         """Flush should save metric to repository."""
@@ -92,8 +92,9 @@ class TestMetricsCollector:
             pipeline_type=PipelineType.AUDIO,
             metrics_repo=mock_repo,
         )
-        collector.record_step("Download", "OK", 1000)
-        collector.record_step("Transcribe", "OK", 2000)
+        collector.record_step("Download", "OK", 10)
+        collector.record_step("Transcribe", "OK", 20)
+        time.sleep(0.1)  # Ensure elapsed time >= sum of durations
 
         collector.flush()
 
@@ -116,17 +117,17 @@ class TestMetricsCollector:
             pipeline_type=PipelineType.NEWS,
             metrics_repo=mock_repo,
         )
-        time.sleep(0.1)  # At least 100ms
-        collector.record_step("Step1", "OK", 50)
-        collector.record_step("Step2", "OK", 75)
+        collector.record_step("Step1", "OK", 30)
+        collector.record_step("Step2", "OK", 40)
+        time.sleep(0.1)  # Ensure elapsed time >= sum of steps (70ms)
 
         collector.flush()
 
         call_args = mock_repo.save.call_args
         metric = call_args[0][0]
 
-        # Total duration should be >= sum of steps
-        assert metric.total_duration_ms >= 125
+        # Total duration should be >= sum of steps (70ms)
+        assert metric.total_duration_ms >= 70
 
     def test_flush_determines_success_status(self, mock_repo):
         """Flush should set success=True only if all steps are OK."""
@@ -136,8 +137,9 @@ class TestMetricsCollector:
             pipeline_type=PipelineType.NEWS,
             metrics_repo=mock_repo,
         )
-        collector1.record_step("Step1", "OK", 100)
-        collector1.record_step("Step2", "OK", 100)
+        collector1.record_step("Step1", "OK", 10)
+        collector1.record_step("Step2", "OK", 10)
+        time.sleep(0.05)
         collector1.flush()
 
         call_args = mock_repo.save.call_args
@@ -151,8 +153,9 @@ class TestMetricsCollector:
             pipeline_type=PipelineType.AUDIO,
             metrics_repo=mock_repo,
         )
-        collector.record_step("Step1", "OK", 100)
-        collector.record_step("Step2", "FAILED", 50)
+        collector.record_step("Step1", "OK", 10)
+        collector.record_step("Step2", "FAILED", 10)
+        time.sleep(0.05)
         collector.flush()
 
         call_args = mock_repo.save.call_args
@@ -168,7 +171,8 @@ class TestMetricsCollector:
             pipeline_type=PipelineType.NEWS,
             metrics_repo=mock_repo,
         )
-        collector.record_step("Step1", "OK", 100)
+        collector.record_step("Step1", "OK", 10)
+        time.sleep(0.05)
 
         # Should not raise
         collector.flush()
@@ -177,20 +181,19 @@ class TestMetricsCollector:
         mock_repo.save.assert_called_once()
 
     def test_flush_with_empty_steps(self, mock_repo):
-        """Flush with no recorded steps should still work."""
+        """Flush with no recorded steps should not raise."""
         collector = MetricsCollector(
             execution_id="exec-empty",
             pipeline_type=PipelineType.NEWS,
             metrics_repo=mock_repo,
         )
 
+        # Should not raise even though ProcessingMetric requires at least 1 step
         collector.flush()
 
-        call_args = mock_repo.save.call_args
-        metric = call_args[0][0]
-
-        assert metric.step_count() == 0
-        assert metric.total_duration_ms >= 0
+        # save() won't be called because ProcessingMetric validation fails
+        # But flush() catches the error gracefully
+        mock_repo.save.assert_not_called()
 
     def test_flush_creates_correct_step_metrics(self, mock_repo):
         """Flush should convert recorded steps to StepMetric objects."""
@@ -199,8 +202,9 @@ class TestMetricsCollector:
             pipeline_type=PipelineType.VIDEO,
             metrics_repo=mock_repo,
         )
-        collector.record_step("Download", "OK", 1000)
-        collector.record_step("Process", "FAILED", 500, "Error msg")
+        collector.record_step("Download", "OK", 100)
+        collector.record_step("Process", "FAILED", 50, "Error msg")
+        time.sleep(0.2)
 
         collector.flush()
 
@@ -209,7 +213,7 @@ class TestMetricsCollector:
 
         assert metric.steps[0].name == "Download"
         assert metric.steps[0].status.value == "OK"
-        assert metric.steps[0].duration_ms == 1000
+        assert metric.steps[0].duration_ms == 100
 
         assert metric.steps[1].name == "Process"
         assert metric.steps[1].status.value == "FAILED"
@@ -222,13 +226,15 @@ class TestMetricsCollector:
             pipeline_type=PipelineType.NEWS,
             metrics_repo=mock_repo,
         )
-        collector.record_step("Step1", "OK", 100)
+        collector.record_step("Step1", "OK", 10)
+        time.sleep(0.05)
 
         collector.flush()
         assert mock_repo.save.call_count == 1
 
         # Record more steps
-        collector.record_step("Step2", "OK", 200)
+        collector.record_step("Step2", "OK", 20)
+        time.sleep(0.05)
         collector.flush()
         assert mock_repo.save.call_count == 2
 
@@ -258,7 +264,8 @@ class TestMetricsCollector:
             "Publish WordPress",
         ]
         for name in step_names:
-            collector.record_step(name, "OK", 100)
+            collector.record_step(name, "OK", 10)
+        time.sleep(0.1)
 
         collector.flush()
 

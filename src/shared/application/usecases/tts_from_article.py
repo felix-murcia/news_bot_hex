@@ -1,10 +1,12 @@
 """Use case para generar audio TTS desde artículos."""
 
 import re
+import requests
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
 from config.logging_config import get_logger
+from config.settings import Settings
 from src.shared.adapters.tts_adapter import text_to_speech, is_tts_available
 from src.shared.adapters.audio_converter import AudioConverter
 from src.shared.adapters.tts_text_processor import TTSTextProcessor
@@ -76,7 +78,7 @@ def split_text_by_sentences(text: str, char_limit: int = COQUI_TTS_CHAR_LIMIT) -
 
 
 def concatenate_audio_files(audio_paths: List[str], output_path: str) -> Optional[str]:
-    """Concatena múltiples archivos de audio en uno solo.
+    """Concatena múltiples archivos de audio en uno solo usando ffmpeg-api.
 
     Args:
         audio_paths: Lista de rutas de archivos de audio
@@ -85,8 +87,6 @@ def concatenate_audio_files(audio_paths: List[str], output_path: str) -> Optiona
     Returns:
         Ruta del archivo concatenado o None si falla
     """
-    import subprocess
-
     if not audio_paths:
         return None
 
@@ -97,31 +97,38 @@ def concatenate_audio_files(audio_paths: List[str], output_path: str) -> Optiona
         return output_path
 
     try:
-        # Crear archivo de lista para ffmpeg
-        list_file = output_path.replace('.mp3', '_list.txt')
-        with open(list_file, 'w') as f:
-            for path in audio_paths:
-                f.write(f"file '{path}'\n")
+        # Call ffmpeg-api concatenate endpoint
+        base_url = Settings.FFMPEG_API_URL.rstrip("/")
+        concat_endpoint = f"{base_url}/audio/concatenate"
 
-        # Usar ffmpeg concat demuxer
-        cmd = [
-            'ffmpeg', '-f', 'concat', '-safe', '0',
-            '-i', list_file,
-            '-c', 'copy', '-y',
-            output_path
-        ]
+        payload = {
+            "paths": audio_paths,
+            "output_format": "mp3"
+        }
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        logger.info(f"[TTS] Llamando a ffmpeg-api para concatenar {len(audio_paths)} archivos...")
+        resp = requests.post(concat_endpoint, json=payload, timeout=300)
 
-        # Limpiar archivo de lista
-        Path(list_file).unlink(missing_ok=True)
-
-        if result.returncode == 0 and Path(output_path).exists():
-            logger.info(f"[TTS] Audio concatenado: {output_path}")
-            return output_path
-        else:
-            logger.error(f"[TTS] Error concatenando audio: {result.stderr}")
+        if resp.status_code != 200:
+            logger.error(
+                f"[TTS] Error HTTP en concatenación ({resp.status_code}): {resp.text[:200]}"
+            )
             return None
+
+        # Response is binary audio data
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, "wb") as f:
+            f.write(resp.content)
+
+        logger.info(f"[TTS] ✅ Audio concatenado: {output_path}")
+        return output_path
+
+    except requests.exceptions.Timeout:
+        logger.error("[TTS] Timeout en concatenación (300s)")
+        return None
+    except requests.exceptions.ConnectionError as e:
+        logger.error(f"[TTS] No se pudo conectar al servicio de concatenación: {e}")
+        return None
     except Exception as e:
         logger.error(f"[TTS] Error en concatenación: {e}")
         return None

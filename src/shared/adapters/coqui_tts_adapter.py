@@ -2,7 +2,6 @@
 
 import os
 import requests
-import subprocess
 from typing import Optional
 from pathlib import Path
 from datetime import datetime
@@ -73,6 +72,48 @@ class CoquiTTSAdapter(TTSPort):
             f"length_scale: {self.length_scale}, temperature: {self.temperature}, "
             f"post_processing: {self.enable_post_processing}"
         )
+
+    def _apply_atempo_filter(self, wav_path: str) -> Optional[str]:
+        """
+        Apply atempo filter to adjust audio speed using ffmpeg-api.
+
+        Args:
+            wav_path: Path to input WAV file
+
+        Returns:
+            Path to tempo-adjusted WAV file, or None if failed
+        """
+        try:
+            payload = {
+                "path": wav_path,
+                "tempo_factor": self.atempo,
+            }
+
+            atempo_endpoint = f"{self.converter.base_url}/audio/apply-atempo"
+            resp = requests.post(atempo_endpoint, json=payload, timeout=300)
+
+            if resp.status_code != 200:
+                logger.error(
+                    f"[COQUI TTS] Error aplicando atempo (HTTP {resp.status_code}): {resp.text[:200]}"
+                )
+                return None
+
+            # Response is binary audio data, save to temp file
+            atempo_wav_path = str(Path(wav_path).with_suffix(".atempo.wav"))
+            with open(atempo_wav_path, "wb") as f:
+                f.write(resp.content)
+
+            return atempo_wav_path
+
+        except requests.exceptions.Timeout:
+            logger.error("[COQUI TTS] Timeout aplicando atempo")
+            return None
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"[COQUI TTS] No se pudo conectar al servicio atempo: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"[COQUI TTS] Error aplicando atempo: {e}")
+            return None
 
     def is_available(self) -> bool:
         """Verifica si el servicio Coqui TTS está disponible."""
@@ -158,20 +199,17 @@ class CoquiTTSAdapter(TTSPort):
 
             # Aplicar filtro atempo si es necesario
             if self.atempo != 1.0:
-                atempo_wav_path = str(Path(wav_path).with_suffix(".atempo.wav"))
-                cmd = [
-                    "ffmpeg", "-i", wav_path,
-                    "-filter:a", f"atempo={self.atempo}",
-                    atempo_wav_path, "-y"
-                ]
-                try:
-                    subprocess.run(cmd, check=True, capture_output=True, text=True)
+                logger.info(f"[COQUI TTS] Aplicando filtro atempo: {self.atempo}x")
+                atempo_wav_path = self._apply_atempo_filter(wav_path)
+                if atempo_wav_path:
                     # Eliminar el WAV original
-                    os.remove(wav_path)
+                    try:
+                        os.remove(wav_path)
+                    except Exception:
+                        pass
                     wav_path = atempo_wav_path
                     logger.info(f"[COQUI TTS] ✅ Filtro atempo aplicado: {self.atempo}x")
-                except subprocess.CalledProcessError as e:
-                    logger.error(f"[COQUI TTS] Error aplicando atempo: {e.stderr}")
+                else:
                     logger.warning("[COQUI TTS] Continuando sin aplicar atempo")
 
             wav_size = Path(wav_path).stat().st_size

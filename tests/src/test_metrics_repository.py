@@ -9,7 +9,7 @@ Tests metrics persistence and retrieval:
 
 import pytest
 from datetime import datetime, timedelta
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, MagicMock, patch
 from src.news.infrastructure.adapters.mongo_metrics_repository import (
     MongoMetricsRepository,
 )
@@ -27,7 +27,7 @@ class TestMongoMetricsRepositorySave:
     @pytest.fixture
     def repo(self):
         """Create repository with mock database."""
-        mock_db = Mock()
+        mock_db = MagicMock()
         mock_collection = Mock()
         mock_db.__getitem__.return_value = mock_collection
         repo = MongoMetricsRepository(db=mock_db)
@@ -162,7 +162,7 @@ class TestMongoMetricsRepositoryRetrieval:
 
     def test_get_recent_executions(self, sample_metrics):
         """Get recent executions should return formatted list."""
-        mock_db = Mock()
+        mock_db = MagicMock()
         mock_collection = Mock()
         mock_db.__getitem__.return_value = mock_collection
         mock_collection.find.return_value.sort.return_value.limit.return_value = sample_metrics
@@ -182,7 +182,7 @@ class TestMongoMetricsRepositoryRetrieval:
 
     def test_get_step_breakdown_aggregates_steps(self):
         """Get step breakdown should aggregate by step name."""
-        mock_db = Mock()
+        mock_db = MagicMock()
         mock_collection = Mock()
         mock_db.__getitem__.return_value = mock_collection
 
@@ -221,7 +221,7 @@ class TestMongoMetricsRepositoryRetrieval:
 
     def test_get_activity_heatmap_returns_grid(self):
         """Get activity heatmap should return 24x7 grid."""
-        mock_db = Mock()
+        mock_db = MagicMock()
         mock_collection = Mock()
         mock_db.__getitem__.return_value = mock_collection
 
@@ -252,7 +252,7 @@ class TestMongoMetricsRepositoryRetrieval:
 
     def test_get_activity_heatmap_handles_empty_data(self):
         """Get activity heatmap should handle case with no executions."""
-        mock_db = Mock()
+        mock_db = MagicMock()
         mock_collection = Mock()
         mock_db.__getitem__.return_value = mock_collection
         mock_collection.aggregate.return_value = []
@@ -273,7 +273,7 @@ class TestMongoMetricsRepositoryRetrieval:
 
     def test_get_activity_heatmap_handles_error(self):
         """Get activity heatmap should return empty grid on error."""
-        mock_db = Mock()
+        mock_db = MagicMock()
         mock_collection = Mock()
         mock_db.__getitem__.return_value = mock_collection
         mock_collection.aggregate.side_effect = Exception("DB error")
@@ -298,7 +298,7 @@ class TestMongoMetricsRepositoryAggregation:
 
     def test_get_aggregated_daily(self):
         """Test daily aggregation with percentile calculation."""
-        mock_db = Mock()
+        mock_db = MagicMock()
         mock_collection = Mock()
         mock_db.__getitem__.return_value = mock_collection
 
@@ -334,7 +334,7 @@ class TestMongoMetricsRepositoryAggregation:
 
     def test_percentile_calculation(self):
         """Test that percentiles are calculated correctly."""
-        mock_db = Mock()
+        mock_db = MagicMock()
         mock_collection = Mock()
         mock_db.__getitem__.return_value = mock_collection
 
@@ -357,10 +357,10 @@ class TestMongoMetricsRepositoryAggregation:
             period="daily",
         )
 
-        # With 5 elements:
-        # p50 @ index 2 (50% of 5 = 2.5) → 300
-        # p95 @ index 4 (95% of 5 = 4.75) → 500
-        # p99 @ index 4 (99% of 5 = 4.95) → 500
-        assert result[0]["p50"] == 300
-        assert result[0]["p95"] == 500
-        assert result[0]["p99"] == 500
+        # With 5 elements: [100, 200, 300, 400, 500]
+        # p50_idx = int(5 * 0.50) - 1 = 1 → 200
+        # p95_idx = int(5 * 0.95) - 1 = 3 → 400
+        # p99_idx = int(5 * 0.99) - 1 = 3 → 400
+        assert result[0]["p50"] == 200
+        assert result[0]["p95"] == 400
+        assert result[0]["p99"] == 400
