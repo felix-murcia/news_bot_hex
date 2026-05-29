@@ -48,6 +48,7 @@ class StartupValidator:
             StartupValidator._validate_database_connection()
             StartupValidator._validate_data_quantities()
             StartupValidator._validate_required_collections()
+            StartupValidator._ensure_timer_initialized()
 
             logger.info("=" * 70)
             logger.info("✅ ALL INFRASTRUCTURE VALIDATIONS PASSED")
@@ -170,6 +171,49 @@ class StartupValidator:
             logger.info(f"      {status} {collection_name}: {count:,} documents")
 
         logger.info(f"      ✅ All required collections exist")
+
+    @staticmethod
+    def _ensure_timer_initialized() -> None:
+        """Ensure systemd timer is initialized and regenerated on startup."""
+        logger.info(f"[5/5] Initializing systemd timer...")
+
+        try:
+            db = get_database()
+            timer_config = db['timer_config'].find_one({'_id': 'pipeline_timer'})
+
+            if not timer_config:
+                # Create default timer configuration if not present
+                from datetime import datetime
+                default_config = {
+                    '_id': 'pipeline_timer',
+                    'enabled': True,
+                    'schedule_time': '00:00',
+                    'frequency': 'daily',
+                    'created_at': datetime.now(),
+                    'updated_at': datetime.now(),
+                }
+                db['timer_config'].insert_one(default_config)
+                logger.info("      Created default timer config: daily at 00:00")
+                timer_config = default_config
+
+            # Regenerate systemd timer file with current configuration
+            try:
+                from src.news.infrastructure.adapters.systemd_timer_adapter import SystemdTimerAdapter
+                from src.news.domain.entities.timer_config import TimerConfig
+
+                config_obj = TimerConfig.from_dict(timer_config)
+                adapter = SystemdTimerAdapter()
+                adapter.regenerate_timer_file(config_obj)
+                logger.info(f"      ✅ Systemd timer regenerated: {config_obj.frequency.value} at {config_obj.schedule_time}")
+            except Exception as e:
+                logger.warning(f"      ⚠️  Could not regenerate systemd timer: {str(e)}")
+                logger.info(f"      (Timer may be running in Docker without systemd)")
+
+        except Exception as e:
+            if isinstance(e, InfrastructureValidationError):
+                raise
+            # Non-critical failure - timer is not essential for application to work
+            logger.warning(f"      ⚠️  Timer initialization failed (non-critical): {str(e)}")
 
 
 def validate_startup_infrastructure() -> None:
