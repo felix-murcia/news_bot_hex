@@ -47,7 +47,7 @@ export function ActivityHeatmap({ pipelineType }: ActivityHeatmapProps) {
       className="rounded-lg p-6 border"
       style={{ backgroundColor: '#1A1C22', borderColor: '#2A2D35' }}
     >
-      <h3 className="text-lg font-semibold mb-4" style={{ color: '#E5E7EB', fontFamily: 'Fira Code' }}>
+      <h3 className="text-lg font-semibold mb-4" style={{ color: '#E5E7EB', fontFamily: 'system-ui' }}>
         Activity Heatmap (Last 7 Days)
       </h3>
 

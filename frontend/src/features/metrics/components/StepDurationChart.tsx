@@ -8,6 +8,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
+import { formatDurationMs } from '../utils/formatDuration'
 
 interface StepDurationChartProps {
   pipelineType: 'NEWS' | 'AUDIO' | 'VIDEO'
@@ -61,7 +62,7 @@ export function StepDurationChart({ pipelineType, days }: StepDurationChartProps
       className="rounded-lg p-6 border"
       style={{ backgroundColor: '#1A1C22', borderColor: '#2A2D35' }}
     >
-      <h3 className="text-lg font-semibold mb-4" style={{ color: '#E5E7EB', fontFamily: 'Fira Code' }}>
+      <h3 className="text-lg font-semibold mb-4" style={{ color: '#E5E7EB', fontFamily: 'system-ui' }}>
         Step Duration (ms)
       </h3>
 
@@ -86,6 +87,7 @@ export function StepDurationChart({ pipelineType, days }: StepDurationChartProps
                 borderRadius: '8px',
               }}
               labelStyle={{ color: '#E5E7EB' }}
+              formatter={(value: any) => formatDurationMs(value as number)}
             />
             <Bar dataKey="duration" fill="#3B82F6" radius={[4, 4, 0, 0]} />
           </BarChart>

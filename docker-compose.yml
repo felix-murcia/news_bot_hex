@@ -35,6 +35,7 @@ services:
     networks:
       - cine-network
       - mongo_default
+      - tts-network
     deploy:
       resources:
         reservations:
@@ -60,4 +61,6 @@ networks:
   cine-network:
     external: true
   mongo_default:
+    external: true
+  tts-network:
     external: true

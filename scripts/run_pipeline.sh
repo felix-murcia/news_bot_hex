@@ -13,9 +13,15 @@ if [ -f "$PROJECT_DIR/.env" ]; then
 fi
 
 # Ejecutar pipeline
-curl -sf -X POST http://localhost:8000/news/pipeline \
-    --max-time 3600 \
-    --retry 2 \
-    --retry-delay 60
+RESPONSE=$(curl -s -w "\n%{http_code}" -X POST http://localhost:8000/news/pipeline \
+    --max-time 3600)
+HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+BODY=$(echo "$RESPONSE" | head -n-1)
 
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pipeline ejecutado (código $?)" >> "$PROJECT_DIR/logs/pipeline_cron.log" 2>/dev/null || true
+if [ "$HTTP_CODE" = "200" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✓ Pipeline iniciado" >> "$PROJECT_DIR/logs/pipeline_cron.log" 2>/dev/null || true
+elif [ "$HTTP_CODE" = "409" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⊘ Pipeline rechazado (ejecución en curso)" >> "$PROJECT_DIR/logs/pipeline_cron.log" 2>/dev/null || true
+else
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ✗ Error HTTP $HTTP_CODE: $BODY" >> "$PROJECT_DIR/logs/pipeline_cron.log" 2>/dev/null || true
+fi

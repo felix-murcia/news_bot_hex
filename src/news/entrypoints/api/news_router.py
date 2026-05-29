@@ -361,13 +361,21 @@ def news_full_pipeline():
         from src.news.application.usecases.pipeline_executor import execute_pipeline_async
 
         job_id = create_job()
-        execute_pipeline_async(job_id)
+        started = execute_pipeline_async(job_id)
+
+        if not started:
+            raise HTTPException(
+                status_code=409,
+                detail="Pipeline is already executing. Only one execution allowed at a time."
+            )
 
         return PipelineResponse(
             status="ok",
             message="Pipeline started",
             data={"job_id": job_id}
         )
+    except HTTPException:
+        raise
     except Exception as e:
         msg, details = get_error_message("PIPELINE_ERROR")
         raise http_error(

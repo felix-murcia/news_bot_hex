@@ -8,6 +8,7 @@ import { LogsTable } from './LogsTable'
 import { ActivityHeatmap } from './ActivityHeatmap'
 import { PipelineSelector } from './PipelineSelector'
 import { LoadingSpinner } from './LoadingSpinner'
+import { formatDurationMs } from '../utils/formatDuration'
 import axios from 'axios'
 
 interface HealthData {
@@ -50,7 +51,7 @@ export function MetricsDashboard() {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold" style={{ color: '#E5E7EB', fontFamily: 'Fira Code' }}>
+            <h1 className="text-3xl font-bold" style={{ color: '#E5E7EB', fontFamily: 'system-ui' }}>
               Pipeline Metrics
             </h1>
             <p style={{ color: '#9CA3AF' }} className="text-sm mt-1">
@@ -100,7 +101,7 @@ export function MetricsDashboard() {
             />
             <KPICard
               label="Avg Latency"
-              value={`${health.p95_latency_ms.toFixed(0)}ms`}
+              value={formatDurationMs(health.p95_latency_ms)}
               icon="Clock"
               color="yellow"
             />

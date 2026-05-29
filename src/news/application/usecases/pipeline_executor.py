@@ -24,13 +24,43 @@ from src.news.domain.entities.processing_metric import (
 
 logger = get_logger("news_bot.pipeline.executor")
 
+# Global execution lock - only one pipeline execution at a time
+_execution_lock = threading.Lock()
 
-def execute_pipeline_async(job_id: str) -> None:
-    """Execute pipeline in background thread with job tracking and metrics collection."""
+
+def _format_duration(milliseconds: int) -> str:
+    """Convert milliseconds to human-readable hh:mm:ss format."""
+    total_seconds = milliseconds // 1000
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds = total_seconds % 60
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
+def execute_pipeline_async(job_id: str) -> bool:
+    """
+    Execute pipeline in background thread with job tracking and metrics collection.
+
+    Returns:
+        bool: True if execution started, False if another execution is in progress.
+    """
+    global _pipeline_running
+
+    # Try to acquire lock without blocking
+    if not _execution_lock.acquire(blocking=False):
+        logger.warning(f"[PIPELINE-JOB] {job_id} Rejected: Pipeline already executing")
+        return False
+
+    logger.info(f"[PIPELINE-JOB] {job_id} Lock acquired - execution starting")
 
     def run_pipeline():
-        # Setup logging handler to capture real-time feedback for UI
-        log_handler = setup_pipeline_logging(job_id)
+        try:
+            # Setup logging handler to capture real-time feedback for UI
+            log_handler = setup_pipeline_logging(job_id)
+        except Exception as e:
+            logger.error(f"[PIPELINE-JOB] {job_id} Error setup logging: {e}", exc_info=True)
+            update_job_status(job_id, JobStatus.FAILED, f"Error en logging: {str(e)}", error=str(e))
+            return
 
         # Initialize metrics collection
         metrics_steps = []
@@ -64,7 +94,7 @@ def execute_pipeline_async(job_id: str) -> None:
                 step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
                 add_step(job_id, ProcessingStepName.RSS_FETCH, ProcessingStepStatus.OK)
                 record_step_metric("RSS Fetch", "OK", step_duration_ms)
-                logger.info(f"[PIPELINE-JOB] {job_id} RSS completado ({step_duration_ms}ms)")
+                logger.info(f"[PIPELINE-JOB] {job_id} RSS completado ({_format_duration(step_duration_ms)})")
             except Exception as e:
                 step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
                 logger.error(f"[PIPELINE-JOB] {job_id} Error en RSS: {e}")
@@ -83,7 +113,7 @@ def execute_pipeline_async(job_id: str) -> None:
                 step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
                 add_step(job_id, ProcessingStepName.FULL_VERIFICATION, ProcessingStepStatus.OK)
                 record_step_metric("Full Verification", "OK", step_duration_ms)
-                logger.info(f"[PIPELINE-JOB] {job_id} Verification completada ({step_duration_ms}ms)")
+                logger.info(f"[PIPELINE-JOB] {job_id} Verification completada ({_format_duration(step_duration_ms)})")
             except Exception as e:
                 step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
                 logger.error(f"[PIPELINE-JOB] {job_id} Error en Verification: {e}")
@@ -101,7 +131,7 @@ def execute_pipeline_async(job_id: str) -> None:
                 step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
                 add_step(job_id, ProcessingStepName.GENERATE_POSTS, ProcessingStepStatus.OK)
                 record_step_metric("Generate Posts", "OK", step_duration_ms)
-                logger.info(f"[PIPELINE-JOB] {job_id} Posts generados ({step_duration_ms}ms)")
+                logger.info(f"[PIPELINE-JOB] {job_id} Posts generados ({_format_duration(step_duration_ms)})")
             except Exception as e:
                 step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
                 logger.error(f"[PIPELINE-JOB] {job_id} Error en Posts: {e}")
@@ -119,7 +149,7 @@ def execute_pipeline_async(job_id: str) -> None:
                 step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
                 add_step(job_id, ProcessingStepName.GENERATE_ARTICLES, ProcessingStepStatus.OK)
                 record_step_metric("Generate Articles", "OK", step_duration_ms)
-                logger.info(f"[PIPELINE-JOB] {job_id} Artículos generados ({step_duration_ms}ms)")
+                logger.info(f"[PIPELINE-JOB] {job_id} Artículos generados ({_format_duration(step_duration_ms)})")
             except Exception as e:
                 step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
                 logger.error(f"[PIPELINE-JOB] {job_id} Error en Articles: {e}")
@@ -139,7 +169,7 @@ def execute_pipeline_async(job_id: str) -> None:
                 step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
                 add_step(job_id, ProcessingStepName.FETCH_IMAGES, ProcessingStepStatus.OK)
                 record_step_metric("Fetch Images", "OK", step_duration_ms)
-                logger.info(f"[PIPELINE-JOB] {job_id} Imágenes descargadas ({step_duration_ms}ms)")
+                logger.info(f"[PIPELINE-JOB] {job_id} Imágenes descargadas ({_format_duration(step_duration_ms)})")
             except Exception as e:
                 step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
                 logger.error(f"[PIPELINE-JOB] {job_id} Error en Images: {e}")
@@ -157,7 +187,7 @@ def execute_pipeline_async(job_id: str) -> None:
                 step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
                 add_step(job_id, ProcessingStepName.ENRICH_IMAGES, ProcessingStepStatus.OK)
                 record_step_metric("Enrich Images", "OK", step_duration_ms)
-                logger.info(f"[PIPELINE-JOB] {job_id} Imágenes enriquecidas ({step_duration_ms}ms)")
+                logger.info(f"[PIPELINE-JOB] {job_id} Imágenes enriquecidas ({_format_duration(step_duration_ms)})")
             except Exception as e:
                 step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
                 logger.error(f"[PIPELINE-JOB] {job_id} Error en Enrichment: {e}")
@@ -345,6 +375,11 @@ def execute_pipeline_async(job_id: str) -> None:
             # Cleanup logging handler
             teardown_pipeline_logging(log_handler)
 
+            # Release execution lock
+            _execution_lock.release()
+            logger.info(f"[PIPELINE-JOB] {job_id} Ejecución completada - Lock liberado")
+
     # Run in background thread
     thread = threading.Thread(target=run_pipeline, daemon=True)
     thread.start()
+    return True

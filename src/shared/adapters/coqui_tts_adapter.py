@@ -44,7 +44,9 @@ class CoquiTTSAdapter(TTSPort):
         self.language = language or Settings.COQUI_LANGUAGE
         self.speed = speed if speed is not None else float(Settings.COQUI_SPEED)
         self.atempo = float(Settings.COQUI_ATEMPO)
-        self.timeout = timeout or int(Settings.TTS_TIMEOUT)
+        # TTS_TIMEOUT está en milisegundos (convención del proyecto); requests lo espera en segundos
+        raw_ms = timeout or int(Settings.TTS_TIMEOUT)
+        self.timeout = raw_ms / 1000
 
         # Stability parameters for artifact reduction
         self.length_scale = (

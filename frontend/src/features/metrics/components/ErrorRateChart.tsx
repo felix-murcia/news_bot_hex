@@ -22,7 +22,7 @@ export function ErrorRateChart({ health }: ErrorRateChartProps) {
       className="rounded-lg p-6 border"
       style={{ backgroundColor: '#1A1C22', borderColor: '#2A2D35' }}
     >
-      <h3 className="text-lg font-semibold mb-4" style={{ color: '#E5E7EB', fontFamily: 'Fira Code' }}>
+      <h3 className="text-lg font-semibold mb-4" style={{ color: '#E5E7EB', fontFamily: 'system-ui' }}>
         Execution Status
       </h3>
 
@@ -57,13 +57,13 @@ export function ErrorRateChart({ health }: ErrorRateChartProps) {
       <div className="mt-4 space-y-2">
         <div className="flex justify-between text-sm">
           <span style={{ color: '#9CA3AF' }}>Total Executions:</span>
-          <span style={{ color: '#E5E7EB', fontFamily: 'Fira Code' }}>
+          <span style={{ color: '#E5E7EB', fontFamily: 'system-ui' }}>
             {health.total_executions}
           </span>
         </div>
         <div className="flex justify-between text-sm">
           <span style={{ color: '#9CA3AF' }}>Failed:</span>
-          <span style={{ color: '#EF4444', fontFamily: 'Fira Code' }}>
+          <span style={{ color: '#EF4444', fontFamily: 'system-ui' }}>
             {health.failed_executions}
           </span>
         </div>

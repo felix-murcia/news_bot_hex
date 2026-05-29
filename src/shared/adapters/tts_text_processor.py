@@ -179,10 +179,13 @@ class TTSTextProcessor:
         text = re.sub(r'([.,!?;:])\s*', r'\1 ', text)  # Add space after
         text = re.sub(r'\.\s+\.', '...', text)  # Fix ellipsis
 
-        # FIX FOR COQUI ARTIFACTS: Stabilize punctuation boundaries
-        # Add extra space after sentence-final punctuation to give Coqui room
-        # to synthesize clean transitions without spectral artifacts
-        text = re.sub(r'([\.\!\?])\s+', r'\1  ', text)  # Double space after sentence end
+        # XTTS-v2 vocaliza '.' en límites de frase como artefacto onomatopéyico.
+        # Reemplazar con '\n': XTTS-v2 lo trata como pausa limpia sin vocalización.
+        # Solo afecta a ". Mayúscula" y punto al final del texto.
+        # No afecta a decimales (3.5) ni abreviaturas seguidas de minúscula.
+        text = re.sub(r'\.\s+(?=[A-ZÁÉÍÓÚÑ¡¿])', '\n', text)
+        text = re.sub(r'\.\s*$', '', text)
+        text = re.sub(r' *\n *', '\n', text)
 
         # Ensure no multiple spaces remain
         text = re.sub(r' {2,}', ' ', text)

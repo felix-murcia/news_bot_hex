@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { formatDurationMs } from '../utils/formatDuration'
 
 interface LogEntry {
   timestamp: string
@@ -62,7 +63,7 @@ export function LogsTable({ pipelineType }: LogsTableProps) {
       className="rounded-lg p-6 border"
       style={{ backgroundColor: '#1A1C22', borderColor: '#2A2D35' }}
     >
-      <h3 className="text-lg font-semibold mb-4" style={{ color: '#E5E7EB', fontFamily: 'Fira Code' }}>
+      <h3 className="text-lg font-semibold mb-4" style={{ color: '#E5E7EB', fontFamily: 'system-ui' }}>
         Recent Logs
       </h3>
 
@@ -108,7 +109,7 @@ export function LogsTable({ pipelineType }: LogsTableProps) {
                   style={{ borderBottomColor: '#2A2D35', borderBottomWidth: '1px' }}
                   className="hover:bg-opacity-50 transition-colors"
                 >
-                  <td className="py-2 px-3" style={{ color: '#E5E7EB', fontFamily: 'Fira Code' }}>
+                  <td className="py-2 px-3" style={{ color: '#E5E7EB', fontFamily: 'system-ui' }}>
                     {log.timestamp}
                   </td>
                   <td className="py-2 px-3">
@@ -125,8 +126,8 @@ export function LogsTable({ pipelineType }: LogsTableProps) {
                   <td className="py-2 px-3" style={{ color: '#9CA3AF' }}>
                     {log.message}
                   </td>
-                  <td className="py-2 px-3" style={{ color: '#9CA3AF', fontFamily: 'Fira Code' }}>
-                    {log.duration}ms
+                  <td className="py-2 px-3" style={{ color: '#9CA3AF', fontFamily: 'system-ui' }}>
+                    {formatDurationMs(log.duration)}
                   </td>
                 </tr>
               ))}

@@ -51,7 +51,7 @@ export function KPICard({
           </p>
           <p
             className="text-2xl font-bold mt-2"
-            style={{ color: '#E5E7EB', fontFamily: 'Fira Code' }}
+            style={{ color: '#E5E7EB', fontFamily: 'system-ui' }}
           >
             {value}
           </p>
