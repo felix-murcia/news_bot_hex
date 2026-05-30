@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
-import { KPICard } from './KPICard'
-import { PercentileChart } from './PercentileChart'
-import { StepDurationChart } from './StepDurationChart'
-import { ErrorRateChart } from './ErrorRateChart'
-import { ThroughputChart } from './ThroughputChart'
-import { LogsTable } from './LogsTable'
-import { ActivityHeatmap } from './ActivityHeatmap'
-import { PipelineSelector } from './PipelineSelector'
+import {
+  PremiumKPICard,
+  PremiumPercentileChart,
+  PremiumStepDurationChart,
+  PremiumErrorRateChart,
+  PremiumThroughputChart,
+  PremiumLogsTable,
+  PremiumActivityHeatmap,
+  PremiumPipelineSelector,
+} from './premium'
 import { LoadingSpinner } from './LoadingSpinner'
 import { formatDurationMs } from '../utils/formatDuration'
 import axios from 'axios'
@@ -46,32 +48,34 @@ export function MetricsDashboard() {
   const days = period === '24h' ? 1 : period === '7d' ? 7 : 30
 
   return (
-    <div className="w-full min-h-screen p-6" style={{ backgroundColor: '#0E0F14' }}>
+    <div className="w-full min-h-screen p-6" style={{ background: '#0D0E12' }}>
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold" style={{ color: '#E5E7EB', fontFamily: 'system-ui' }}>
+            <h1 className="text-2xl font-bold" style={{ color: '#F9FAFB', fontFamily: 'Inter, sans-serif' }}>
               Pipeline Metrics
             </h1>
-            <p style={{ color: '#9CA3AF' }} className="text-sm mt-1">
-              Real-time monitoring dashboard for NEWS, AUDIO, and VIDEO pipelines
+            <p className="text-sm mt-1" style={{ color: '#6B7280', fontFamily: 'Inter, sans-serif' }}>
+              Real-time monitoring — NEWS · AUDIO · VIDEO
             </p>
           </div>
         </div>
 
         {/* Controls */}
-        <div className="flex gap-4 items-center">
-          <PipelineSelector value={pipelineType} onChange={setPipelineType} />
-          <div className="flex gap-2">
+        <div className="flex flex-wrap gap-4 items-center">
+          <PremiumPipelineSelector value={pipelineType} onChange={setPipelineType} />
+          <div className="flex gap-1.5">
             {(['24h', '7d', '30d'] as const).map((p) => (
               <button
                 key={p}
                 onClick={() => setPeriod(p)}
-                className="px-3 py-1 rounded text-sm font-medium transition-all duration-200"
+                className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 cursor-pointer"
                 style={{
-                  backgroundColor: period === p ? '#3B82F6' : '#2A2D35',
-                  color: period === p ? '#FFFFFF' : '#9CA3AF',
+                  background: period === p ? '#6366F118' : 'transparent',
+                  color: period === p ? '#6366F1' : '#6B7280',
+                  border: `1px solid ${period === p ? '#6366F155' : '#1F2330'}`,
+                  fontFamily: 'JetBrains Mono, monospace',
                 }}
               >
                 {p}
@@ -85,66 +89,59 @@ export function MetricsDashboard() {
         <LoadingSpinner />
       ) : health ? (
         <div className="space-y-6">
-          {/* KPI Cards - 4 columns */}
+          {/* KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <KPICard
+            <PremiumKPICard
               label="Total Pipelines"
               value={health.total_executions}
               icon="Zap"
-              color="blue"
+              color="indigo"
             />
-            <KPICard
+            <PremiumKPICard
               label="Success Rate"
               value={`${((1 - health.error_rate) * 100).toFixed(1)}%`}
               icon="CheckCircle2"
-              color="green"
+              color="emerald"
             />
-            <KPICard
-              label="Avg Latency"
+            <PremiumKPICard
+              label="P95 Latency"
               value={formatDurationMs(health.p95_latency_ms)}
               icon="Clock"
-              color="yellow"
+              color="amber"
             />
-            <KPICard
+            <PremiumKPICard
               label="Throughput"
               value={`${health.throughput_per_hour.toFixed(1)}/h`}
               icon="Activity"
-              color="purple"
+              color="cyan"
             />
           </div>
 
-          {/* Charts Grid - 2x2 layout */}
+          {/* Charts Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Percentiles - Full width on top */}
             <div className="lg:col-span-2">
-              <PercentileChart pipelineType={pipelineType} days={days} />
+              <PremiumPercentileChart pipelineType={pipelineType} days={days} />
             </div>
 
-            {/* Step Duration */}
-            <StepDurationChart pipelineType={pipelineType} days={days} />
+            <PremiumStepDurationChart pipelineType={pipelineType} days={days} />
+            <PremiumErrorRateChart health={health} />
 
-            {/* Error Rate */}
-            <ErrorRateChart health={health} />
-
-            {/* Throughput */}
             <div className="lg:col-span-2">
-              <ThroughputChart pipelineType={pipelineType} days={days} />
+              <PremiumThroughputChart pipelineType={pipelineType} days={days} />
             </div>
 
-            {/* Activity Heatmap */}
             <div className="lg:col-span-2">
-              <ActivityHeatmap pipelineType={pipelineType} />
+              <PremiumActivityHeatmap pipelineType={pipelineType} />
             </div>
 
-            {/* Logs Table */}
             <div className="lg:col-span-2">
-              <LogsTable pipelineType={pipelineType} />
+              <PremiumLogsTable pipelineType={pipelineType} />
             </div>
           </div>
         </div>
       ) : (
         <div className="text-center py-12">
-          <p style={{ color: '#9CA3AF' }}>No data available</p>
+          <p style={{ color: '#6B7280', fontFamily: 'Inter, sans-serif' }}>No data available</p>
         </div>
       )}
     </div>
