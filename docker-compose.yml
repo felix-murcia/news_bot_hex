@@ -33,9 +33,11 @@ services:
       - /tmp/images:/tmp/images
       - ~/.config/systemd/user:/root/.config/systemd/user
     networks:
-      - cine-network
+      - news-bot-network
       - mongo_default
       - tts-network
+      - speaches-network
+      - ffmpeg-cuda_ffmpeg-network
     deploy:
       resources:
         reservations:
@@ -55,12 +57,18 @@ services:
     depends_on:
       - app
     networks:
-      - cine-network
+      - news-bot-network
 
 networks:
-  cine-network:
-    external: true
+  news-bot-network:
+    driver: bridge
   mongo_default:
     external: true
   tts-network:
     external: true
+  speaches-network:
+    external: true
+    name: text-to-speech-app_speaches-network
+  ffmpeg-cuda_ffmpeg-network:
+    external: true
+    name: ffmpeg-cuda_ffmpeg-network
