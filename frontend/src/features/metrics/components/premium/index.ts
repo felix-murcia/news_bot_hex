@@ -1,4 +1,5 @@
 export { PremiumPercentileChart } from './PremiumPercentileChart'
+export { PremiumDurationLineChart } from './PremiumDurationLineChart'
 export { PremiumStepDurationChart } from './PremiumStepDurationChart'
 export { PremiumThroughputChart } from './PremiumThroughputChart'
 export { PremiumErrorRateChart } from './PremiumErrorRateChart'

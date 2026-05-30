@@ -5,6 +5,7 @@ import {
   PremiumStepDurationChart,
   PremiumErrorRateChart,
   PremiumThroughputChart,
+  PremiumDurationLineChart,
   PremiumLogsTable,
   PremiumActivityHeatmap,
   PremiumPipelineSelector,
@@ -128,6 +129,10 @@ export function MetricsDashboard() {
 
             <div className="lg:col-span-2">
               <PremiumThroughputChart pipelineType={pipelineType} days={days} />
+            </div>
+
+            <div className="lg:col-span-2">
+              <PremiumDurationLineChart pipelineType={pipelineType} days={days} />
             </div>
 
             <div className="lg:col-span-2">
