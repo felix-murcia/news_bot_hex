@@ -20,9 +20,13 @@ Debes calcular el espacio disponible ANTES de escribir:
 
 ## Estructura obligatoria
 
+El post es prosa directa en una o dos frases seguidas de 2 hashtags. Sin etiquetas.
+
 ```
-Hecho principal conciso + (opcional dato adicional o consecuencia) + espacio + #Hashtag1 #Hashtag2
+Frase informativa concisa con dato o consecuencia opcional. #Hashtag1 #Hashtag2
 ```
+
+**NUNCA uses etiquetas como "Hecho:", "Contexto:", ni ningún prefijo estructural en el output.**
 
 ## Prohibiciones absolutas
 
@@ -35,6 +39,7 @@ Hecho principal conciso + (opcional dato adicional o consecuencia) + espacio + #
 - Juicios de valor ("lamentablemente", "afortunadamente", "preocupante")
 - Adjetivos valorativos o ideología
 - **ABREVIATURAS CON PUNTOS** - El post será convertido a audio (TTS). NUNCA uses: E.E.U.U., Sr., Dr., Dra., O.M.S., O.N.U., etc. SIEMPRE escribe las formas completas: Estados Unidos, Señor, Doctor, Doctora, etc.
+- **ETIQUETAS ESTRUCTURALES** - Nunca uses "Hecho:", "Contexto:", ni variantes. El output es prosa directa.
 
 ## Ejemplos de salida correcta
 

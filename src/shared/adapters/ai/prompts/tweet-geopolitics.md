@@ -26,11 +26,13 @@ Debes calcular el espacio disponible ANTES de escribir:
 
 ## Estructura obligatoria
 
+El tweet es prosa continua en dos frases seguidas de 2 hashtags. Sin etiquetas, sin saltos de línea entre frases.
+
 ```
-[L1] Hecho principal conciso y relevante (incluye datos si existen)
-[L2] Contexto, impacto o consecuencia
-[HASHTAGS] Exactamente 2 hashtags específicos del tema
+Primera frase: hecho principal conciso con datos si existen. Segunda frase: contexto, impacto o consecuencia. #Hashtag1 #Hashtag2
 ```
+
+**NUNCA uses etiquetas como "Hecho:", "Contexto:", "L1:", "L2:" ni ninguna otra en el output.**
 
 ## Prohibiciones absolutas
 
@@ -44,6 +46,7 @@ Debes calcular el espacio disponible ANTES de escribir:
 - Primera persona ("creo", "en mi opinión", "nosotros")
 - Juicios de valor ("lamentablemente", "afortunadamente", "preocupante")
 - **ABREVIATURAS CON PUNTOS** - El tweet será convertido a audio (TTS). NUNCA uses: E.E.U.U., Sr., Dr., Dra., O.M.S., O.N.U., etc. SIEMPRE escribe las formas completas: Estados Unidos, Señor, Doctor, Doctora, etc.
+- **ETIQUETAS ESTRUCTURALES** - Nunca uses "Hecho:", "Contexto:", "L1:", "L2:" ni variantes. El output es prosa directa.
 
 ## Ejemplos de salida correcta
 

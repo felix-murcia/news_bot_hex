@@ -32,7 +32,6 @@ class CoquiTTSAdapter(TTSPort):
         language: str = None,
         speed: float = None,
         timeout: int = None,
-        length_scale: float = None,
         temperature: float = None,
         enable_post_processing: bool = None,
     ):
@@ -49,10 +48,6 @@ class CoquiTTSAdapter(TTSPort):
         self.timeout = raw_ms / 1000
 
         # Stability parameters for artifact reduction
-        self.length_scale = (
-            length_scale if length_scale is not None
-            else float(getattr(Settings, "COQUI_LENGTH_SCALE", "1.0"))
-        )
         self.temperature = (
             temperature if temperature is not None
             else float(getattr(Settings, "COQUI_TEMPERATURE", "0.85"))
@@ -71,8 +66,7 @@ class CoquiTTSAdapter(TTSPort):
 
         logger.info(
             f"[COQUI TTS] Adaptador inicializado → API: {self.api_url}, voice: {self.voice}, "
-            f"length_scale: {self.length_scale}, temperature: {self.temperature}, "
-            f"post_processing: {self.enable_post_processing}"
+            f"temperature: {self.temperature}, post_processing: {self.enable_post_processing}"
         )
 
     def _apply_atempo_filter(self, wav_path: str) -> Optional[str]:
@@ -166,18 +160,14 @@ class CoquiTTSAdapter(TTSPort):
 
         # Construir parámetros de la petición
         params = {"text": text}
-        if self.voice:
-            params["speaker_wav"] = self.voice
         if self.language:
             params["language"] = self.language
-        # Add stability parameters to reduce artifacts
-        params["length_scale"] = self.length_scale
         params["temperature"] = self.temperature
 
         request_url = f"{self.api_url}/api/tts"
         logger.info(
             f"[COQUI TTS] Solicitud: GET /api/tts → model: {self.model}, speed: {self.speed}, "
-            f"length_scale: {self.length_scale}, temperature: {self.temperature}"
+            f"temperature: {self.temperature}"
         )
         logger.debug(f"[COQUI TTS] Texto original: {text[:80]}...")
 

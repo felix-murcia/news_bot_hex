@@ -691,6 +691,13 @@ class ImageRelevanceValidator:
 
         return result
 
+    # Sin descripción: no evaluable, candidata de último recurso
+    # Debe quedar por debajo de cualquier Jaccard positivo (mínimo Jaccard ~1/N)
+    _SCORE_NO_DESCRIPTION = 0.33
+    # Intersección cero entre conjuntos no vacíos: cross-language o irrelevante
+    # — no se puede distinguir sin detección de idioma
+    _SCORE_ZERO_INTERSECTION = 0.31
+
     def calculate_relevance_score(
         self, image_description: str, article_text: str
     ) -> float:
@@ -698,10 +705,16 @@ class ImageRelevanceValidator:
         Calcula similitud semántica entre imagen y artículo.
         Retorna un score entre 0 y 1.
 
+        Scores especiales para casos no evaluables (no se descartan):
+        - Sin descripción → 0.5 (neutral)
+        - Intersección cero entre conjuntos no vacíos → 0.35 (cross-language
+          o irrelevante — indistinguibles sin detección de idioma)
+        - Jaccard positivo → score real + bonus visual (puede superar 0.5)
+
         Usa caché para evitar recalcular el mismo par.
         """
         if not image_description or not article_text:
-            return 0.0
+            return self._SCORE_NO_DESCRIPTION
 
         cache_key = f"{image_description[:100]}|||{article_text[:200]}".lower()
         if cache_key in self._score_cache:
@@ -717,19 +730,19 @@ class ImageRelevanceValidator:
         article_words = {w for w in article_words if w not in self.STOPWORDS}
 
         if not desc_words or not article_words:
-            self._score_cache[cache_key] = 0.0
-            return 0.0
+            self._score_cache[cache_key] = self._SCORE_ZERO_INTERSECTION
+            return self._SCORE_ZERO_INTERSECTION
 
         common_words = desc_words.intersection(article_words)
+
+        if not common_words:
+            # Intersección cero: cross-language o genuinamente irrelevante
+            self._score_cache[cache_key] = self._SCORE_ZERO_INTERSECTION
+            return self._SCORE_ZERO_INTERSECTION
+
         union_size = len(desc_words.union(article_words))
-        if union_size == 0:
-            self._score_cache[cache_key] = 0.0
-            return 0.0
-
         jaccard_score = len(common_words) / union_size
-
         visual_bonus = sum(0.1 for word in common_words if word in self.VISUAL_KEYWORDS)
-
         final_score = min(jaccard_score + visual_bonus, 1.0)
 
         self._score_cache[cache_key] = final_score

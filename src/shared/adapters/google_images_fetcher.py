@@ -65,13 +65,15 @@ def fallback_google_query(query: str) -> str:
 
 
 def filter_by_relevance(
-    images: list[dict], article_text: str, min_score: float = 0.65
+    images: list[dict], article_text: str, min_score: float = 0.30
 ) -> list[dict]:
     """
     Filtra imágenes que no alcanzan el umbral de relevancia mínima.
     images: lista de dicts con clave 'description' o 'alt'
     article_text: texto completo del artículo
-    min_score: umbral mínimo (0.65 = 65% de similitud)
+    min_score: umbral mínimo. 0.30 permite paso de imágenes cross-language (0.4)
+               y sin descripción (0.5); filtra solo imágenes con misma lengua e
+               Jaccard real cercano a 0.
     """
     if not images or not article_text:
         return images
@@ -233,10 +235,15 @@ class GoogleImagesFetcher:
 
         validator = ImageRelevanceValidator()
 
-        # Extraer keywords visuales con fallback de categoría
-        keywords = validator.extract_visual_keywords(
-            article_content, article_title, fallback_category=category
-        )
+        # Generar keywords visuales con LLM; fallback al algoritmo nemotécnico
+        from src.shared.adapters.image_query_generator import generar_keywords_visuales_con_llm
+
+        keywords = generar_keywords_visuales_con_llm(article_title, article_content)
+
+        if not keywords:
+            keywords = validator.extract_visual_keywords(
+                article_content, article_title, fallback_category=category
+            )
 
         if not keywords:
             words = re.findall(r"\b[a-záéíóúñüA-ZÁÉÍÓÚÑÜ]{4,}\b", article_title)
