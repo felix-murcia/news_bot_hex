@@ -66,6 +66,7 @@ networks:
     external: true
   tts-network:
     external: true
+    name: coquis-tts_tts-network
   speaches-network:
     external: true
     name: text-to-speech-app_speaches-network
