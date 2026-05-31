@@ -4,7 +4,7 @@ import {
   PremiumPercentileChart,
   PremiumStepDurationChart,
   PremiumErrorRateChart,
-  PremiumThroughputChart,
+  PremiumExecutionsChart,
   PremiumDurationLineChart,
   PremiumLogsTable,
   PremiumActivityHeatmap,
@@ -32,7 +32,7 @@ export function MetricsDashboard() {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const res = await axios.get('/metrics/health')
+        const res = await axios.get(`/metrics/health?period=${period}`)
         if (res.data.data && res.data.data[pipelineType]) {
           setHealth(res.data.data[pipelineType])
         }
@@ -44,7 +44,7 @@ export function MetricsDashboard() {
     }
 
     fetchData()
-  }, [pipelineType])
+  }, [pipelineType, period])
 
   const days = period === '24h' ? 1 : period === '7d' ? 7 : 30
 
@@ -128,7 +128,7 @@ export function MetricsDashboard() {
             <PremiumErrorRateChart health={health} />
 
             <div className="lg:col-span-2">
-              <PremiumThroughputChart pipelineType={pipelineType} days={days} />
+              <PremiumExecutionsChart pipelineType={pipelineType} days={days} />
             </div>
 
             <div className="lg:col-span-2">

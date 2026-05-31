@@ -1,7 +1,7 @@
 export { PremiumPercentileChart } from './PremiumPercentileChart'
 export { PremiumDurationLineChart } from './PremiumDurationLineChart'
 export { PremiumStepDurationChart } from './PremiumStepDurationChart'
-export { PremiumThroughputChart } from './PremiumThroughputChart'
+export { PremiumExecutionsChart } from './PremiumExecutionsChart'
 export { PremiumErrorRateChart } from './PremiumErrorRateChart'
 export { PremiumActivityHeatmap } from './PremiumActivityHeatmap'
 export { PremiumKPICard } from './PremiumKPICard'

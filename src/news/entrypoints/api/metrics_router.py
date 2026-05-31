@@ -205,23 +205,20 @@ def get_hourly_metrics(
 
 @router.get("/health")
 def get_health_metrics(
+    period: str = Query("24h", description="Time period: 24h, 7d, 30d"),
     metrics_repo=Depends(get_metrics_repository),
 ):
     """
-    Get health summary for last 24 hours.
-
-    Returns:
-    - Error rate
-    - P95 latency
-    - Throughput (executions per hour)
-    - Last execution timestamp
+    Get health summary for the requested period (24h, 7d, 30d).
     """
+    PERIOD_MAP = {"24h": 1, "7d": 7, "30d": 30}
+    days = PERIOD_MAP.get(period, 1)
+    hours = days * 24
 
     try:
         end = datetime.now()
-        start = end - timedelta(hours=24)
+        start = end - timedelta(days=days)
 
-        # Get aggregated metrics for all pipeline types
         results = {}
         for pipeline_type in [PipelineType.NEWS, PipelineType.AUDIO, PipelineType.VIDEO]:
             try:
@@ -235,14 +232,10 @@ def get_health_metrics(
                 if aggregated:
                     total_count = sum(item.get("count", 0) for item in aggregated)
                     total_errors = sum(item.get("error_count", 0) for item in aggregated)
-                    error_rate = (
-                        (total_errors / total_count) if total_count > 0 else 0
-                    )
-                    p95_latencies = [
-                        item.get("p95", 0) for item in aggregated if item.get("p95")
-                    ]
+                    error_rate = (total_errors / total_count) if total_count > 0 else 0
+                    p95_latencies = [item.get("p95", 0) for item in aggregated if item.get("p95")]
                     p95_latency = max(p95_latencies) if p95_latencies else 0
-                    throughput = total_count / 24  # executions per hour
+                    throughput = total_count / hours
 
                     results[pipeline_type.value] = {
                         "error_rate": round(error_rate, 3),
@@ -256,7 +249,7 @@ def get_health_metrics(
 
         return {
             "status": "ok",
-            "period": "24h",
+            "period": period,
             "data": results,
         }
     except Exception as e:
