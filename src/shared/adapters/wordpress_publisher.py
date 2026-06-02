@@ -87,37 +87,76 @@ def rest_url(endpoint: str) -> str:
     return f"{Settings.WP_API_URL}/{endpoint}"
 
 
+def _compress_image(data: bytes, filename: str, max_width: int = 1200, quality: int = 82) -> tuple[bytes, str]:
+    """Compress image with Pillow: resize to max_width, convert to WebP.
+
+    Returns (compressed_bytes, new_filename). Falls back to original on error.
+    """
+    try:
+        from PIL import Image
+        img = Image.open(BytesIO(data))
+        # Convert palette/RGBA modes for WebP compatibility
+        if img.mode in ("P", "RGBA"):
+            img = img.convert("RGBA")
+        elif img.mode != "RGB":
+            img = img.convert("RGB")
+        # Resize only if wider than max_width
+        if img.width > max_width:
+            ratio = max_width / img.width
+            new_size = (max_width, int(img.height * ratio))
+            img = img.resize(new_size, Image.LANCZOS)
+        buf = BytesIO()
+        img.save(buf, format="WEBP", quality=quality, method=4)
+        compressed = buf.getvalue()
+        new_filename = Path(filename).stem + ".webp"
+        original_kb = len(data) / 1024
+        compressed_kb = len(compressed) / 1024
+        logger.info(
+            f"[HOSTING] Imagen comprimida: {original_kb:.0f} KB → {compressed_kb:.0f} KB "
+            f"({100 - compressed_kb / original_kb * 100:.0f}% reducción)"
+        )
+        return compressed, new_filename
+    except Exception as e:
+        logger.warning(f"[HOSTING] Compresión de imagen fallida, usando original: {e}")
+        return data, filename
+
+
+def _set_media_meta(media_id: int, alt_text: Optional[str], credit: Optional[str]) -> None:
+    try:
+        meta_payload = {}
+        if alt_text:
+            meta_payload["alt_text"] = alt_text
+        if credit:
+            meta_payload["caption"] = credit
+            meta_payload["description"] = credit
+        if meta_payload:
+            requests.post(
+                rest_url(f"media/{media_id}"),
+                headers=get_headers(),
+                json=meta_payload,
+                timeout=15,
+            )
+    except Exception as e:
+        logger.warning(f"[HOSTING] No se pudo asignar metadatos de imagen: {e}")
+
+
 def upload_image(
     image_path: str, credit: Optional[str] = None, alt_text: Optional[str] = None
 ) -> Optional[int]:
     try:
+        with open(image_path, "rb") as f:
+            raw = f.read()
+        compressed, filename = _compress_image(raw, os.path.basename(image_path))
         headers = get_headers()
         headers.pop("Content-Type", None)
-        with open(image_path, "rb") as f:
-            files = {"file": (os.path.basename(image_path), f)}
-            logger.info(f"[HOSTING] Subiendo imagen: {image_path}")
-            resp = requests.post(
-                rest_url("media"), headers=headers, files=files, timeout=30
-            )
+        files = {"file": (filename, BytesIO(compressed), "image/webp")}
+        logger.info(f"[HOSTING] Subiendo imagen: {image_path}")
+        resp = requests.post(rest_url("media"), headers=headers, files=files, timeout=30)
         if resp.status_code in (200, 201):
             media_id = resp.json().get("id")
             logger.info(f"[HOSTING] Imagen subida, ID={media_id}")
-            if media_id and (credit or alt_text):
-                try:
-                    meta_payload = {}
-                    if alt_text:
-                        meta_payload["alt_text"] = alt_text
-                    if credit:
-                        meta_payload["caption"] = credit
-                        meta_payload["description"] = credit
-                    requests.post(
-                        rest_url(f"media/{media_id}"),
-                        headers=get_headers(),
-                        json=meta_payload,
-                        timeout=15,
-                    )
-                except Exception as e:
-                    logger.warning(f"[HOSTING] No se pudo asignar créditos: {e}")
+            if media_id:
+                _set_media_meta(int(media_id), alt_text, credit)
             return int(media_id)
         else:
             logger.error(f"[HOSTING] Error al subir imagen: {resp.status_code}")
@@ -131,33 +170,18 @@ def upload_image_from_url(
     image_url: str, alt_text: Optional[str] = None, credit: Optional[str] = None
 ) -> Optional[int]:
     try:
-        resp = requests.get(
-            image_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=30
-        )
+        resp = requests.get(image_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
         resp.raise_for_status()
-        files = {"file": ("image.jpg", BytesIO(resp.content))}
+        compressed, filename = _compress_image(resp.content, "image.jpg")
         logger.info(f"[HOSTING] Subiendo imagen desde URL: {image_url}")
         headers = get_headers()
         headers.pop("Content-Type", None)
+        files = {"file": (filename, BytesIO(compressed), "image/webp")}
         r = requests.post(rest_url("media"), headers=headers, files=files, timeout=30)
         if r.status_code in (200, 201):
             media_id = r.json().get("id")
-            if media_id and (alt_text or credit):
-                try:
-                    meta_payload = {}
-                    if alt_text:
-                        meta_payload["alt_text"] = alt_text
-                    if credit:
-                        meta_payload["caption"] = credit
-                        meta_payload["description"] = credit
-                    requests.post(
-                        rest_url(f"media/{media_id}"),
-                        headers=get_headers(),
-                        json=meta_payload,
-                        timeout=15,
-                    )
-                except Exception as e:
-                    logger.warning(f"[HOSTING] No se pudo asignar créditos: {e}")
+            if media_id:
+                _set_media_meta(int(media_id), alt_text, credit)
             return int(media_id)
         else:
             logger.error(f"[HOSTING] Error al subir imagen: {r.status_code}")
