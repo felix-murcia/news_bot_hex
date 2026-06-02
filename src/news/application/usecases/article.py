@@ -11,6 +11,13 @@ from src.news.domain.ports import VerifiedNewsRepository, GeneratedPostsReposito
 from src.shared.adapters.ai.agents import ArticleAgent
 from src.shared.adapters.translator import translate_text
 from src.news.domain.services.template_renderer import TemplateRenderer
+from src.shared.adapters.seo_optimizer import (
+    slugify as seo_slugify,
+    extract_focus_keyphrase,
+    generate_meta_description,
+    truncate_seo_title,
+    clean_title as seo_clean_title,
+)
 
 logger = get_logger("news_bot.usecase.article")
 
@@ -44,11 +51,6 @@ def _load_template_content() -> Optional[str]:
     return None
 
 
-def slugify(text: str) -> str:
-    text = text.lower()
-    text = re.sub(r"[^\w\s-]", "", text)
-    text = re.sub(r"[\s_-]+", "-", text)
-    return text.strip("-")
 
 
 def _limpiar_html(html: str) -> str:
@@ -93,14 +95,7 @@ def _limpiar_html(html: str) -> str:
 def _validar_titulo(titulo: str) -> str:
     if not titulo or len(titulo) < 5:
         return "Noticia de Última Hora"
-    titulo = titulo.strip()
-    if (
-        not titulo.endswith(".")
-        and not titulo.endswith("!")
-        and not titulo.endswith("?")
-    ):
-        titulo += "."
-    return titulo
+    return seo_clean_title(titulo)
 
 
 class ArticleUseCase:
@@ -237,21 +232,26 @@ class ArticleUseCase:
         titulo_limpio = re.sub(r"<[^>]+>", "", titulo).strip()
         titulo_limpio = _validar_titulo(titulo_limpio)
 
-        slug = slugify(titulo_limpio[:50])
+        slug = seo_slugify(titulo_limpio)
 
         first_p = ""
         clean = re.sub(r"<[^>]+>", " ", article_body)
         paragraphs = [p.strip() for p in clean.split("\n") if p.strip()]
         if paragraphs:
-            first_p = paragraphs[0][:160]
+            first_p = paragraphs[0]
+
+        meta_description = generate_meta_description(titulo_limpio, first_p)
+        seo_title = truncate_seo_title(titulo_limpio)
+        focus_keyword = extract_focus_keyphrase(titulo_limpio)
 
         payload = {
             "title": titulo_limpio,
             "title_es": titulo_limpio,
             "slug": slug,
             "content": article_body,
-            "desc": first_p,
-            "excerpt": first_p,
+            "desc": first_p[:200],
+            "excerpt": first_p[:200],
+            "meta_description": meta_description,
             "labels": [news_item.get("tema", "Noticias")],
             "source_type": news_item.get("source_type", "news_man"),
             "image_url": news_item.get("image_url", "https://api.nbes.blog/image-310/"),
@@ -259,6 +259,8 @@ class ArticleUseCase:
             "alt_text": titulo_limpio,
             "url": f"https://nbes.blog/{slug}",
             "original_url": news_item.get("url", ""),
+            "seo_title": seo_title,
+            "focus_keyword": focus_keyword,
         }
 
         return payload

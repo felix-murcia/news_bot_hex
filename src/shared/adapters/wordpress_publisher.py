@@ -287,6 +287,7 @@ def publish_post(
     is_draft: bool = False,
     featured_image: Optional[int] = None,
     excerpt: Optional[str] = None,
+    meta_description: Optional[str] = None,
     slug: Optional[str] = None,
     seo_title: Optional[str] = None,
     focus_keyword: Optional[str] = None,
@@ -294,32 +295,39 @@ def publish_post(
 ) -> Optional[str]:
     try:
         headers = get_headers()
+        # seo_title (SERP tab, ≤60 chars) is separate from the post title (H1)
+        display_title = title
+        serp_title = seo_title or title
+        # meta_description is distinct from excerpt (excerpt = post summary for RSS/archive)
+        meta_desc = meta_description or excerpt or ""
+
         payload = {
-            "title": seo_title or title,
+            "title": display_title,
             "content": content,
             "status": "draft" if is_draft else "publish",
             "categories": categories or [],
         }
 
-        meta_fields = {}
-        meta_fields["_yoast_wpseo_focuskw"] = focus_keyword or title
         if excerpt:
             payload["excerpt"] = excerpt
-            meta_fields["_yoast_wpseo_metadesc"] = excerpt
-        if seo_title:
-            meta_fields["_yoast_wpseo_title"] = seo_title
+
+        meta_fields = {
+            "_yoast_wpseo_focuskw": focus_keyword or title,
+            "_yoast_wpseo_title": serp_title,
+            "_yoast_wpseo_metadesc": meta_desc,
+            "_yoast_wpseo_opengraph-title": serp_title,
+            "_yoast_wpseo_opengraph-description": meta_desc,
+            "_yoast_wpseo_twitter-title": serp_title,
+            "_yoast_wpseo_twitter-description": meta_desc,
+            "_yoast_wpseo_twitter-card": "summary_large_image",
+        }
         if canonical_url:
             meta_fields["_yoast_wpseo_canonical"] = canonical_url
-        meta_fields["_yoast_wpseo_opengraph-title"] = seo_title or title
-        meta_fields["_yoast_wpseo_opengraph-description"] = excerpt or ""
         if featured_image:
             meta_fields["_yoast_wpseo_opengraph-image"] = str(featured_image)
             meta_fields["_yoast_wpseo_twitter-image"] = str(featured_image)
-        meta_fields["_yoast_wpseo_twitter-title"] = seo_title or title
-        meta_fields["_yoast_wpseo_twitter-description"] = excerpt or ""
 
-        if meta_fields:
-            payload["meta"] = meta_fields
+        payload["meta"] = meta_fields
 
         if slug:
             payload["slug"] = slug
@@ -502,10 +510,25 @@ class WordPressPublisher:
                             f"[HOSTING] No se pudo obtener URL del audio: {e}"
                         )
 
-            # === Prepare content with audio block ===
+            # === Prepare content with audio block and schema ===
             article_content = art.get("content", "")
             if audio_block:
                 article_content = audio_block + "\n\n" + article_content
+
+            # Inject NewsArticle JSON-LD schema at the end of the post
+            try:
+                from src.shared.adapters.seo_optimizer import build_news_article_schema
+                from datetime import datetime, timezone
+                schema_block = build_news_article_schema(
+                    title=title,
+                    description=art.get("meta_description") or art.get("excerpt") or "",
+                    url=art.get("canonical_url") or art.get("url") or "",
+                    image_url=art.get("image_url") or "",
+                    date_published=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                )
+                article_content = article_content + schema_block
+            except Exception as e:
+                logger.warning(f"[HOSTING] No se pudo añadir schema JSON-LD: {e}")
 
             post_url = publish_post(
                 title=title,
@@ -514,6 +537,7 @@ class WordPressPublisher:
                 tags=tag_ids,
                 is_draft=is_draft,
                 excerpt=excerpt,
+                meta_description=art.get("meta_description"),
                 featured_image=featured_image,
                 slug=art.get("slug"),
                 seo_title=art.get("seo_title"),
