@@ -96,6 +96,29 @@ def clean_title(title: str) -> str:
     return re.sub(r"[.]+$", "", title.strip())
 
 
+def generate_excerpt(first_paragraph: str, max_chars: int = 380) -> str:
+    """Build an excerpt from the first paragraph ending at a sentence boundary.
+
+    Takes up to max_chars characters, always ending at the last complete sentence
+    within that limit. Falls back to word boundary if no sentence found.
+    """
+    text = re.sub(r"<[^>]+>", " ", first_paragraph)
+    text = re.sub(r"\s+", " ", text).strip()
+
+    if len(text) <= max_chars:
+        return text
+
+    window = text[:max_chars]
+    # Find last sentence-ending punctuation within the window
+    last_sentence = max(window.rfind(". "), window.rfind("! "), window.rfind("? "))
+    if last_sentence > 80:
+        return window[: last_sentence + 1].strip()
+
+    # No sentence boundary — truncate at last word
+    last_space = window.rfind(" ")
+    return (window[:last_space] if last_space > 80 else window).rstrip(".,;:") + "…"
+
+
 def build_news_article_schema(
     title: str,
     description: str,

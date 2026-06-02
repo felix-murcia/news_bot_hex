@@ -310,6 +310,7 @@ def publish_post(
     tags: Optional[List] = None,
     is_draft: bool = False,
     featured_image: Optional[int] = None,
+    featured_image_url: Optional[str] = None,
     excerpt: Optional[str] = None,
     meta_description: Optional[str] = None,
     slug: Optional[str] = None,
@@ -319,14 +320,11 @@ def publish_post(
 ) -> Optional[str]:
     try:
         headers = get_headers()
-        # seo_title (SERP tab, ≤60 chars) is separate from the post title (H1)
-        display_title = title
         serp_title = seo_title or title
-        # meta_description is distinct from excerpt (excerpt = post summary for RSS/archive)
         meta_desc = meta_description or excerpt or ""
 
         payload = {
-            "title": display_title,
+            "title": title,
             "content": content,
             "status": "draft" if is_draft else "publish",
             "categories": categories or [],
@@ -347,7 +345,11 @@ def publish_post(
         }
         if canonical_url:
             meta_fields["_yoast_wpseo_canonical"] = canonical_url
-        if featured_image:
+        if featured_image_url:
+            # Yoast requires a URL for og:image/twitter:image, not a numeric ID
+            meta_fields["_yoast_wpseo_opengraph-image"] = featured_image_url
+            meta_fields["_yoast_wpseo_twitter-image"] = featured_image_url
+        elif featured_image:
             meta_fields["_yoast_wpseo_opengraph-image"] = str(featured_image)
             meta_fields["_yoast_wpseo_twitter-image"] = str(featured_image)
 
@@ -496,14 +498,30 @@ class WordPressPublisher:
             image_credit = art.get("image_credit")
 
             featured_image = None
+            featured_image_url = None
             if image_path and Path(image_path).exists():
                 featured_image = upload_image(
                     image_path, credit=image_credit, alt_text=alt_text
                 )
+                featured_image_url = image_url  # fallback; upload returns ID not URL
             elif image_url:
                 featured_image = upload_image_from_url(
                     image_url, alt_text=alt_text, credit=image_credit
                 )
+                featured_image_url = image_url
+
+            # Resolve the actual uploaded media URL from WordPress for og:image
+            if featured_image:
+                try:
+                    media_resp = requests.get(
+                        rest_url(f"media/{featured_image}"),
+                        headers=get_headers(),
+                        timeout=10,
+                    )
+                    if media_resp.status_code == 200:
+                        featured_image_url = media_resp.json().get("source_url", featured_image_url)
+                except Exception:
+                    pass
 
             # === TTS Audio Upload ===
             audio_path = art.get("tts_audio_path")
@@ -520,10 +538,10 @@ class WordPressPublisher:
                         )
                         if media_resp.status_code == 200:
                             audio_url = media_resp.json().get("source_url", "")
-                            # Crear bloque Gutenberg para audio
+                            # Crear bloque Gutenberg para audio con atributos de accesibilidad
                             audio_block = f"""
 <!-- wp:audio {{"id": {audio_id}}} -->
-<audio controls src="{audio_url}" controlsList="nodownload" oncontextmenu="return false"></audio>
+<figure class="wp-block-audio"><audio controls src="{audio_url}" controlsList="nodownload" aria-label="Audio del artículo" title="Escuchar artículo en audio"></audio></figure>
 <!-- /wp:audio -->
 """
                             logger.info(
@@ -547,7 +565,7 @@ class WordPressPublisher:
                     title=title,
                     description=art.get("meta_description") or art.get("excerpt") or "",
                     url=art.get("canonical_url") or art.get("url") or "",
-                    image_url=art.get("image_url") or "",
+                    image_url=featured_image_url or art.get("image_url") or "",
                     date_published=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 )
                 article_content = article_content + schema_block
@@ -563,6 +581,7 @@ class WordPressPublisher:
                 excerpt=excerpt,
                 meta_description=art.get("meta_description"),
                 featured_image=featured_image,
+                featured_image_url=featured_image_url,
                 slug=art.get("slug"),
                 seo_title=art.get("seo_title"),
                 focus_keyword=art.get("focus_keyword"),

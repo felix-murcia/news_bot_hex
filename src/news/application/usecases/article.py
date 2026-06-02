@@ -15,6 +15,7 @@ from src.shared.adapters.seo_optimizer import (
     slugify as seo_slugify,
     extract_focus_keyphrase,
     generate_meta_description,
+    generate_excerpt,
     truncate_seo_title,
     clean_title as seo_clean_title,
 )
@@ -249,8 +250,8 @@ class ArticleUseCase:
             "title_es": titulo_limpio,
             "slug": slug,
             "content": article_body,
-            "desc": first_p[:200],
-            "excerpt": first_p[:200],
+            "desc": generate_excerpt(first_p),
+            "excerpt": generate_excerpt(first_p),
             "meta_description": meta_description,
             "labels": [news_item.get("tema", "Noticias")],
             "source_type": news_item.get("source_type", "news_man"),
