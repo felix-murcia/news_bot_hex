@@ -119,16 +119,16 @@ class BasePipelineUseCase(ABC):
     ) -> List[Dict[str, Any]]:
         """Enrich articles with images from multiple sources."""
         step_start = time.time()
-        logger.info("Image enrichment started: Unsplash + Google Images + selection")
+        logger.info("Image enrichment started: Wikimedia Commons → Google Images → Unsplash")
 
         try:
-            from src.shared.adapters.unsplash_fetcher import UnsplashFetcher
+            from src.shared.adapters.wikimedia_fetcher import WikimediaFetcher
 
-            unsplash_fetcher = UnsplashFetcher(mode=self.mode)
-            articles = unsplash_fetcher.fetch_for_posts(articles)
-            logger.debug("Unsplash fetch completed")
+            wikimedia_fetcher = WikimediaFetcher()
+            articles = wikimedia_fetcher.fetch_for_posts(articles)
+            logger.debug("Wikimedia fetch completed")
         except Exception as e:
-            logger.warning(f"Unsplash enrichment failed: {e}")
+            logger.warning(f"Wikimedia enrichment failed: {e}")
 
         try:
             from src.shared.adapters.google_images_fetcher import GoogleImagesFetcher
@@ -138,6 +138,15 @@ class BasePipelineUseCase(ABC):
             logger.debug("Google Images fetch completed")
         except Exception as e:
             logger.warning(f"Google Images enrichment failed: {e}")
+
+        try:
+            from src.shared.adapters.unsplash_fetcher import UnsplashFetcher
+
+            unsplash_fetcher = UnsplashFetcher(mode=self.mode)
+            articles = unsplash_fetcher.fetch_for_posts(articles)
+            logger.debug("Unsplash fetch completed (last resort)")
+        except Exception as e:
+            logger.warning(f"Unsplash enrichment failed: {e}")
 
         enriched = self.image_enricher.enrich(articles)
         elapsed = time.time() - step_start

@@ -1,7 +1,5 @@
-import os
-import requests
-import random
 import re
+import requests
 from dotenv import load_dotenv
 
 from config.settings import Settings
@@ -15,154 +13,68 @@ GOOGLE_API_KEY = Settings.GOOGLE_SEARCH_API_KEY
 GOOGLE_CX = Settings.GOOGLE_SEARCH_ENGINE_ID
 
 if not GOOGLE_API_KEY or not GOOGLE_CX:
-    logger.warning(
-        "[GOOGLE] Missing GOOGLE_SEARCH_API_KEY or GOOGLE_SEARCH_ENGINE_ID in .env"
-    )
+    logger.warning("[GOOGLE] Missing GOOGLE_SEARCH_API_KEY or GOOGLE_SEARCH_ENGINE_ID in .env")
 
 GOOGLE_API = Settings.GOOGLE_API_URL
 
-GOOGLE_SYNONYMS = {
-    "protesta": ["manifestación", "reclamo", "activismo"],
-    "tecnología": ["innovación", "dispositivo", "futuro"],
-    "guerra": ["conflicto", "militar", "soldado"],
-    "economía": ["finanzas", "mercado", "dinero"],
-    "clima": ["medio ambiente", "naturaleza", "tormenta"],
-    "salud": ["hospital", "médico", "enfermedad"],
-    "educación": ["escuela", "estudiante", "aula"],
-    "política": ["gobierno", "elecciones", "parlamento"],
-    "energía": ["electricidad", "solar", "infraestructura"],
-    "crimen": ["policía", "justicia", "investigación"],
-}
-
-
-# ============================================================
-# Nuevo sistema de generación de queries para imágenes
-# (Importamos la lógica compartida de unsplash_fetcher)
-# ============================================================
-
-from src.shared.adapters.unsplash_fetcher import (
-    clean_title,
-    extraer_entidades_imagen,
-    extraer_concepto_visual_principal,
-    generar_query_imagen,
-    enrich_image_query,
-)
-from src.news.domain.services.validation_rules import ImageRelevanceValidator
-
-
-def fallback_google_query(query: str) -> str:
-    keyword = query.lower().split()[0]
-    fallback_terms = GOOGLE_SYNONYMS.get(keyword, [])
-    location_match = re.search(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b", query)
-    location = location_match.group(1) if location_match else ""
-    if fallback_terms:
-        alt_term = random.choice(fallback_terms)
-        return f"{alt_term} {location}".strip()
-    elif location:
-        return location
-    else:
-        return "noticia"
-
 
 def filter_by_relevance(
-    images: list[dict], article_text: str, min_score: float = 0.30
+    images: list[dict], query_keywords: list[str], min_score: float = 0.25
 ) -> list[dict]:
     """
-    Filtra imágenes que no alcanzan el umbral de relevancia mínima.
-    images: lista de dicts con clave 'description' o 'alt'
-    article_text: texto completo del artículo
-    min_score: umbral mínimo. 0.30 permite paso de imágenes cross-language (0.4)
-               y sin descripción (0.5); filtra solo imágenes con misma lengua e
-               Jaccard real cercano a 0.
+    Filtra imágenes comparando su descripción/snippet (inglés) contra las
+    keywords de búsqueda (inglés).
     """
-    if not images or not article_text:
+    if not images or not query_keywords:
         return images
 
-    validator = ImageRelevanceValidator()
-    scored_images = []
-    filtered_count = 0
+    keyword_words = {w.lower() for kw in query_keywords for w in re.findall(r"\b[a-z]{3,}\b", kw.lower())}
+
+    scored = []
+    filtered = 0
 
     for img in images:
-        description = img.get("description") or img.get("alt") or ""
-        score = validator.calculate_relevance_score(description, article_text)
+        description = (img.get("description") or img.get("alt") or "").lower()
+        if not description:
+            img["_relevance_score"] = 0.0
+            filtered += 1
+            continue
+
+        desc_words = set(re.findall(r"\b[a-z]{3,}\b", description))
+        common = desc_words.intersection(keyword_words)
+        union = desc_words.union(keyword_words)
+        score = len(common) / len(union) if union else 0.0
         img["_relevance_score"] = score
+
         if score >= min_score:
-            scored_images.append(img)
+            scored.append(img)
         else:
-            filtered_count += 1
-            logger.debug(
-                f"[RELEVANCE] Imagen filtrada (score={score:.2f}): {description[:60]}"
-            )
+            filtered += 1
+            logger.debug(f"[RELEVANCE] Filtered (score={score:.2f}): {description[:60]}")
 
-    scored_images.sort(key=lambda x: x.get("_relevance_score", 0), reverse=True)
+    scored.sort(key=lambda x: x["_relevance_score"], reverse=True)
 
-    if filtered_count > 0:
-        logger.info(
-            f"[RELEVANCE] {filtered_count} imágenes filtradas por baja relevancia, {len(scored_images)} pasaron"
-        )
+    if filtered > 0:
+        logger.info(f"[RELEVANCE] {filtered} images filtered, {len(scored)} passed")
 
-    return scored_images
-
-
-def search_google_images(query: str, used_ids: set) -> dict | None:
-    if not GOOGLE_API_KEY or not GOOGLE_CX:
-        return None
-
-    def fetch(q):
-        try:
-            params = {
-                "key": GOOGLE_API_KEY,
-                "cx": GOOGLE_CX,
-                "q": q,
-                "searchType": "image",
-                "num": 10,
-            }
-            resp = requests.get(GOOGLE_API, params=params, timeout=15)
-            if resp.status_code != 200:
-                logger.warning(f"[GOOGLE] API error: {resp.status_code}")
-                return None
-            data = resp.json().get("items", [])
-            for img in data:
-                link = img.get("link")
-                img_id = link or str(hash(link))[:20]
-                if link and link not in used_ids:
-                    return {
-                        "id": img_id,
-                        "url": link,
-                        "thumbnail": img.get("image", {}).get("thumbnailLink"),
-                        "context": img.get("image", {}).get("contextLink"),
-                    }
-            return None
-        except Exception as e:
-            logger.warning(f"[GOOGLE] Error: {e}")
-            return None
-
-    result = fetch(query)
-    if result:
-        return result
-    alt_query = fallback_google_query(query)
-    return fetch(alt_query)
+    return scored
 
 
 def get_used_ids() -> set:
     try:
         from src.shared.adapters.mongo_db import get_database
-
         db = get_database()
-        coll = db["used_google_ids"]
-        return set(doc.get("id") for doc in coll.find({}, {"id": 1}))
-    except:
+        return set(doc.get("id") for doc in db["used_google_ids"].find({}, {"id": 1}))
+    except Exception:
         return set()
 
 
 def add_used_id(img_id: str):
     try:
         from src.shared.adapters.mongo_db import get_database
-
         db = get_database()
-        coll = db["used_google_ids"]
-        coll.update_one({"id": img_id}, {"$set": {"id": img_id}}, upsert=True)
-    except:
+        db["used_google_ids"].update_one({"id": img_id}, {"$set": {"id": img_id}}, upsert=True)
+    except Exception:
         pass
 
 
@@ -171,13 +83,8 @@ class GoogleImagesFetcher:
         self.mode = mode
 
     def _search_images(self, query: str, limit: int = 10) -> list[dict]:
-        """
-        Busca múltiples imágenes en Google Custom Search.
-        Devuelve una lista de diccionarios con datos de cada imagen.
-        """
         if not GOOGLE_API_KEY or not GOOGLE_CX:
             return []
-
         used_ids = get_used_ids()
         try:
             params = {
@@ -191,79 +98,25 @@ class GoogleImagesFetcher:
             if resp.status_code != 200:
                 logger.warning(f"[GOOGLE] API error: {resp.status_code}")
                 return []
-            data = resp.json().get("items", [])
             images = []
-            for img in data:
+            for img in resp.json().get("items", []):
                 link = img.get("link")
                 if link and link not in used_ids:
-                    # Usar snippet como descripción si no hay description
-                    description = img.get("snippet") or img.get("title", "")
-                    images.append(
-                        {
-                            "id": str(hash(link))[:20],
-                            "url": link,
-                            "thumbnail": img.get("image", {}).get("thumbnailLink"),
-                            "context": img.get("image", {}).get("contextLink"),
-                            "description": description,
-                        }
-                    )
+                    images.append({
+                        "id": str(hash(link))[:20],
+                        "url": link,
+                        "thumbnail": img.get("image", {}).get("thumbnailLink"),
+                        "description": img.get("snippet") or img.get("title", ""),
+                    })
             return images
         except Exception as e:
-            logger.warning(f"[GOOGLE] Error en búsqueda múltiple: {e}")
+            logger.warning(f"[GOOGLE] Search error: {e}")
             return []
 
-    def fetch_relevant_images(
-        self,
-        article_title: str,
-        article_content: str,
-        max_images: int = 3,
-        category: str = None,
-    ) -> list[dict]:
-        """
-        Obtiene imágenes relevantes para un artículo usando filtrado por relevancia.
-
-        Args:
-            article_title: título del artículo
-            article_content: contenido del artículo
-            max_images: número máximo de imágenes a devolver
-            category: categoría/tema del artículo (usado como fallback)
-
-        Returns:
-            Lista de imágenes relevantes ordenadas por score
-        """
-        article_text = f"{article_title} {article_content}"
-
-        validator = ImageRelevanceValidator()
-
-        # Generar keywords visuales con LLM; fallback al algoritmo nemotécnico
+    def fetch_for_posts(self, posts: list) -> list:
         from src.shared.adapters.image_query_generator import generar_keywords_visuales_con_llm
 
-        keywords = generar_keywords_visuales_con_llm(article_title, article_content)
-
-        if not keywords:
-            keywords = validator.extract_visual_keywords(
-                article_content, article_title, fallback_category=category
-            )
-
-        if not keywords:
-            words = re.findall(r"\b[a-záéíóúñüA-ZÁÉÍÓÚÑÜ]{4,}\b", article_title)
-            keywords = words[:3] if words else ["noticia"]
-
-        query = " ".join(keywords[:4])
-
-        raw_images = self._search_images(query, limit=10)
-
-        relevant_images = filter_by_relevance(raw_images, article_text)
-
-        return relevant_images[:max_images]
-
-    def fetch_for_posts(self, posts: list) -> list:
-        """
-        Obtiene imágenes para una lista de posts.
-        Usa el sistema de relevancia con fallback a búsqueda tradicional.
-        """
         changed = 0
-        used_ids = get_used_ids()
         fallback_url = Settings.WP_DEFAULT_IMAGE_URL
 
         for post in posts:
@@ -278,97 +131,65 @@ class GoogleImagesFetcher:
             if not title:
                 continue
 
-            theme = post.get("tema") or post.get("theme") or post.get("category")
             content = post.get("content") or post.get("article") or ""
 
-            # Intentar obtener imágenes relevantes (máximo 1 por post)
-            relevant_images = self.fetch_relevant_images(
-                article_title=title,
-                article_content=content,
-                max_images=1,
-                category=theme,
-            )
+            keywords = generar_keywords_visuales_con_llm(title, content)
+            if not keywords:
+                logger.warning(f"[GOOGLE] No keywords for '{title[:40]}'")
+                continue
 
-            if relevant_images:
-                selected = relevant_images[0]
-                img_url = selected.get("url")
-                img_id = selected.get("id")
-                description = selected.get("description") or title
+            query = " ".join(keywords[:4])
+            raw_images = self._search_images(query, limit=10)
+            relevant = filter_by_relevance(raw_images, keywords)
 
-                post["google_image"] = img_url
-                post["google_image_url"] = img_url
-                post["image_credit"] = post.get("image_credit") or "Google Images"
-                post["alt_text"] = description[:200]
-                if img_id:
-                    add_used_id(img_id)
-                changed += 1
-                score = selected.get("_relevance_score", 1.0)
-                logger.info(
-                    f"[GOOGLE] ✅ {title[:40]}: {img_url[:40] if img_url else ''} (score={score:.2f})"
-                )
-            else:
-                # Fallback a búsqueda tradicional sin filtro de relevancia
-                logger.debug(
-                    f"[GOOGLE] No hay imágenes relevantes para '{title[:40]}', usando fallback"
-                )
-                query = enrich_image_query(
-                    title, theme, content, use_title_only=self.mode == "news"
-                )
-                result = search_google_images(query, used_ids)
-                if result:
-                    img_url = result.get("url")
-                    img_id = result.get("id")
-                    post["google_image"] = img_url
-                    post["google_image_url"] = img_url
-                    post["image_credit"] = post.get("image_credit") or "Google Images"
-                    post["alt_text"] = post.get("alt_text") or title[:200]
-                    if img_id:
-                        add_used_id(img_id)
-                    changed += 1
-                    logger.info(
-                        f"[GOOGLE] ⚠️ (fallback) {title[:40]}: {img_url[:40] if img_url else ''}"
-                    )
-                else:
-                    logger.warning(f"[GOOGLE] No encontrada: {title[:40]}")
+            if not relevant:
+                logger.warning(f"[GOOGLE] No relevant images for '{title[:40]}' (query: {query})")
+                continue
 
-        logger.info(f"[GOOGLE] ✅ {changed} imágenes encontradas")
+            selected = relevant[0]
+            img_url = selected.get("url")
+            img_id = selected.get("id")
+
+            post["google_image"] = img_url
+            post["google_image_url"] = img_url
+            post["image_credit"] = post.get("image_credit") or "Google Images"
+            post["alt_text"] = (selected.get("description") or title)[:200]
+
+            if img_id:
+                add_used_id(img_id)
+
+            changed += 1
+            score = selected.get("_relevance_score", 0.0)
+            logger.info(f"[GOOGLE] ✅ {title[:40]}: {img_url[:40] if img_url else ''} (score={score:.2f})")
+
+        logger.info(f"[GOOGLE] {changed} images assigned")
         return posts
 
     def fetch_from_mongo(self) -> int:
         try:
             from src.shared.adapters.mongo_db import get_database
-
             db = get_database()
             coll = db["generated_posts"]
             posts = list(coll.find({}))
-
             if not posts:
-                logger.warning("[GOOGLE] No hay posts para enriquecer")
+                logger.warning("[GOOGLE] No posts to enrich")
                 return 0
-
             self.fetch_for_posts(posts)
-
             for post in posts:
-                post_id = post.get("_id")
+                post_id = post.pop("_id", None)
                 if post_id:
-                    post.pop("_id", None)
                     coll.update_one({"_id": post_id}, {"$set": post})
-
             return len(posts)
-
         except Exception as e:
             logger.error(f"[GOOGLE] Error: {e}")
             return 0
 
 
 def run(mode: str = "news") -> int:
-    logger.info(f"[GOOGLE] Ejecutando (modo: {mode})")
-    fetcher = GoogleImagesFetcher(mode=mode)
-    return fetcher.fetch_from_mongo()
+    logger.info(f"[GOOGLE] Running (mode: {mode})")
+    return GoogleImagesFetcher(mode=mode).fetch_from_mongo()
 
 
 if __name__ == "__main__":
     import sys
-
-    mode = sys.argv[1] if len(sys.argv) > 1 else "news"
-    run(mode)
+    run(sys.argv[1] if len(sys.argv) > 1 else "news")

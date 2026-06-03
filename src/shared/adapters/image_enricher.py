@@ -85,10 +85,11 @@ def get_image_urls(post: dict) -> list:
         return url
 
     candidates = [
-        post.get("unsplash_image"),
-        post.get("unsplash_image_url"),
+        post.get("wikimedia_image"),
         post.get("google_image"),
         post.get("google_image_url"),
+        post.get("unsplash_image"),
+        post.get("unsplash_image_url"),
         post.get("image_url"),
         post.get("featured_image"),
         post.get("og_image"),
