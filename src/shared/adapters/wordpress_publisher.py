@@ -551,6 +551,12 @@ class WordPressPublisher:
                         logger.warning(
                             f"[HOSTING] No se pudo obtener URL del audio: {e}"
                         )
+                # Eliminar archivo local tras subida (con o sin éxito)
+                try:
+                    Path(audio_path).unlink(missing_ok=True)
+                    logger.debug(f"[HOSTING] Audio local eliminado: {audio_path}")
+                except Exception as e:
+                    logger.warning(f"[HOSTING] No se pudo eliminar audio local: {e}")
 
             # === Prepare content with audio block and schema ===
             article_content = art.get("content", "")
