@@ -178,30 +178,31 @@ class StartupValidator:
         logger.info(f"[5/5] Initializing systemd timer...")
 
         try:
-            db = get_database()
-            timer_config = db['timer_config'].find_one({'_id': 'pipeline_timer'})
+            from datetime import datetime
+            from src.news.infrastructure.adapters.systemd_timer_adapter import SystemdTimerAdapter
+            from src.news.domain.entities.timer_config import TimerConfig
 
-            if not timer_config:
-                # Create default timer configuration if not present
-                from datetime import datetime
-                default_config = {
-                    '_id': 'pipeline_timer',
+            db = get_database()
+            collection = db['timer_config']
+
+            timer_doc = collection.find_one({'is_active': True})
+
+            if not timer_doc:
+                # No active config exists — insert one and mark it active
+                default_doc = {
                     'enabled': True,
                     'schedule_time': '00:00',
-                    'frequency': 'daily',
+                    'frequency': 'hourly',
                     'created_at': datetime.now(),
                     'updated_at': datetime.now(),
+                    'is_active': True,
                 }
-                db['timer_config'].insert_one(default_config)
-                logger.info("      Created default timer config: daily at 00:00")
-                timer_config = default_config
+                collection.insert_one(default_doc)
+                logger.info("      Created default timer config: hourly at 00:00")
+                timer_doc = default_doc
 
-            # Regenerate systemd timer file with current configuration
             try:
-                from src.news.infrastructure.adapters.systemd_timer_adapter import SystemdTimerAdapter
-                from src.news.domain.entities.timer_config import TimerConfig
-
-                config_obj = TimerConfig.from_dict(timer_config)
+                config_obj = TimerConfig.from_dict(timer_doc)
                 adapter = SystemdTimerAdapter()
                 adapter.regenerate_timer_file(config_obj)
                 logger.info(f"      ✅ Systemd timer regenerated: {config_obj.frequency.value} at {config_obj.schedule_time}")
