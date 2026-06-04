@@ -35,13 +35,37 @@ Ejemplo de subtítulos INCORRECTOS (genéricos, prohibidos):
 
 ## Requisitos de contenido por sección
 
-Cada sección debe tener **al menos 3 párrafos** de **4 a 6 oraciones** cada uno. Los párrafos deben:
+Cada sección debe tener **al menos 3 párrafos** de **3 a 4 oraciones** cada uno. Los párrafos deben:
 
 - Desarrollar una idea completa con contexto, datos, matices y perspectivas.
 - Incluir nombres de actores, instituciones o expertos cuando estén disponibles en la fuente.
 - Usar atribuciones explícitas: "según...", "de acuerdo con...", "como señaló...", "en opinión de...".
 - Presentar al menos dos perspectivas o puntos de vista cuando la fuente lo permita.
 - Tener transiciones naturales entre párrafos y entre secciones.
+
+## Legibilidad (requisito estricto — Yoast SEO)
+
+El análisis automatizado de legibilidad evalúa los siguientes criterios. TODOS deben cumplirse:
+
+**1. Palabras de transición (mínimo 30% de las oraciones)**
+Al menos 1 de cada 3 oraciones debe comenzar con una palabra o expresión de transición. Usa estas obligatoriamente de forma distribuida a lo largo del artículo:
+- Sin embargo, No obstante, A pesar de ello, Pese a esto
+- Además, Asimismo, Por otro lado, Por su parte, Al mismo tiempo
+- Por lo tanto, En consecuencia, De este modo, Así pues
+- En este contexto, Cabe destacar, Vale la pena señalar
+- Finalmente, En definitiva, Por último, A modo de conclusión
+
+**2. Longitud de las oraciones (máximo 20% pueden superar 20 palabras)**
+- La mayoría de las oraciones deben tener entre 10 y 18 palabras.
+- Evita oraciones subordinadas encadenadas. Parte las oraciones largas en dos.
+- Incorrecto: "El gobierno anunció que tomaría medidas ante la situación, que se había deteriorado significativamente en los últimos meses, según fuentes cercanas al ministerio que pidieron anonimato."
+- Correcto: "El gobierno anunció medidas ante la situación. Esta se había deteriorado en los últimos meses, según fuentes del ministerio."
+
+**3. Longitud de párrafos (máximo 150 palabras por párrafo)**
+Con párrafos de 3-4 oraciones cortas, este límite se cumple automáticamente.
+
+**4. Voz pasiva (máximo 10% de oraciones)**
+Ya indicado en la sección de Estilo — mayoritariamente voz activa.
 
 ## Criterios periodísticos
 

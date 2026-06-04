@@ -6,6 +6,7 @@ from io import BytesIO
 
 from config.settings import Settings
 from config.logging_config import get_logger
+from src.shared.adapters.seo_optimizer import extract_focus_keyphrase
 
 logger = get_logger("news_bot")
 
@@ -334,7 +335,7 @@ def publish_post(
             payload["excerpt"] = excerpt
 
         meta_fields = {
-            "_yoast_wpseo_focuskw": focus_keyword or title,
+            "_yoast_wpseo_focuskw": focus_keyword or extract_focus_keyphrase(title),
             "_yoast_wpseo_title": serp_title,
             "_yoast_wpseo_metadesc": meta_desc,
             "_yoast_wpseo_opengraph-title": serp_title,

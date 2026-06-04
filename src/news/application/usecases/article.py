@@ -197,9 +197,16 @@ class ArticleUseCase:
                 logger.warning(f"[ARTICLE] Error translating: {e}, using original")
                 content_es = content_limitado
 
+            keyphrase = extract_focus_keyphrase(title)
+
             agent = ArticleAgent(model)
             result = agent.generate(
-                topic_or_news=f"Título: {title}\nTema: {tema}\n\nContenido informativo:\n{content_es}"
+                topic_or_news=(
+                    f"Título: {title}\n"
+                    f"Tema: {tema}\n"
+                    f"Palabra clave SEO (incluir 3-5 veces de forma natural): {keyphrase}\n\n"
+                    f"Contenido informativo:\n{content_es}"
+                )
             )
             return _limpiar_html(result)
         except Exception as e:

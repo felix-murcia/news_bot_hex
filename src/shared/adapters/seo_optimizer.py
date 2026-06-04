@@ -33,11 +33,15 @@ def slugify(text: str, max_words: int = 6) -> str:
     return "-".join(chosen)
 
 
-def extract_focus_keyphrase(title: str, max_words: int = 5) -> str:
-    """Extract a natural focus keyphrase from the title (4-5 significant words)."""
+def extract_focus_keyphrase(title: str, max_words: int = 3) -> str:
+    """Extract a focus keyphrase from the title (2-3 significant words).
+
+    Yoast requires the keyphrase to appear in the slug, first paragraph, and H2
+    headings. Keeping it short (≤3 words) makes natural repetition feasible.
+    """
     words = re.findall(r"\b[a-záéíóúüñA-ZÁÉÍÓÚÜÑ]{3,}\b", title)
     significant = [w.lower() for w in words if w.lower() not in _STOP_WORDS_ES]
-    return " ".join(significant[:max_words]) if significant else title.lower()[:60]
+    return " ".join(significant[:max_words]) if significant else title.lower()[:40]
 
 
 def generate_meta_description(title: str, first_paragraph: str, max_chars: int = 155) -> str:
