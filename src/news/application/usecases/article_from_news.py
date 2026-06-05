@@ -1,5 +1,4 @@
 import os
-import json
 import re
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -10,10 +9,7 @@ from config.logging_config import get_logger
 
 logger = get_logger("news_bot.usecase.article_from_news")
 
-DATA_DIR = Settings.DATA_DIR
 CACHE_DIR = Settings.CACHE_DIR
-NEWS_ARTICLES_PATH = DATA_DIR / "generated_news_articles.json"
-NEWS_POSTS_PATH = DATA_DIR / "generated_news_posts.json"
 
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -22,15 +18,6 @@ def limpiar(texto: str) -> str:
     if not texto:
         return ""
     return str(texto).strip().strip("*").strip('"').strip()
-
-
-def save_payloads(payload: Dict, post: Dict):
-    NEWS_ARTICLES_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(NEWS_ARTICLES_PATH, "w", encoding="utf-8") as f:
-        json.dump([payload], f, indent=2, ensure_ascii=False)
-    with open(NEWS_POSTS_PATH, "w", encoding="utf-8") as f:
-        json.dump([post], f, indent=2, ensure_ascii=False)
-    logger.info(f"[ARTICLE_NEWS] Archivos guardados en {DATA_DIR}")
 
 
 def build_article_post(
@@ -75,8 +62,6 @@ class ArticleFromNewsUseCase:
         logger.info(
             f"[ARTICLE_NEWS] Iniciando generación desde noticia para tema: {tema}"
         )
-
-        self._clean_previous_files()
 
         content_es = translate_text(content, "es")
         logger.info(f"[ARTICLE_NEWS] Contenido traducido: {len(content_es)} caracteres")
@@ -141,7 +126,6 @@ class ArticleFromNewsUseCase:
         tweet_text = post_edit_content(tweet_text)
 
         post = build_article_post(news_item, payload, tweet_text, "news_man")
-        save_payloads(payload, post)
 
         return {
             "article": payload,
@@ -237,20 +221,6 @@ Requisitos:
         slug = re.sub(r"[\s_-]+", "-", slug)
         slug = slug.strip("-")
         return slug[:100]
-
-    def _clean_previous_files(self):
-        for file_path in [NEWS_ARTICLES_PATH, NEWS_POSTS_PATH]:
-            if file_path.exists():
-                try:
-                    file_path.unlink()
-                    logger.info(
-                        f"[ARTICLE_NEWS] Archivo anterior eliminado: {file_path.name}"
-                    )
-                except Exception as e:
-                    logger.warning(
-                        f"[ARTICLE_NEWS] No se pudo eliminar {file_path.name}: {e}"
-                    )
-
 
 def run_from_news(
     content: str,

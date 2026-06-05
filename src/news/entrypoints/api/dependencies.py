@@ -318,30 +318,16 @@ def get_process_url_content_processor(
 
 
 def get_process_url_usecase(
-    content_processor=Depends(get_process_url_content_processor),
-    image_fetcher=Depends(get_image_fetcher_port),
-    image_enricher=Depends(get_image_enricher_port),
-    video_generator=Depends(get_video_generator_port),
-    wp_publisher=Depends(get_wordpress_publisher_port),
-    social_publishers=Depends(get_social_publisher_ports),
-    db=Depends(get_db),
+    content_extractor=Depends(get_content_extractor),
     metrics_repo=Depends(get_metrics_repository),
 ):
-    """ProcessUrlPipeline - unified orchestrator for complete 7-step pipeline."""
+    """ProcessUrlPipeline - same pipeline as automatic, starting from URL extraction."""
     from src.news.application.usecases.process_url_pipeline import ProcessUrlPipeline
 
     pipeline = ProcessUrlPipeline(
-        content_processor=content_processor,
-        image_fetcher=image_fetcher,
-        image_enricher=image_enricher,
-        video_generator=video_generator,
-        wp_publisher=wp_publisher,
-        social_publishers=social_publishers,
-        db=db,
+        content_extractor=content_extractor,
         metrics_repo=metrics_repo,
     )
-
-    # Return the execute method as the callable usecase
     return pipeline.execute
 
 

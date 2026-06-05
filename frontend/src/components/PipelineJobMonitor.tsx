@@ -189,7 +189,7 @@ export function PipelineJobMonitor({ jobId, endpoint = "pipeline", onComplete, o
 
       {/* Timing Info */}
       {job.started_at && (
-        <div className="bg-blue-950/20 rounded p-3 text-xs space-y-1 text-gray-300 border border-blue-800">
+        <div className={`rounded p-3 text-xs space-y-1 text-gray-300 border ${job.status === "failed" ? "bg-red-950/20 border-red-800" : "bg-blue-950/20 border-blue-800"}`}>
           <div>Iniciado: {new Date(job.started_at).toLocaleTimeString("es-ES")}</div>
           {job.completed_at && (
             <div>Completado: {new Date(job.completed_at).toLocaleTimeString("es-ES")}</div>

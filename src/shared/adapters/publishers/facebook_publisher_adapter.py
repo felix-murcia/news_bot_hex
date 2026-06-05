@@ -35,12 +35,12 @@ class FacebookPublisherAdapter(SocialPublisherPort):
 
         try:
             logger.info("[FACEBOOK_ADAPTER] Publishing to Facebook")
-            result = self._publisher.publish(post_data)
+            result = self._publisher.publish_posts([post_data])
             logger.info(f"[FACEBOOK_ADAPTER] Published: {result}")
             return {
                 "platform": "facebook",
-                "status": "ok",
-                "url": result.get("url", ""),
+                "status": "ok" if result.get("published", 0) > 0 else "error",
+                "published": result.get("published", 0),
             }
         except Exception as e:
             logger.error(f"[FACEBOOK_ADAPTER] Publication failed: {e}")

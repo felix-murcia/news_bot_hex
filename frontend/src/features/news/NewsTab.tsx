@@ -126,6 +126,7 @@ export function NewsTab() {
   const [processProvider, setProcessProvider] = useState("");
   const [useAi, setUseAi] = useState(true);
   const [processUrlJobId, setProcessUrlJobId] = useState<string | null>(null);
+  const [processUrlError, setProcessUrlError] = useState<string | null>(null);
 
   const urlProc = useMutation({
     mutationFn: () =>
@@ -135,7 +136,7 @@ export function NewsTab() {
         use_ai: useAi,
       }),
     onSuccess: (data) => {
-      // Extract job_id from response data
+      setProcessUrlError(null);
       const jobId = data.data?.job_id as string | undefined;
       if (jobId) {
         setProcessUrlJobId(jobId);
@@ -438,13 +439,19 @@ export function NewsTab() {
                 </p>
               </div>
             )}
+            {processUrlError && (
+              <div className="mt-4 p-4 rounded-lg bg-red-950/40 border border-red-800">
+                <p className="text-sm font-semibold text-red-300 mb-1">❌ Error en el procesamiento</p>
+                <p className="text-xs text-red-400">{processUrlError}</p>
+              </div>
+            )}
           </>
         ) : (
           <PipelineJobMonitor
             jobId={processUrlJobId}
             endpoint="process_url"
             onComplete={() => setProcessUrlJobId(null)}
-            onError={() => setProcessUrlJobId(null)}
+            onError={(err) => { setProcessUrlJobId(null); setProcessUrlError(err); }}
           />
         )}
       </StepCard>

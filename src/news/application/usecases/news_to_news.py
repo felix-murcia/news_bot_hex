@@ -1,4 +1,3 @@
-import json
 import os
 import re
 from pathlib import Path
@@ -148,20 +147,24 @@ class NewsToNewsUseCase:
         return tweet
 
     def _save_outputs(self, article_data: Dict, content: str, content_path: Path):
-        """Guarda los outputs en archivos."""
+        """Persiste artículo y post en MongoDB (fuente de verdad única)."""
         article = article_data.get("article", {})
-        posts = article_data.get("post", {})
+        post = article_data.get("post", {})
 
-        articles_path = DATA_DIR / "generated_news_articles.json"
-        posts_path = DATA_DIR / "generated_news_posts.json"
-
-        with open(articles_path, "w", encoding="utf-8") as f:
-            json.dump([article], f, indent=2, ensure_ascii=False)
-
-        with open(posts_path, "w", encoding="utf-8") as f:
-            json.dump([posts], f, indent=2, ensure_ascii=False)
-
-        logger.info(f"[NEWS_TO_NEWS] Archivos guardados en {DATA_DIR}")
+        try:
+            from src.shared.adapters.mongo_db import get_database
+            db = get_database()
+            articles_coll = db["generated_articles"]
+            posts_coll = db["generated_posts"]
+            articles_coll.delete_many({})
+            articles_coll.insert_one(dict(article))
+            posts_coll.delete_many({})
+            tweet = post.get("tweet", "") if isinstance(post, dict) else ""
+            original_url = article.get("original_url", "")
+            posts_coll.insert_one({"url": original_url, "tweet": tweet})
+            logger.info("[NEWS_TO_NEWS] Artículo y post guardados en MongoDB")
+        except Exception as e:
+            logger.error(f"[NEWS_TO_NEWS] Error persistiendo en MongoDB: {e}")
 
         article_file = content_path.with_suffix(".md")
         try:
@@ -169,10 +172,7 @@ class NewsToNewsUseCase:
         except Exception:
             pass
 
-        return {
-            "article_file": str(articles_path),
-            "post_file": str(posts_path),
-        }
+        return {}
 
     def process_url(self, url: str) -> Dict[str, Any]:
         """Procesa una URL de noticia y genera artículo completo."""
@@ -243,7 +243,7 @@ class NewsToNewsUseCase:
             "source_content": content,
             "content_file": str(content_path),
             "article": article_data.get("article", {}).get("content", ""),
-            "article_file": saved_files["article_file"],
+            "article_file": saved_files.get("article_file", ""),
             "post": tweet_text,
             "article_data": article_data,
             "mode": self.model_provider,
@@ -320,15 +320,6 @@ def main():
         print(f"📝 Contenido extraído: {len(result['source_content'])} caracteres")
         print(f"📄 Artículo: {len(result['article'])} caracteres")
         print(f"🐦 Tweet generado: {result['post'][:100]}...")
-
-        print("\n📁 ARCHIVOS GENERADOS:")
-        articles_path = DATA_DIR / "generated_news_articles.json"
-        if articles_path.exists():
-            print(f"  ✅ generated_news_articles.json")
-
-        posts_path = DATA_DIR / "generated_news_posts.json"
-        if posts_path.exists():
-            print(f"  ✅ generated_news_posts.json")
 
         print("\n" + "=" * 60)
         print("✅ PRUEBA COMPLETADA")

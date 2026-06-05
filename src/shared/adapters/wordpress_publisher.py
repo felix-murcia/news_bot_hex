@@ -446,30 +446,31 @@ class WordPressPublisher:
 
         logger.info(f"[HOSTING] Publicando {len(articles)} artículos")
 
+        # Build lookup by url for O(1) matching — positional index is unreliable
+        # when collections contain entries from previous pipeline runs
+        posts_by_url = {p["url"]: p for p in posts if p.get("url")}
+
         published = 0
+        published_urls = []
         errors = 0
 
-        for idx, art in enumerate(articles):
+        for art in articles:
+            # original_url = fuente (BBC, Reuters...), url = WP canónica; posts están indexados por original URL
+            art_url = art.get("original_url") or art.get("url", "")
+            matched_post = posts_by_url.get(art_url, {})
+
             title = (
                 art.get("title")
-                or (
-                    posts[idx].get("title_es")
-                    if idx < len(posts) and isinstance(posts[idx], dict)
-                    else None
-                )
+                or matched_post.get("title_es")
                 or art.get("title_es")
-                or (
-                    posts[idx].get("tweet")
-                    if idx < len(posts) and isinstance(posts[idx], dict)
-                    else None
-                )
+                or matched_post.get("tweet")
             )
 
             if not title or not art.get("content"):
-                logger.warning(f"[HOSTING] Artículo inválido idx={idx}")
+                logger.warning(f"[HOSTING] Artículo inválido url={art_url}")
                 continue
 
-            if idx < len(posts) and posts[idx].get("wp_url"):
+            if matched_post.get("wp_url"):
                 logger.warning(f"[HOSTING] Ya publicado: {title}")
                 continue
 
@@ -481,11 +482,7 @@ class WordPressPublisher:
 
             categoria_id = ensure_category(categoria)
 
-            precomputed_tags = (
-                posts[idx].get("hashtags", [])
-                if idx < len(posts) and isinstance(posts[idx], dict)
-                else []
-            )
+            precomputed_tags = matched_post.get("hashtags", [])
             all_tags = list(set((labels or art.get("tags", [])) + precomputed_tags))
             tag_ids = [ensure_tag(t) for t in all_tags if isinstance(t, str)]
             tag_ids = [tid for tid in tag_ids if tid is not None]
@@ -597,9 +594,10 @@ class WordPressPublisher:
 
             if post_url:
                 logger.info(f"[HOSTING] ✅Publicado: {post_url}")
-                if idx < len(posts) and isinstance(posts[idx], dict):
-                    posts[idx]["wp_url"] = post_url
-                    self._save_post(posts[idx])
+                published_urls.append(post_url)
+                if matched_post:
+                    matched_post["wp_url"] = post_url
+                    self._save_post(matched_post)
                 published += 1
             else:
                 logger.error(f"[HOSTING] Error al publicar: {title}")
@@ -610,6 +608,8 @@ class WordPressPublisher:
             "published": published,
             "errors": errors,
             "total": len(articles),
+            "url": published_urls[0] if published_urls else "",
+            "urls": published_urls,
         }
 
 

@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
@@ -17,9 +16,6 @@ from src.news.domain.ports import (
     FakeNewsModel,
 )
 
-# DATA_DIR from settings, not infrastructure
-from config.settings import Settings
-
 # Infrastructure functions used by application layer (acceptable for orchestration)
 from src.news.infrastructure.adapters import (
     parse_date_flexible,
@@ -32,9 +28,6 @@ from src.news.infrastructure.adapters import (
     sort_verified_news,
     resumir_noticia,
 )
-
-DATA_DIR = Settings.DATA_DIR
-
 
 class FetchRSSNewsUseCase:
     def __init__(
@@ -95,12 +88,13 @@ class VerifyNewsUseCase:
         self._content_extractor = content_extractor
 
     def execute(self) -> dict:
-        source = DATA_DIR / "generated_news_articles.json"
-        if not source.exists():
-            return {"status": "error", "message": f"No existe {source}"}
-
-        with open(source, "r", encoding="utf-8") as f:
-            new_articles = json.load(f)
+        from src.shared.adapters.mongo_db import get_database
+        db = get_database()
+        new_articles = list(db["generated_articles"].find({}))
+        for a in new_articles:
+            a.pop("_id", None)
+        if not new_articles:
+            return {"status": "error", "message": "No hay artículos en generated_articles"}
 
         verified_articles = []
         for art in new_articles:

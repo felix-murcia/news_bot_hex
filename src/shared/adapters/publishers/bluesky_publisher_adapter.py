@@ -35,12 +35,12 @@ class BlueskyPublisherAdapter(SocialPublisherPort):
 
         try:
             logger.info("[BLUESKY_ADAPTER] Publishing to Bluesky")
-            result = self._publisher.publish(post_data)
+            result = self._publisher.publish_posts([post_data])
             logger.info(f"[BLUESKY_ADAPTER] Published: {result}")
             return {
                 "platform": "bluesky",
-                "status": "ok",
-                "url": result.get("url", ""),
+                "status": "ok" if result.get("published", 0) > 0 else "error",
+                "published": result.get("published", 0),
             }
         except Exception as e:
             logger.error(f"[BLUESKY_ADAPTER] Publication failed: {e}")
