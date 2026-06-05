@@ -8,7 +8,10 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 export const api = axios.create({
   baseURL: BASE_URL,
   timeout: 0, // no timeout — pipelines can run for many minutes
-  headers: { "Content-Type": "application/json" },
+  headers: {
+    "Content-Type": "application/json",
+    "X-API-Key": import.meta.env.VITE_APP_API_KEY ?? "",
+  },
 });
 
 // Shared response shape from all backend endpoints

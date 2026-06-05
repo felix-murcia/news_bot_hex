@@ -8,6 +8,9 @@ RUN npm ci
 
 COPY . .
 
+ARG VITE_APP_API_KEY
+ENV VITE_APP_API_KEY=$VITE_APP_API_KEY
+
 # VITE_API_BASE_URL is intentionally left empty here.
 # nginx will proxy /api → backend, so the browser never needs the backend host directly.
 RUN npm run build
