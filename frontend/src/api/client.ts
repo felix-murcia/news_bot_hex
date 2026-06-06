@@ -14,6 +14,16 @@ export const api = axios.create({
   },
 });
 
+const _API_KEY = import.meta.env.VITE_APP_API_KEY ?? "";
+
+// Wrapper around fetch() that adds the API key header
+export function apiFetch(url: string, options?: RequestInit): Promise<Response> {
+  return fetch(url, {
+    ...options,
+    headers: { "X-API-Key": _API_KEY, ...options?.headers },
+  });
+}
+
 // Shared response shape from all backend endpoints
 export interface PipelineResponse {
   status: string;

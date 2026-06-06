@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { apiFetch } from '../../../../api/client'
 
 interface HourBucket {
   timestamp: string
@@ -30,7 +31,7 @@ export function PremiumExecutionsChart({ pipelineType, days, className = '' }: P
     setAnimated(false)
     setLoading(true)
     const ctrl = new AbortController()
-    fetch(`/api/metrics/hourly?pipeline_type=${pipelineType}&hours=${days * 24}`, { signal: ctrl.signal })
+    apiFetch(`/api/metrics/hourly?pipeline_type=${pipelineType}&hours=${days * 24}`, { signal: ctrl.signal })
       .then(r => r.json())
       .then(json => {
         if (json.status === 'ok' && json.data?.length) {

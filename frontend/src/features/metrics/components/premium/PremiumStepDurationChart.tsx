@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { formatDurationMs } from '../../utils/formatDuration'
+import { apiFetch } from '../../../../api/client'
 
 interface StepData {
   name: string
@@ -45,7 +46,7 @@ export function PremiumStepDurationChart({ pipelineType, days, className = '' }:
     setAnimated(false)
     setLoading(true)
     const ctrl = new AbortController()
-    fetch(`/api/metrics/step-breakdown?pipeline_type=${pipelineType}&days=${days}`, { signal: ctrl.signal })
+    apiFetch(`/api/metrics/step-breakdown?pipeline_type=${pipelineType}&days=${days}`, { signal: ctrl.signal })
       .then(r => r.json())
       .then(json => {
         const raw = json.status === 'ok' && json.data

@@ -14,6 +14,7 @@ fi
 
 # Ejecutar pipeline
 RESPONSE=$(curl -s -w "\n%{http_code}" -X POST http://localhost:8000/news/pipeline \
+    --header "X-API-Key: ${APP_API_KEY:-}" \
     --max-time 3600)
 HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
 BODY=$(echo "$RESPONSE" | head -n-1)

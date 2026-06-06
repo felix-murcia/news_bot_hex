@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { smoothLinePath, smoothAreaPath, mapToCanvas } from './chartUtils'
 import { formatDurationMs } from '../../utils/formatDuration'
+import { apiFetch } from '../../../../api/client'
 
 interface PercentilePoint {
   timestamp: string
@@ -44,7 +45,7 @@ export function PremiumPercentileChart({ pipelineType, days, className = '' }: P
     setAnimated(false)
     setLoading(true)
     const ctrl = new AbortController()
-    fetch(`/api/metrics/daily-average?pipeline_type=${pipelineType}&days=${days}`, { signal: ctrl.signal })
+    apiFetch(`/api/metrics/daily-average?pipeline_type=${pipelineType}&days=${days}`, { signal: ctrl.signal })
       .then(r => r.json())
       .then(json => {
         const raw = json.status === 'ok' && json.data ? json.data : generateMock(days)

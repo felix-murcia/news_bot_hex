@@ -12,7 +12,7 @@ import {
 } from './premium'
 import { LoadingSpinner } from './LoadingSpinner'
 import { formatDurationMs } from '../utils/formatDuration'
-import axios from 'axios'
+import { api } from '../../../api/client'
 
 interface HealthData {
   error_rate: number
@@ -32,7 +32,7 @@ export function MetricsDashboard() {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const res = await axios.get(`/metrics/health?period=${period}`)
+        const res = await api.get(`/metrics/health?period=${period}`)
         if (res.data.data && res.data.data[pipelineType]) {
           setHealth(res.data.data[pipelineType])
         }

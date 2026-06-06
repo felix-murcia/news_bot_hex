@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { smoothLinePath, mapToCanvas } from './chartUtils'
 import { formatDurationMs } from '../../utils/formatDuration'
+import { apiFetch } from '../../../../api/client'
 
 interface HourPoint {
   timestamp: string
@@ -28,7 +29,7 @@ export function PremiumDurationLineChart({ pipelineType, days, className = '' }:
     setAnimated(false)
     setLoading(true)
     const ctrl = new AbortController()
-    fetch(`/api/metrics/hourly?pipeline_type=${pipelineType}&hours=${days * 24}`, { signal: ctrl.signal })
+    apiFetch(`/api/metrics/hourly?pipeline_type=${pipelineType}&hours=${days * 24}`, { signal: ctrl.signal })
       .then(r => r.json())
       .then(json => {
         const raw = json.status === 'ok' && json.data?.length

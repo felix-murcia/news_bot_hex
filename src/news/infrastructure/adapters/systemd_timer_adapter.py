@@ -77,8 +77,8 @@ class SystemdTimerAdapter:
         elif frequency == "monthly":
             return f"*-*-01 {hour}:{minute}:00"
         elif frequency == "hourly":
-            # Every hour starting from the specified hour
-            return f"*-*-* {hour}/1:{minute}:00"
+            # Every hour at the specified minute (hour is ignored for hourly frequency)
+            return f"*-*-* *:{minute}:00"
         else:
             # Default to daily
             return f"*-*-* {hour}:{minute}:00"

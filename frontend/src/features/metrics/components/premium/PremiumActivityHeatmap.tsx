@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { apiFetch } from '../../../../api/client'
 
 interface PremiumActivityHeatmapProps {
   pipelineType: 'NEWS' | 'AUDIO' | 'VIDEO'
@@ -41,7 +42,7 @@ export function PremiumActivityHeatmap({ pipelineType, className = '' }: Premium
   useEffect(() => {
     setLoading(true)
     const ctrl = new AbortController()
-    fetch(`/api/metrics/activity-heatmap?pipeline_type=${pipelineType}&days=${DAYS}`, { signal: ctrl.signal })
+    apiFetch(`/api/metrics/activity-heatmap?pipeline_type=${pipelineType}&days=${DAYS}`, { signal: ctrl.signal })
       .then(r => r.json())
       .then(json => {
         if (json.status === 'ok' && json.data) setData(json.data)

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { formatDurationMs } from '../../utils/formatDuration'
+import { apiFetch } from '../../../../api/client'
 
 type LogLevel = 'INFO' | 'WARNING' | 'ERROR'
 
@@ -29,7 +30,7 @@ export function PremiumLogsTable({ pipelineType, className = '' }: PremiumLogsTa
   useEffect(() => {
     setLoading(true)
     const ctrl = new AbortController()
-    fetch(`/api/metrics/recent-executions?pipeline_type=${pipelineType}&limit=10`, { signal: ctrl.signal })
+    apiFetch(`/api/metrics/recent-executions?pipeline_type=${pipelineType}&limit=10`, { signal: ctrl.signal })
       .then(r => r.json())
       .then(json => {
         if (json.status === 'ok' && json.data) {
