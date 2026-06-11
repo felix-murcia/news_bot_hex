@@ -30,7 +30,7 @@ class Settings:
     WP_HOSTING_API_BASE = os.getenv("WP_HOSTING_API_BASE", "https://api.nbes.blog")
     WP_HOSTING_JWT_TOKEN = os.getenv("WP_HOSTING_JWT_TOKEN", "")
     WP_DEFAULT_IMAGE_URL = os.getenv(
-        "WP_DEFAULT_IMAGE_URL", "https://api.nbes.blog/image-310/"
+        "WP_DEFAULT_IMAGE_URL", "https://api.nbes.blog/wp-content/uploads/2025/10/logo.jpg"
     )
     WP_SITE_URL = os.getenv("WP_SITE_URL", "https://nbes.blog")
     WP_API_URL = os.getenv("WP_API_URL", f"{WP_HOSTING_API_BASE}/wp-json/wp/v2")

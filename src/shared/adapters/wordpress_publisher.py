@@ -168,12 +168,13 @@ def upload_image(
 
 
 def upload_image_from_url(
-    image_url: str, alt_text: Optional[str] = None, credit: Optional[str] = None
+    image_url: str, alt_text: Optional[str] = None, credit: Optional[str] = None,
+    max_width: int = 1200,
 ) -> Optional[int]:
     try:
         resp = requests.get(image_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
         resp.raise_for_status()
-        compressed, filename = _compress_image(resp.content, "image.jpg")
+        compressed, filename = _compress_image(resp.content, "image.jpg", max_width=max_width)
         logger.info(f"[HOSTING] Subiendo imagen desde URL: {image_url}")
         headers = get_headers()
         headers.pop("Content-Type", None)

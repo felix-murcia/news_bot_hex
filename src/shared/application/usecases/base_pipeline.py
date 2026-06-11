@@ -212,6 +212,17 @@ class BasePipelineUseCase(ABC):
                     logger.debug(f"Featured image uploaded (id={featured_image_id})")
                 except Exception as e:
                     logger.warning(f"Failed to upload featured image: {e}")
+            elif image_url:
+                try:
+                    featured_image_id = upload_image_from_url(
+                        image_url,
+                        alt_text=article.get("alt_text"),
+                        credit=article.get("image_credit"),
+                        max_width=800,
+                    )
+                    logger.debug(f"Fallback logo uploaded (id={featured_image_id})")
+                except Exception as e:
+                    logger.warning(f"Failed to upload fallback logo: {e}")
 
             # Clean content (remove h1 tags - WordPress uses title)
             content = article.get("content", "")
