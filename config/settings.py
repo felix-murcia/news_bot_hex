@@ -298,6 +298,11 @@ class Settings:
     # Coqui stability parameters for artifact reduction
     COQUI_TEMPERATURE = float(os.getenv("COQUI_TEMPERATURE", "0.65"))
     COQUI_POST_PROCESSING = os.getenv("COQUI_POST_PROCESSING", "true").lower() == "true"
+
+    # === Jetson TTS Configuration (/v1/audio/speech con voice + language) ===
+    JETSON_TTS_API_URL = os.getenv("JETSON_TTS_API_URL", "http://100.90.16.33:8083")
+    JETSON_TTS_VOICE = os.getenv("JETSON_TTS_VOICE", "cr_es_speaker")
+    JETSON_TTS_LANGUAGE = os.getenv("JETSON_TTS_LANGUAGE", "es")
   
     # === Audio Converter Configuration (ffmpeg) ===
     FFMPEG_API_URL = os.getenv("FFMPEG_API_URL", "http://localhost:8082")

@@ -5,6 +5,7 @@ from typing import Optional
 from src.shared.domain.ports.tts_port import TTSPort
 from src.shared.adapters.tts_adapter import TTSAdapter
 from src.shared.adapters.coqui_tts_adapter import CoquiTTSAdapter
+from src.shared.adapters.jetson_tts_adapter import JetsonTTSAdapter
 from config.settings import Settings
 from config.logging_config import get_logger
 
@@ -45,6 +46,9 @@ def get_tts_adapter(mode: str = None) -> TTSPort:
     elif mode == "coqui":
         adapter = CoquiTTSAdapter()
         logger.info("[TTS FACTORY] ✅ Adaptador Coqui TTS instanciado")
+    elif mode == "jetson":
+        adapter = JetsonTTSAdapter()
+        logger.info("[TTS FACTORY] ✅ Adaptador Jetson TTS instanciado")
     else:
         logger.error(
             f"[TTS FACTORY] Modo TTS no válido: '{mode}'. Usando 'speaches' como fallback."
