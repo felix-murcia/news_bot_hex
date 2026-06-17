@@ -60,3 +60,42 @@ def create_video_fetcher() -> VideoFetcherPort:
 def create_video_transcriber() -> VideoTranscriberPort:
     from src.video.infrastructure.adapters.video_transcriber import VideoTranscriber
     return VideoTranscriber()
+
+
+# ============================================================
+# Publishing — entry point functions (load from DB + publish)
+# ============================================================
+
+def run_wordpress():
+    from src.shared.adapters.wordpress_publisher import run
+    return run()
+
+
+def run_bluesky():
+    from src.shared.adapters.bluesky_publisher import run
+    return run()
+
+
+def run_facebook():
+    from src.shared.adapters.facebook_publisher import run
+    return run()
+
+
+def run_mastodon():
+    from src.shared.adapters.mastodon_publisher import run
+    return run()
+
+
+def run_image_unsplash():
+    from src.shared.adapters.unsplash_fetcher import run
+    return run()
+
+
+def run_image_google():
+    from src.shared.adapters.google_images_fetcher import run
+    return run()
+
+
+def run_image_enricher():
+    from src.shared.adapters.image_enricher import run
+    return run()

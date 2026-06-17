@@ -107,14 +107,13 @@ class ProcessUrlPipeline:
 
         # ── Steps 5-10: Same publishing as automatic pipeline ──────────────
         def fetch_images():
-            from src.shared.adapters.unsplash_fetcher import run as run_unsplash
-            from src.shared.adapters.google_images_fetcher import run as run_google
-            run_unsplash()
-            run_google()
+            from src.shared.infrastructure.composition_root import run_image_unsplash, run_image_google
+            run_image_unsplash()
+            run_image_google()
 
         def enrich_images():
-            from src.shared.adapters.image_enricher import run as run_enricher
-            run_enricher()
+            from src.shared.infrastructure.composition_root import run_image_enricher
+            run_image_enricher()
 
         def generate_audio():
             from src.shared.application.usecases.tts_from_article import run_tts_from_articles
@@ -132,11 +131,11 @@ class ProcessUrlPipeline:
                         )
 
         def generate_video():
-            from src.shared.adapters.video_generator import get_video_generator
+            from src.shared.infrastructure.composition_root import create_video_generator
             from src.shared.adapters.mongo_db import get_database
             db = get_database()
             coll = db["generated_articles"]
-            video_gen = get_video_generator()
+            video_gen = create_video_generator()
             if video_gen.is_available():
                 for article in list(coll.find({})):
                     audio_path = article.get("tts_audio_path")
@@ -149,13 +148,11 @@ class ProcessUrlPipeline:
                             )
 
         def publish_wordpress():
-            from src.shared.adapters.wordpress_publisher import run as run_wordpress
+            from src.shared.infrastructure.composition_root import run_wordpress
             run_wordpress()
 
         def publish_social():
-            from src.shared.adapters.bluesky_publisher import run as run_bluesky
-            from src.shared.adapters.mastodon_publisher import run as run_mastodon
-            from src.shared.adapters.facebook_publisher import run as run_facebook
+            from src.shared.infrastructure.composition_root import run_bluesky, run_mastodon, run_facebook
             for fn in (run_bluesky, run_mastodon, run_facebook):
                 try:
                     fn()

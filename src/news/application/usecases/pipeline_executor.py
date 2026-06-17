@@ -161,11 +161,10 @@ def execute_pipeline_async(job_id: str) -> bool:
             add_step(job_id, ProcessingStepName.FETCH_IMAGES, ProcessingStepStatus.RUNNING)
             step_start_ns = time.time_ns()
             try:
-                from src.shared.adapters.unsplash_fetcher import run as run_unsplash
-                from src.shared.adapters.google_images_fetcher import run as run_google
+                from src.shared.infrastructure.composition_root import run_image_unsplash, run_image_google
 
-                run_unsplash()
-                run_google()
+                run_image_unsplash()
+                run_image_google()
                 step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
                 add_step(job_id, ProcessingStepName.FETCH_IMAGES, ProcessingStepStatus.OK)
                 record_step_metric("Fetch Images", "OK", step_duration_ms)
@@ -181,9 +180,9 @@ def execute_pipeline_async(job_id: str) -> bool:
             add_step(job_id, ProcessingStepName.ENRICH_IMAGES, ProcessingStepStatus.RUNNING)
             step_start_ns = time.time_ns()
             try:
-                from src.shared.adapters.image_enricher import run as run_enricher
+                from src.shared.infrastructure.composition_root import run_image_enricher
 
-                run_enricher()
+                run_image_enricher()
                 step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
                 add_step(job_id, ProcessingStepName.ENRICH_IMAGES, ProcessingStepStatus.OK)
                 record_step_metric("Enrich Images", "OK", step_duration_ms)
@@ -269,7 +268,7 @@ def execute_pipeline_async(job_id: str) -> bool:
             add_step(job_id, ProcessingStepName.PUBLISH_WORDPRESS, ProcessingStepStatus.RUNNING)
             step_start_ns = time.time_ns()
             try:
-                from src.shared.adapters.wordpress_publisher import run as run_wordpress
+                from src.shared.infrastructure.composition_root import run_wordpress
 
                 run_wordpress()
                 step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
@@ -287,25 +286,23 @@ def execute_pipeline_async(job_id: str) -> bool:
             add_step(job_id, ProcessingStepName.PUBLISH_SOCIAL, ProcessingStepStatus.RUNNING)
             step_start_ns = time.time_ns()
             social_ok = 0
-            try:
-                from src.shared.adapters.bluesky_publisher import run as run_bluesky
+            from src.shared.infrastructure.composition_root import (
+                run_bluesky, run_facebook, run_mastodon,
+            )
 
+            try:
                 run_bluesky()
                 social_ok += 1
             except Exception as e:
                 logger.warning(f"[PIPELINE-JOB] {job_id} Warning en Bluesky: {e}")
 
             try:
-                from src.shared.adapters.facebook_publisher import run as run_facebook
-
                 run_facebook()
                 social_ok += 1
             except Exception as e:
                 logger.warning(f"[PIPELINE-JOB] {job_id} Warning en Facebook: {e}")
 
             try:
-                from src.shared.adapters.mastodon_publisher import run as run_mastodon
-
                 run_mastodon()
                 social_ok += 1
             except Exception as e:
