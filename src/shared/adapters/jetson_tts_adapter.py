@@ -85,34 +85,39 @@ class JetsonTTSAdapter(TTSPort):
             raise RuntimeError(f"Error al generar audio en Jetson TTS: {e}") from e
 
         timestamp = int(time.time())
-        temp_path = os.path.join(audio_dir, f"jetson_tts_temp_{timestamp}.wav")
-
-        with open(temp_path, "wb") as f:
-            f.write(response.content)
-
-        temp_size = Path(temp_path).stat().st_size
-        logger.info(f"[JETSON TTS] Audio temporal: {temp_path} ({temp_size / 1024 / 1024:.2f} MB)")
+        wav_bytes = response.content
+        wav_size = len(wav_bytes)
+        logger.info(f"[JETSON TTS] Audio WAV recibido: {wav_size / 1024 / 1024:.2f} MB")
 
         if output_path:
             mp3_path = str(Path(output_path).with_suffix(".mp3"))
         else:
             mp3_path = os.path.join(audio_dir, f"noticia_{timestamp}.mp3")
 
-        mp3_result = _audio_converter.convert_to_mp3(
-            input_path=temp_path,
-            output_path=mp3_path,
-            bitrate="64k",
-            delete_original=True,
-        )
-
-        if mp3_result and Path(mp3_result).exists():
-            mp3_size = Path(mp3_result).stat().st_size
+        from config.settings import Settings
+        convert_url = f"{Settings.AUDIO_CONVERTER_EXTERNAL_URL.rstrip('/')}/audio/convert"
+        try:
+            conv_resp = requests.post(
+                convert_url,
+                files={"file": (f"tts_{timestamp}.wav", wav_bytes, "audio/wav")},
+                data={"format": "mp3"},
+                timeout=120,
+            )
+            conv_resp.raise_for_status()
+            os.makedirs(audio_dir, exist_ok=True)
+            with open(mp3_path, "wb") as f:
+                f.write(conv_resp.content)
+            mp3_size = Path(mp3_path).stat().st_size
             total = time.time() - start_time
             logger.info(
-                f"[JETSON TTS] ✅ MP3 generado: {mp3_result} "
+                f"[JETSON TTS] ✅ MP3 generado: {mp3_path} "
                 f"({mp3_size / 1024 / 1024:.2f} MB) en {str(datetime.timedelta(seconds=int(total)))}"
             )
-            return mp3_result
-        else:
-            logger.warning(f"[JETSON TTS] Conversión a MP3 falló, devolviendo: {temp_path}")
+            return mp3_path
+        except Exception as e:
+            logger.error(f"[JETSON TTS] Conversión a MP3 falló: {e}")
+            temp_path = os.path.join(audio_dir, f"jetson_tts_temp_{timestamp}.wav")
+            with open(temp_path, "wb") as f:
+                f.write(wav_bytes)
+            logger.warning(f"[JETSON TTS] Devolviendo WAV sin convertir: {temp_path}")
             return temp_path

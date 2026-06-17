@@ -122,6 +122,54 @@ def get_news_validator():
     return ClassicNewsValidatorAdapter()
 
 
+def get_audio_converter():
+    """Conversor de audio (local o externo según AUDIO_CONVERTER_MODE)."""
+    from src.shared.infrastructure.composition_root import create_audio_converter
+    return create_audio_converter()
+
+
+def get_audio_post_processor():
+    """Post-procesador de audio TTS."""
+    from src.shared.infrastructure.composition_root import create_audio_post_processor
+    return create_audio_post_processor()
+
+
+def get_tts_adapter():
+    """Adaptador TTS (speaches, coqui o jetson según TTS_MODE)."""
+    from src.shared.infrastructure.composition_root import create_tts_adapter
+    return create_tts_adapter()
+
+
+def get_ai_adapter():
+    """Adaptador de IA (gemini, openrouter, groq, local según AI_PROVIDER)."""
+    from src.shared.infrastructure.composition_root import create_ai_adapter
+    return create_ai_adapter()
+
+
+def get_audio_fetcher():
+    """Fetcher de audio desde URLs."""
+    from src.shared.infrastructure.composition_root import create_audio_fetcher
+    return create_audio_fetcher()
+
+
+def get_audio_transcriber():
+    """Transcriptor de audio."""
+    from src.shared.infrastructure.composition_root import create_audio_transcriber
+    return create_audio_transcriber()
+
+
+def get_video_fetcher():
+    """Fetcher de video desde URLs."""
+    from src.shared.infrastructure.composition_root import create_video_fetcher
+    return create_video_fetcher()
+
+
+def get_video_transcriber():
+    """Transcriptor de video."""
+    from src.shared.infrastructure.composition_root import create_video_transcriber
+    return create_video_transcriber()
+
+
 # ============================================================
 # Use Case Dependencies
 # ============================================================
@@ -205,41 +253,9 @@ def get_cleanup_usecase(
     return CleanupPipelineUseCase(verified_repo, generated_posts_repo, generated_articles_repo)
 
 
-def get_image_fetcher_usecase(
-    generated_posts_repo=Depends(get_generated_posts_repo),
-):
-    """Use case para descargar imágenes."""
-    from src.news.application.usecases.publishing_pipeline import ImageFetcherUseCase
-    return ImageFetcherUseCase(generated_posts_repo)
-
-
-def get_image_enricher_usecase(
-    generated_posts_repo=Depends(get_generated_posts_repo),
-    generated_articles_repo=Depends(get_generated_articles_repo),
-):
-    """Use case para enriquecer con imágenes."""
-    from src.news.application.usecases.publishing_pipeline import ImageEnricherUseCase
-    return ImageEnricherUseCase(generated_posts_repo, generated_articles_repo)
-
-
-def get_publishers_usecase(
-    generated_posts_repo=Depends(get_generated_posts_repo),
-    generated_articles_repo=Depends(get_generated_articles_repo),
-):
-    """Use case para publicar en redes sociales."""
-    from src.news.application.usecases.publishing_pipeline import PublishersUseCase
-    return PublishersUseCase(generated_posts_repo, generated_articles_repo)
-
-
 # ============================================================
-# Process URL ("Procesar URL Concreta") Dependencies
+# Port Adapter Dependencies (must be defined before usecases that reference them)
 # ============================================================
-def get_process_url_job_repository():
-    """Job repository port for process_url async tracking (singleton)."""
-    from src.news.application.usecases.pipeline_job import _default_repo
-    return _default_repo
-
-
 def get_image_fetcher_port():
     """Port adapter for image fetching (Unsplash + Google)."""
     from src.shared.adapters.image_fetcher_composite import ImageFetcherCompositeAdapter
@@ -292,8 +308,47 @@ def get_social_publisher_ports():
 
 def get_video_generator_port():
     """Port adapter for video generation."""
-    from src.shared.adapters.video_generator import get_video_generator
-    return get_video_generator()
+    from src.shared.infrastructure.composition_root import create_video_generator
+    return create_video_generator()
+
+
+def get_image_fetcher_usecase(
+    generated_posts_repo=Depends(get_generated_posts_repo),
+    image_fetcher=Depends(get_image_fetcher_port),
+):
+    """Use case para descargar imágenes."""
+    from src.news.application.usecases.publishing_pipeline import ImageFetcherUseCase
+    return ImageFetcherUseCase(generated_posts_repo, image_fetcher)
+
+
+def get_image_enricher_usecase(
+    generated_posts_repo=Depends(get_generated_posts_repo),
+    generated_articles_repo=Depends(get_generated_articles_repo),
+    image_enricher=Depends(get_image_enricher_port),
+):
+    """Use case para enriquecer con imágenes."""
+    from src.news.application.usecases.publishing_pipeline import ImageEnricherUseCase
+    return ImageEnricherUseCase(generated_posts_repo, generated_articles_repo, image_enricher)
+
+
+def get_publishers_usecase(
+    generated_posts_repo=Depends(get_generated_posts_repo),
+    generated_articles_repo=Depends(get_generated_articles_repo),
+    wordpress_publisher=Depends(get_wordpress_publisher_port),
+    social_publishers=Depends(get_social_publisher_ports),
+):
+    """Use case para publicar en redes sociales."""
+    from src.news.application.usecases.publishing_pipeline import PublishersUseCase
+    return PublishersUseCase(generated_posts_repo, generated_articles_repo, wordpress_publisher, social_publishers)
+
+
+# ============================================================
+# Process URL ("Procesar URL Concreta") Dependencies
+# ============================================================
+def get_process_url_job_repository():
+    """Job repository port for process_url async tracking (singleton)."""
+    from src.news.application.usecases.pipeline_job import _default_repo
+    return _default_repo
 
 
 def get_process_url_content_processor(

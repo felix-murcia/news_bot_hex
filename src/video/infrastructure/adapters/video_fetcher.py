@@ -7,6 +7,7 @@ import yt_dlp
 from config.logging_config import get_logger
 from config.settings import Settings
 from src.shared.adapters.audio_converter_factory import get_audio_converter
+from src.video.domain.ports.video_fetcher_port import VideoFetcherPort
 
 logger = get_logger("video_bot.infra.fetcher")
 
@@ -261,7 +262,7 @@ def get_video_info(url: str) -> Optional[dict]:
         return None
 
 
-class VideoFetcher:
+class VideoFetcher(VideoFetcherPort):
     """Fetcher para videos."""
 
     def __init__(self, cache_dir: str = None):

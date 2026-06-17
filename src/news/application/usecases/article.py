@@ -104,24 +104,14 @@ class ArticleUseCase:
 
     def __init__(
         self,
-        verified_repo: Optional[VerifiedNewsRepository] = None,
-        generated_posts_repo: Optional[GeneratedPostsRepository] = None,
-        generated_articles_repo: Optional[GeneratedArticlesRepository] = None,
+        verified_repo: VerifiedNewsRepository,
+        generated_posts_repo: GeneratedPostsRepository,
+        generated_articles_repo: GeneratedArticlesRepository,
         use_ai: bool = True,
         ai_config: Optional[dict] = None,
         ai_model=None,
-        model_provider: str = Settings.AI_PROVIDER,
+        model_provider: str = "gemini",
     ):
-        # Fallback para compatibilidad con tests (inicialmente sin DI)
-        if verified_repo is None:
-            from src.news.infrastructure.adapters import MongoVerifiedNewsRepository
-            verified_repo = MongoVerifiedNewsRepository()
-        if generated_posts_repo is None:
-            from src.news.infrastructure.adapters import MongoGeneratedPostsRepository
-            generated_posts_repo = MongoGeneratedPostsRepository()
-        if generated_articles_repo is None:
-            from src.news.infrastructure.adapters import MongoGeneratedArticlesRepository
-            generated_articles_repo = MongoGeneratedArticlesRepository()
         self.verified_repo = verified_repo
         self.generated_posts_repo = generated_posts_repo
         self.generated_articles_repo = generated_articles_repo
@@ -395,27 +385,29 @@ def run(
     use_gemini: bool = True,
     ai_config: Optional[dict] = None,
     mode: str = "news",
-    model_provider: str = Settings.AI_PROVIDER,
+    model_provider: str = None,
 ) -> List[Dict]:
-    logger.info(f"[ARTICLE] Ejecutando (provider: {model_provider})")
+    from config.settings import Settings
+    from src.shared.adapters.mongo_db import get_database
     from src.news.infrastructure.adapters import MongoVerifiedNewsRepository, MongoGeneratedPostsRepository, MongoGeneratedArticlesRepository
 
-    verified_repo = MongoVerifiedNewsRepository()
-    generated_posts_repo = MongoGeneratedPostsRepository()
-    generated_articles_repo = MongoGeneratedArticlesRepository()
+    provider = model_provider or Settings.AI_PROVIDER
+    logger.info(f"[ARTICLE] Ejecutando (provider: {provider})")
+    db = get_database()
     use_case = ArticleUseCase(
-        verified_repo=verified_repo,
-        generated_posts_repo=generated_posts_repo,
-        generated_articles_repo=generated_articles_repo,
+        verified_repo=MongoVerifiedNewsRepository(db),
+        generated_posts_repo=MongoGeneratedPostsRepository(db),
+        generated_articles_repo=MongoGeneratedArticlesRepository(db),
         use_ai=use_gemini,
         ai_config=ai_config,
-        model_provider=model_provider,
+        model_provider=provider,
     )
     return use_case.execute(limit=limit, mode=mode)
 
 
 def main():
     import argparse
+    from config.settings import Settings
 
     parser = argparse.ArgumentParser(description="Generador de artículos con IA")
     parser.add_argument("--local", action="store_true", help="Usar solo modelo local")

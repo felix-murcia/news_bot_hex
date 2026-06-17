@@ -47,21 +47,13 @@ class AudioPipelineUseCase(BasePipelineUseCase):
 
     @staticmethod
     def _create_video_generator() -> VideoGeneratorPort:
-        """
-        Crea una instancia del generador de videos por defecto.
-
-        Returns:
-            Instancia del adaptador de generación de video.
-        """
-        from src.shared.adapters.video_generator import get_video_generator
-
-        return get_video_generator()
+        from src.shared.infrastructure.composition_root import create_video_generator
+        return create_video_generator()
 
     def run(self, url: str, tema: str, job_id: Optional[str] = None) -> Dict[str, Any]:
-        from src.audio.infrastructure.adapters.audio_fetcher import (
-            download_audio,
-        )
-        from src.audio.infrastructure.adapters.audio_transcriber import transcribe_audio
+        from src.shared.infrastructure.composition_root import create_audio_fetcher, create_audio_transcriber
+        audio_fetcher = create_audio_fetcher()
+        audio_transcriber = create_audio_transcriber()
 
         # Initialize metrics collector
         metrics = None
@@ -79,12 +71,12 @@ class AudioPipelineUseCase(BasePipelineUseCase):
         audio_path: Optional[str] = None
 
         try:
-            audio_path = download_audio(url)
+            audio_path = audio_fetcher.fetch(url)
             if not audio_path:
                 raise RuntimeError(f"Failed to download audio: {url}")
 
             self._track_temp_file(audio_path)
-            transcript = transcribe_audio(audio_path)
+            transcript = audio_transcriber.transcribe(audio_path)
             step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
             logger.info(
                 f"[1/4] Audio descargado y transcrito ({len(transcript)} caracteres) en {step_duration_ms}ms"
@@ -149,13 +141,16 @@ class AudioPipelineUseCase(BasePipelineUseCase):
         step_start_ns = time.time_ns()
         logger.info("[4/8] Generando audio TTS del artículo...")
         try:
-            from src.shared.adapters.tts_adapter import text_to_speech
+            from src.shared.infrastructure.composition_root import create_tts_adapter, create_audio_converter
             from src.shared.adapters.tts_text_processor import TTSTextProcessor
+
+            tts = create_tts_adapter()
+            converter = create_audio_converter()
 
             article_text = enriched_article.get("content", "")
             if article_text:
                 cleaned_text = TTSTextProcessor.process(article_text)
-                tts_audio_path = text_to_speech(
+                tts_audio_path = tts.text_to_speech(
                     text=cleaned_text,
                     voice=Settings.TTS_VOICE,
                     model=Settings.TTS_MODEL,
@@ -165,11 +160,7 @@ class AudioPipelineUseCase(BasePipelineUseCase):
                     f"[4/8] Audio TTS generado: {tts_audio_path}"
                 )
 
-                # Asegurar que el audio esté en MP3 (convertir si es WAV)
                 from pathlib import Path
-                from src.shared.adapters.audio_converter_factory import get_audio_converter
-
-                _converter = get_audio_converter()
                 _audio_path = enriched_article.get("tts_audio_path")
                 if _audio_path and Path(_audio_path).exists():
                     _ext = Path(_audio_path).suffix.lower()
@@ -178,7 +169,7 @@ class AudioPipelineUseCase(BasePipelineUseCase):
                             "[4/8] Convirtiendo WAV → MP3 (64k) para optimizar..."
                         )
                         try:
-                            _mp3_path = _converter.convert_to_mp3(
+                            _mp3_path = converter.convert_to_mp3(
                                 input_path=_audio_path,
                                 bitrate="64k",
                                 delete_original=False,

@@ -57,20 +57,20 @@ class ArticleFromTranscriptUseCase:
 
     def __init__(
         self,
-        llm_provider: str = Settings.AI_PROVIDER,
+        llm_provider: str = "gemini",
         llm_config: Optional[dict] = None,
         source_type: str = "audio",
     ):
         self.llm_provider = llm_provider
         self.llm_config = llm_config or {}
-        self.source_type = source_type  # "audio" or "video"
+        self.source_type = source_type
         self._ai_model = None
 
     def _get_ai_model(self):
         """Lazy load AI model."""
         if self._ai_model is None:
-            from src.shared.adapters.ai.ai_factory import get_ai_adapter
-            self._ai_model = get_ai_adapter(self.llm_provider, self.llm_config)
+            from src.shared.infrastructure.composition_root import create_ai_adapter
+            self._ai_model = create_ai_adapter(provider=self.llm_provider)
         return self._ai_model
 
     def execute(

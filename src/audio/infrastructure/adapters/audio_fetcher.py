@@ -9,6 +9,7 @@ import requests
 from config.logging_config import get_logger
 from config.settings import Settings
 from src.shared.adapters.audio_converter_factory import get_audio_converter
+from src.audio.domain.ports.audio_fetcher_port import AudioFetcherPort
 
 logger = get_logger("audio_bot.infra.fetcher")
 
@@ -296,7 +297,7 @@ def transcribe_audio(audio_path: str) -> str:
     return _transcribe(audio_path)
 
 
-class AudioFetcher:
+class AudioFetcher(AudioFetcherPort):
     """Fetcher para archivos de audio."""
 
     def __init__(self, cache_dir: Optional[str] = None):

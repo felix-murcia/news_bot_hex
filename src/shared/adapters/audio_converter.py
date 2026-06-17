@@ -9,11 +9,12 @@ from datetime import datetime
 import requests
 from config.logging_config import get_logger
 from config.settings import Settings
+from src.shared.domain.ports.audio_converter_port import AudioConverterPort
 
 logger = get_logger("news_bot.adapters.audio_converter")
 
 
-class AudioConverter:
+class AudioConverter(AudioConverterPort):
     """Convierte archivos de audio usando un servicio HTTP de ffmpeg."""
 
     def __init__(self, base_url: str = None):

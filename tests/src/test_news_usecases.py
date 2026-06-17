@@ -81,28 +81,32 @@ class TestContentUseCase:
 
     def test_init(self):
         from src.news.application.usecases.content import ContentUseCase
+        from unittest.mock import Mock
 
-        use_case = ContentUseCase(network="bluesky", use_ai=False)
+        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), network="bluesky", use_ai=False)
         assert use_case.network == "bluesky"
         assert use_case.use_ai is False
         assert use_case.MAX_CHARS == 300
 
     def test_init_twitter(self):
         from src.news.application.usecases.content import ContentUseCase
+        from unittest.mock import Mock
 
-        use_case = ContentUseCase(network="twitter", use_ai=False)
+        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), network="twitter", use_ai=False)
         assert use_case.MAX_CHARS == 280
 
     def test_init_mastodon(self):
         from src.news.application.usecases.content import ContentUseCase
+        from unittest.mock import Mock
 
-        use_case = ContentUseCase(network="mastodon", use_ai=False)
+        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), network="mastodon", use_ai=False)
         assert use_case.MAX_CHARS == 500
 
     def test_init_facebook(self):
         from src.news.application.usecases.content import ContentUseCase
+        from unittest.mock import Mock
 
-        use_case = ContentUseCase(network="facebook", use_ai=False)
+        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), network="facebook", use_ai=False)
         assert use_case.MAX_CHARS == 63206
 
 

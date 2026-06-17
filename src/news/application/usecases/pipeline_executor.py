@@ -231,14 +231,14 @@ def execute_pipeline_async(job_id: str) -> bool:
             add_step(job_id, ProcessingStepName.GENERATE_VIDEO, ProcessingStepStatus.RUNNING)
             step_start_ns = time.time_ns()
             try:
-                from src.shared.adapters.video_generator import get_video_generator
+                from src.shared.infrastructure.composition_root import create_video_generator
                 import os
 
                 db = get_database()
                 articles_coll = db["generated_articles"]
                 articles = list(articles_coll.find({}))
 
-                video_gen = get_video_generator()
+                video_gen = create_video_generator()
                 if video_gen.is_available():
                     for article in articles:
                         audio_path = article.get("tts_audio_path")
@@ -339,7 +339,8 @@ def execute_pipeline_async(job_id: str) -> bool:
                 )
 
                 from src.news.infrastructure.adapters.mongo_metrics_repository import MongoMetricsRepository
-                metrics_repo = MongoMetricsRepository()
+                from src.shared.adapters.mongo_db import get_database as get_metrics_db
+                metrics_repo = MongoMetricsRepository(get_metrics_db())
                 metrics_repo.save(metric)
                 logger.info(
                     f"[PIPELINE-JOB] {job_id} Métricas guardadas: "
@@ -365,7 +366,8 @@ def execute_pipeline_async(job_id: str) -> bool:
                 )
 
                 from src.news.infrastructure.adapters.mongo_metrics_repository import MongoMetricsRepository
-                metrics_repo = MongoMetricsRepository()
+                from src.shared.adapters.mongo_db import get_database as get_metrics_db
+                metrics_repo = MongoMetricsRepository(get_metrics_db())
                 metrics_repo.save(metric)
                 logger.debug(f"[PIPELINE-JOB] {job_id} Métricas de error guardadas")
             except Exception as metric_err:

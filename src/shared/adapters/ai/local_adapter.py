@@ -6,11 +6,12 @@ Implementación del puerto AIModelPort para modelos locales.
 
 import logging
 from typing import Dict, Optional
+from src.shared.domain.ports.ai_model_port import AIModelPort
 
 logger = logging.getLogger(__name__)
 
 
-class LocalAdapter:
+class LocalAdapter(AIModelPort):
     """Adapter para modelos locales (Whisper, fallback)."""
 
     AGENTS = [
@@ -60,7 +61,7 @@ class LocalAdapter:
         return True
 
 
-class MockAdapter:
+class MockAdapter(AIModelPort):
     """Adapter mock para testing."""
 
     AGENTS = [

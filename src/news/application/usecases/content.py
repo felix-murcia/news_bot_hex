@@ -30,22 +30,15 @@ class ContentUseCase:
 
     def __init__(
         self,
-        verified_repo: Optional[VerifiedNewsRepository] = None,
-        generated_posts_repo: Optional[GeneratedPostsRepository] = None,
+        verified_repo: VerifiedNewsRepository,
+        generated_posts_repo: GeneratedPostsRepository,
         network: str = "bluesky",
         use_ai: bool = True,
         ai_config: Optional[dict] = None,
-        model_provider: str = Settings.AI_PROVIDER,
+        model_provider: str = "gemini",
         ai_model=None,
         mode: str = "news",
     ):
-        # Fallback para compatibilidad con tests (inicialmente sin DI)
-        if verified_repo is None:
-            from src.news.infrastructure.adapters import MongoVerifiedNewsRepository
-            verified_repo = MongoVerifiedNewsRepository()
-        if generated_posts_repo is None:
-            from src.news.infrastructure.adapters import MongoGeneratedPostsRepository
-            generated_posts_repo = MongoGeneratedPostsRepository()
         self.verified_repo = verified_repo
         self.generated_posts_repo = generated_posts_repo
         self.network = network
@@ -195,21 +188,23 @@ def run_content(
     use_gemini: bool = True,
     gemini_config: Optional[Dict] = None,
     mode: str = "news",
-    model_provider: str = Settings.AI_PROVIDER,
+    model_provider: str = None,
 ) -> List[Dict]:
     """Función principal para generar tweets."""
-    logger.info(f"[CONTENT] Ejecutando (provider: {model_provider}, red: {network})")
+    from config.settings import Settings
+    from src.shared.adapters.mongo_db import get_database
     from src.news.infrastructure.adapters import MongoVerifiedNewsRepository, MongoGeneratedPostsRepository
 
-    verified_repo = MongoVerifiedNewsRepository()
-    generated_posts_repo = MongoGeneratedPostsRepository()
+    provider = model_provider or Settings.AI_PROVIDER
+    logger.info(f"[CONTENT] Ejecutando (provider: {provider}, red: {network})")
+    db = get_database()
     use_case = ContentUseCase(
-        verified_repo=verified_repo,
-        generated_posts_repo=generated_posts_repo,
+        verified_repo=MongoVerifiedNewsRepository(db),
+        generated_posts_repo=MongoGeneratedPostsRepository(db),
         network=network,
         use_ai=use_gemini,
         ai_config=gemini_config,
-        model_provider=model_provider,
+        model_provider=provider,
         mode=mode,
     )
     return use_case.execute()

@@ -9,6 +9,7 @@ import logging
 from typing import Dict, Optional
 from dotenv import load_dotenv
 
+from src.shared.domain.ports.ai_model_port import AIModelPort
 from config.settings import Settings
 from src.shared.utils.retry import retry_with_backoff
 
@@ -17,7 +18,7 @@ load_dotenv(override=True)
 logger = logging.getLogger(__name__)
 
 
-class GeminiAdapter:
+class GeminiAdapter(AIModelPort):
     """Adapter for Google Gemini."""
 
     AGENTS = [

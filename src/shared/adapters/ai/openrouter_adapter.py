@@ -12,6 +12,7 @@ import requests
 from dotenv import load_dotenv
 
 from src.shared.utils.retry import retry_with_backoff
+from src.shared.domain.ports.ai_model_port import AIModelPort
 from config.settings import Settings
 
 load_dotenv(override=True)
@@ -19,7 +20,7 @@ load_dotenv(override=True)
 logger = logging.getLogger(__name__)
 
 
-class OpenRouterAdapter:
+class OpenRouterAdapter(AIModelPort):
     """Adapter for OpenRouter."""
 
     AGENTS = [

@@ -154,7 +154,8 @@ class TestContentGeminiUseCase:
         """Test ContentGeminiUseCase initialization."""
         from src.news.application.usecases.content import ContentGeminiUseCase
 
-        use_case = ContentGeminiUseCase(network="bluesky", use_gemini=True)
+        from unittest.mock import Mock
+        use_case = ContentGeminiUseCase(network="bluesky", use_gemini=True, verified_repo=Mock(), generated_posts_repo=Mock())
 
         assert use_case is not None
 
@@ -198,7 +199,8 @@ class TestArticleGeminiUseCase:
         """Test ArticleGeminiUseCase initialization."""
         from src.news.application.usecases.article import ArticleGeminiUseCase
 
-        use_case = ArticleGeminiUseCase(use_gemini=True)
+        from unittest.mock import Mock
+        use_case = ArticleGeminiUseCase(use_gemini=True, verified_repo=Mock(), generated_articles_repo=Mock(), generated_posts_repo=Mock())
 
         assert use_case is not None
 

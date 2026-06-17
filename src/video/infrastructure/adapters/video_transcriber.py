@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 from config.settings import Settings
 from config.logging_config import get_logger
 from src.shared.adapters.audio_converter_factory import get_audio_converter
+from src.video.domain.ports.video_transcriber_port import VideoTranscriberPort
 
 load_dotenv(override=True)
 
@@ -114,7 +115,7 @@ def transcribe_audio(audio_path: str) -> str:
         raise
 
 
-class VideoTranscriber:
+class VideoTranscriber(VideoTranscriberPort):
     """Transcriptor de videos usando Groq."""
 
     def __init__(self, model: str = "whisper-large-v3-turbo"):

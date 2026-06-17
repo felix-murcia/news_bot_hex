@@ -30,9 +30,10 @@ class TestContentUseCaseDetailed:
 
     def test_network_limits(self):
         from src.news.application.usecases.content import ContentUseCase
+        from unittest.mock import Mock
 
         for network, limit in [("bluesky", 300), ("twitter", 280), ("mastodon", 500)]:
-            use_case = ContentUseCase(network=network, use_ai=False)
+            use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), network=network, use_ai=False)
             assert use_case.MAX_CHARS == limit
 
 

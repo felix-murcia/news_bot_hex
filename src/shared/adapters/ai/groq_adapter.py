@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 
 from src.shared.utils.retry import retry_with_backoff
 from src.shared.adapters.audio_converter_factory import get_audio_converter
+from src.shared.domain.ports.ai_model_port import AIModelPort
 from config.settings import Settings
 
 load_dotenv(override=True)
@@ -21,7 +22,7 @@ load_dotenv(override=True)
 logger = logging.getLogger(__name__)
 
 
-class GroqAdapter:
+class GroqAdapter(AIModelPort):
     """Adapter for Groq Whisper transcription API."""
 
     def __init__(self, config: Dict = None, validate_on_init: bool = False):

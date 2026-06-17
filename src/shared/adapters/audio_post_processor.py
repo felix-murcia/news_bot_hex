@@ -13,11 +13,12 @@ from typing import Optional
 from config.logging_config import get_logger
 from config.settings import Settings
 from src.shared.adapters.audio_converter_factory import get_audio_converter_url
+from src.shared.domain.ports.audio_post_processor_port import AudioPostProcessorPort
 
 logger = get_logger("news_bot.adapters.audio_post_processor")
 
 
-class AudioPostProcessor:
+class AudioPostProcessor(AudioPostProcessorPort):
     """Post-process TTS audio using ffmpeg-api service."""
 
     def __init__(self, base_url: str = None):

@@ -1,10 +1,16 @@
 """Publishing pipeline usecase - images, enrichment, and distribution."""
 
+from typing import List
+
 from config.logging_config import get_logger
 from src.news.domain.ports import (
     GeneratedPostsRepository,
     GeneratedArticlesRepository,
 )
+from src.shared.domain.ports.image_fetcher_port import ImageFetcherPort
+from src.shared.domain.ports.image_enricher_port import ImageEnricherPort
+from src.shared.domain.ports.social_publisher_port import SocialPublisherPort
+from src.shared.domain.ports.wordpress_publisher_port import WordPressPublisherPort
 
 logger = get_logger("news_bot.usecase.publishing")
 
@@ -12,23 +18,24 @@ logger = get_logger("news_bot.usecase.publishing")
 class ImageFetcherUseCase:
     """Fetch images from web sources."""
 
-    def __init__(self, generated_posts_repo: GeneratedPostsRepository):
+    def __init__(
+        self,
+        generated_posts_repo: GeneratedPostsRepository,
+        image_fetcher: ImageFetcherPort,
+    ):
         self._generated_posts_repo = generated_posts_repo
+        self._image_fetcher = image_fetcher
 
     def execute(self) -> dict:
         """Fetch and cache images for generated posts."""
         logger.info("[IMAGES] Iniciando búsqueda de imágenes")
-
         try:
-            from src.shared.adapters.google_images_fetcher import run as fetch_google_images
-
-            # Run Google Images fetcher
-            fetch_google_images()
-            logger.info("[IMAGES] ✅ Google Images fetcher completado")
-
+            posts = self._generated_posts_repo.load_all()
+            if posts:
+                self._image_fetcher.fetch(posts)
+            logger.info("[IMAGES] ✅ Image fetcher completado")
         except Exception as e:
-            logger.warning(f"[IMAGES] ⚠️ Error en Google Images fetcher: {e}")
-
+            logger.warning(f"[IMAGES] ⚠️ Error en image fetcher: {e}")
         return {"status": "ok", "message": "Image fetching completed"}
 
 
@@ -39,40 +46,26 @@ class ImageEnricherUseCase:
         self,
         generated_posts_repo: GeneratedPostsRepository,
         generated_articles_repo: GeneratedArticlesRepository,
+        image_enricher: ImageEnricherPort,
     ):
         self._generated_posts_repo = generated_posts_repo
         self._generated_articles_repo = generated_articles_repo
+        self._image_enricher = image_enricher
 
     def execute(self) -> dict:
         """Enrich generated content with images."""
         logger.info("[ENRICH] Iniciando enriquecimiento con imágenes")
-
         try:
-            from src.shared.adapters.image_enricher import enrich_posts, enrich_articles
-
-            # Enrich posts
-            try:
-                posts = self._generated_posts_repo.load_all()
-                if posts:
-                    enrich_posts(posts)
-                    self._generated_posts_repo.save_all(posts)
-                    logger.info(f"[ENRICH] ✅ Enriquecidos {len(posts)} posts con imágenes")
-            except Exception as e:
-                logger.warning(f"[ENRICH] ⚠️ Error enriqueciendo posts: {e}")
-
-            # Enrich articles
-            try:
-                articles = self._generated_articles_repo.load_all()
-                if articles:
-                    enrich_articles(articles)
-                    self._generated_articles_repo.save_all(articles)
-                    logger.info(f"[ENRICH] ✅ Enriquecidos {len(articles)} artículos con imágenes")
-            except Exception as e:
-                logger.warning(f"[ENRICH] ⚠️ Error enriqueciendo artículos: {e}")
-
+            posts = self._generated_posts_repo.load_all() or []
+            articles = self._generated_articles_repo.load_all() or []
+            self._image_enricher.enrich(posts, articles)
+            if posts:
+                self._generated_posts_repo.save_all(posts)
+            if articles:
+                self._generated_articles_repo.save_all(articles)
+            logger.info(f"[ENRICH] ✅ Enriquecidos {len(posts)} posts y {len(articles)} artículos")
         except Exception as e:
             logger.warning(f"[ENRICH] ⚠️ Error en enriquecimiento: {e}")
-
         return {"status": "ok", "message": "Image enrichment completed"}
 
 
@@ -83,55 +76,39 @@ class PublishersUseCase:
         self,
         generated_posts_repo: GeneratedPostsRepository,
         generated_articles_repo: GeneratedArticlesRepository,
+        wordpress_publisher: WordPressPublisherPort = None,
+        social_publishers: List[SocialPublisherPort] = None,
     ):
         self._generated_posts_repo = generated_posts_repo
         self._generated_articles_repo = generated_articles_repo
+        self._wordpress_publisher = wordpress_publisher
+        self._social_publishers = social_publishers or []
 
     def execute(self) -> dict:
         """Publish to all configured platforms."""
         logger.info("[PUBLISH] Iniciando publicación en redes sociales")
-
         results = {}
 
-        # Publish to WordPress
-        try:
-            from src.shared.adapters.wordpress_publisher import run as publish_wordpress
-            publish_wordpress()
-            logger.info("[PUBLISH] ✅ WordPress publicado")
-            results["wordpress"] = "ok"
-        except Exception as e:
-            logger.warning(f"[PUBLISH] ⚠️ Error publicando a WordPress: {e}")
-            results["wordpress"] = f"error: {str(e)}"
+        if self._wordpress_publisher:
+            try:
+                result = self._wordpress_publisher.publish()
+                logger.info("[PUBLISH] ✅ WordPress publicado")
+                results["wordpress"] = result.get("status", "ok")
+            except Exception as e:
+                logger.warning(f"[PUBLISH] ⚠️ Error publicando a WordPress: {e}")
+                results["wordpress"] = f"error: {str(e)}"
 
-        # Publish to Bluesky
-        try:
-            from src.shared.adapters.bluesky_publisher import run as publish_bluesky
-            publish_bluesky()
-            logger.info("[PUBLISH] ✅ Bluesky publicado")
-            results["bluesky"] = "ok"
-        except Exception as e:
-            logger.warning(f"[PUBLISH] ⚠️ Error publicando a Bluesky: {e}")
-            results["bluesky"] = f"error: {str(e)}"
-
-        # Publish to Mastodon
-        try:
-            from src.shared.adapters.mastodon_publisher import run as publish_mastodon
-            publish_mastodon()
-            logger.info("[PUBLISH] ✅ Mastodon publicado")
-            results["mastodon"] = "ok"
-        except Exception as e:
-            logger.warning(f"[PUBLISH] ⚠️ Error publicando a Mastodon: {e}")
-            results["mastodon"] = f"error: {str(e)}"
-
-        # Publish to Facebook
-        try:
-            from src.shared.adapters.facebook_publisher import run as publish_facebook
-            publish_facebook()
-            logger.info("[PUBLISH] ✅ Facebook publicado")
-            results["facebook"] = "ok"
-        except Exception as e:
-            logger.warning(f"[PUBLISH] ⚠️ Error publicando a Facebook: {e}")
-            results["facebook"] = f"error: {str(e)}"
+        posts = self._generated_posts_repo.load_all() or []
+        for publisher in self._social_publishers:
+            platform = publisher.__class__.__name__.replace("PublisherAdapter", "").lower()
+            try:
+                for post in posts:
+                    publisher.publish(post)
+                logger.info(f"[PUBLISH] ✅ {platform} publicado")
+                results[platform] = "ok"
+            except Exception as e:
+                logger.warning(f"[PUBLISH] ⚠️ Error publicando a {platform}: {e}")
+                results[platform] = f"error: {str(e)}"
 
         logger.info("[PUBLISH] ========== Publicación completada ==========")
         return {"status": "ok", "message": "Publishing completed", "results": results}

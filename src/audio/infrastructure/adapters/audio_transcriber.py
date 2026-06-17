@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 from config.settings import Settings
 from config.logging_config import get_logger
 from src.shared.adapters.audio_converter_factory import get_audio_converter
+from src.audio.domain.ports.audio_transcriber_port import AudioTranscriberPort
 
 load_dotenv(override=True)
 
@@ -138,7 +139,7 @@ def transcribe_audio(audio_path: str) -> str:
                 pass
 
 
-class AudioTranscriber:
+class AudioTranscriber(AudioTranscriberPort):
     """Transcriptor de audios usando Groq."""
 
     def __init__(self, model: str = "whisper-large-v3-turbo"):

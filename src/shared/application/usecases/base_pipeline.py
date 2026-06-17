@@ -16,18 +16,6 @@ from config.logging_config import get_logger
 
 logger = get_logger("news_bot.base_pipeline")
 
-from src.shared.adapters.image_enricher import ImageEnricher
-from src.shared.adapters.wordpress_publisher import (
-    publish_post,
-    ensure_category,
-    ensure_tag,
-    upload_image_from_url,
-    upload_audio,
-    rest_url,
-    get_headers,
-)
-from src.shared.adapters.publishers.social import SocialMediaPublisher
-
 
 class BasePipelineUseCase(ABC):
     """Abstract base class for all media processing pipelines.
@@ -48,8 +36,8 @@ class BasePipelineUseCase(ABC):
     ):
         self.mode = mode
         self.no_publish = no_publish
-        self._image_enricher: Optional[ImageEnricher] = None
-        self._social_publisher: Optional[SocialMediaPublisher] = None
+        self._image_enricher = None
+        self._social_publisher = None
         self._enable_bluesky = enable_bluesky
         self._enable_mastodon = enable_mastodon
         self._temp_files: List[str] = []
@@ -71,16 +59,18 @@ class BasePipelineUseCase(ABC):
             self._wp_validated = True
 
     @property
-    def image_enricher(self) -> ImageEnricher:
+    def image_enricher(self):
         """Lazy-loaded image enricher."""
         if self._image_enricher is None:
+            from src.shared.adapters.image_enricher import ImageEnricher
             self._image_enricher = ImageEnricher(mode=self.mode)
         return self._image_enricher
 
     @property
-    def social_publisher(self) -> SocialMediaPublisher:
+    def social_publisher(self):
         """Lazy-loaded social media publisher."""
         if self._social_publisher is None:
+            from src.shared.adapters.publishers.social import SocialMediaPublisher
             self._social_publisher = SocialMediaPublisher(
                 enable_bluesky=self._enable_bluesky,
                 enable_mastodon=self._enable_mastodon,
@@ -169,6 +159,16 @@ class BasePipelineUseCase(ABC):
 
         self._validate_wordpress_token()
 
+        from src.shared.adapters.wordpress_publisher import (
+            publish_post,
+            ensure_category,
+            ensure_tag,
+            upload_image_from_url,
+            upload_audio,
+            rest_url,
+            get_headers,
+        )
+
         step_start = time.time()
         logger.info(
             f"WordPress publish started: '{article.get('title', 'Untitled')[:80]}'"
@@ -254,9 +254,9 @@ class BasePipelineUseCase(ABC):
                         f"[{self.mode.upper()}] Intentando convertir WAV → MP3 (64k)..."
                     )
                     try:
-                        from src.shared.adapters.audio_converter_factory import get_audio_converter
+                        from src.shared.infrastructure.composition_root import create_audio_converter
 
-                        converter = get_audio_converter()
+                        converter = create_audio_converter()
                         mp3_path = converter.convert_to_mp3(
                             input_path=audio_path,
                             bitrate="64k",
