@@ -13,7 +13,6 @@ Respects hexagonal architecture:
 import re
 from typing import Dict, Any, Optional
 
-from config.settings import Settings
 from config.logging_config import get_logger
 
 logger = get_logger("shared.usecase.article_from_transcript")
@@ -277,7 +276,7 @@ def run_from_transcript(
     transcript: str,
     url: str = "",
     tema: str = "Noticias",
-    llm_provider: str = Settings.AI_PROVIDER,
+    llm_provider: str = "gemini",
     llm_config: Optional[dict] = None,
     source_type: str = "audio",
 ) -> Dict[str, Any]:

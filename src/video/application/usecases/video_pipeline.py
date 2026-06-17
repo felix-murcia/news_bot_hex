@@ -11,7 +11,6 @@ import time
 import random
 from typing import Dict, Any, List, Optional
 
-from config.settings import Settings
 from config.logging_config import get_logger
 
 logger = get_logger("video_bot.usecase")
@@ -53,6 +52,8 @@ class VideoPipelineUseCase(BasePipelineUseCase):
         return create_video_generator()
 
     def run(self, url: str, tema: str, job_id: Optional[str] = None) -> Dict[str, Any]:
+        from config.settings import Settings
+
         # Initialize metrics collector
         metrics = None
         if self.metrics_repo and job_id:

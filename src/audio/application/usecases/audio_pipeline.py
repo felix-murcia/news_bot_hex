@@ -8,8 +8,6 @@ import os
 import time
 import random
 from typing import Dict, Any, List, Optional
-from config.settings import Settings
-
 from config.logging_config import get_logger
 
 logger = get_logger("audio_bot.usecase")
@@ -54,6 +52,8 @@ class AudioPipelineUseCase(BasePipelineUseCase):
         from src.shared.infrastructure.composition_root import create_audio_fetcher, create_audio_transcriber
         audio_fetcher = create_audio_fetcher()
         audio_transcriber = create_audio_transcriber()
+
+        from config.settings import Settings
 
         # Initialize metrics collector
         metrics = None

@@ -3,18 +3,11 @@ import re
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from config.settings import Settings
 from src.news.domain.ports import ContentExtractor
 from config.logging_config import get_logger
 from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
 
 logger = get_logger("news_bot.usecase.news_to_news")
-
-DATA_DIR = Settings.DATA_DIR
-CACHE_DIR = Settings.CACHE_DIR
-
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def slugify(text: str) -> str:
@@ -26,6 +19,7 @@ def slugify(text: str) -> str:
 
 def check_copyright(url: str) -> bool:
     """Check copyright risk for a URL."""
+    from config.settings import Settings
     url_lower = url.lower()
     return any(domain.lower() in url_lower for domain in Settings.COPYRIGHT_DOMAINS)
 
@@ -37,7 +31,7 @@ class NewsToNewsUseCase:
         self,
         content_extractor: ContentExtractor,
         use_ai: bool = True,
-        model_provider: str = Settings.AI_PROVIDER,
+        model_provider: str = "gemini",
         ai_config: Optional[dict] = None,
         ai_model=None,
         video_generator: Optional[VideoGeneratorPort] = None,
@@ -68,10 +62,11 @@ class NewsToNewsUseCase:
     def _load_from_cache(self, url: str) -> Optional[tuple[str, Path]]:
         try:
             from src.shared.adapters.cache_manager import load_content_from_cache
+            from config.settings import Settings
 
             content, status = load_content_from_cache(url, max_age_hours=24)
             if content and status == "cache_hit":
-                cache_path = CACHE_DIR / f"{hash(url)}.txt"
+                cache_path = Settings.CACHE_DIR / f"{hash(url)}.txt"
                 return content, cache_path
             return None
         except Exception:
@@ -102,7 +97,8 @@ class NewsToNewsUseCase:
         if content:
             self._save_to_cache(url, content)
 
-        cache_path = CACHE_DIR / f"{hash(url)}.txt"
+        from config.settings import Settings
+        cache_path = Settings.CACHE_DIR / f"{hash(url)}.txt"
         return content or "", cache_path
 
     def _generate_article(
@@ -118,7 +114,7 @@ class NewsToNewsUseCase:
         from src.shared.adapters.social_post_adapter import truncate_social_post
 
         title = article_data.get("article", {}).get("title", "")
-        url = article_data.get("article", {}).get("url", Settings.WP_SITE_URL)
+        url = article_data.get("article", {}).get("url", os.getenv("WP_SITE_URL", "https://nbes.blog"))
         tema = article_data.get("news_item", {}).get("tema", "Noticias")
         desc = article_data.get("article", {}).get("desc", "")[:200]
 
@@ -257,7 +253,7 @@ class NewsToNewsUseCase:
 def process_news_url(
     url: str,
     content_extractor: ContentExtractor,
-    model_provider: str = Settings.AI_PROVIDER,
+    model_provider: str = "gemini",
     use_ai: bool = True,
     ai_config: Optional[dict] = None,
     video_generator: Optional[VideoGeneratorPort] = None,
@@ -277,6 +273,7 @@ def process_news_url(
 
 def main():
     import argparse
+    from config.settings import Settings
 
     parser = argparse.ArgumentParser(
         description="Procesar URL de noticia y generar artículo"

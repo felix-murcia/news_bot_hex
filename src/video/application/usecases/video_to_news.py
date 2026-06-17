@@ -5,14 +5,10 @@ import re
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from config.settings import Settings
 from config.logging_config import setup_logging, get_logger
 
 setup_logging()
 logger = get_logger("video_bot")
-
-# Ensure directories exist
-Settings.ensure_directories()
 
 
 def slugify(text: str) -> str:
@@ -24,6 +20,7 @@ def slugify(text: str) -> str:
 
 def check_copyright(url: str) -> bool:
     """Verifica riesgo de copyright."""
+    from config.settings import Settings
     return any(domain in url.lower() for domain in Settings.VIDEO_COPYRIGHT_DOMAINS)
 
 
@@ -50,7 +47,7 @@ class VideoToNewsUseCase:
     def __init__(
         self,
         use_ai: bool = True,
-        model_provider: str = Settings.AI_PROVIDER,
+        model_provider: str = "gemini",
         ai_config: dict = None,
         ai_model=None,
     ):
@@ -263,6 +260,7 @@ class VideoToNewsUseCase:
         transcript_path: Path,
     ):
         """Guarda los outputs."""
+        from config.settings import Settings
         article = article_data.get("article", {})
 
         articles_path = Settings.DATA_DIR / "generated_video_articles.json"
@@ -285,6 +283,7 @@ class VideoToNewsUseCase:
         if check_copyright(url):
             logger.warning(f"[VIDEO] Posible riesgo de copyright: {url}")
 
+        from config.settings import Settings
         file_id = str(uuid.uuid5(uuid.NAMESPACE_URL, url))
         video_path = Settings.CACHE_DIR / f"{file_id}.mp4"
         transcript_path = Settings.CACHE_DIR / f"{file_id}.txt"
@@ -312,7 +311,7 @@ class VideoToNewsUseCase:
 
 def process_video_url(
     url: str,
-    model_provider: str = Settings.AI_PROVIDER,
+    model_provider: str = "gemini",
     use_ai: bool = True,
     ai_config: dict = None,
 ) -> Dict[str, Any]:
@@ -327,6 +326,7 @@ def process_video_url(
 
 def main():
     import argparse
+    from config.settings import Settings
 
     parser = argparse.ArgumentParser(description="Procesar video y generar artículo")
     parser.add_argument("url", help="URL del video")

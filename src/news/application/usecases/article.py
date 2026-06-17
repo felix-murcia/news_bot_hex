@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from urllib.parse import urlparse
 
-from config.settings import Settings
 from config.logging_config import get_logger
 from src.news.domain.ports import VerifiedNewsRepository, GeneratedPostsRepository, GeneratedArticlesRepository
 from src.shared.adapters.ai.agents import ArticleAgent
@@ -22,17 +21,11 @@ from src.shared.adapters.seo_optimizer import (
 
 logger = get_logger("news_bot.usecase.article")
 
-# Ensure directories exist
-Settings.ensure_directories()
-
-_TEMPLATE_PATH = Settings.BASE_DIR / "templates" / "plantilla_periodico.html"
-if not _TEMPLATE_PATH.exists():
-    # Fallback para compatibilidad con estructuras antiguas
-    _TEMPLATE_PATH = (
-        Path(__file__).resolve().parent.parent.parent.parent
-        / "templates"
-        / "plantilla_periodico.html"
-    )
+_TEMPLATE_PATH = (
+    Path(__file__).resolve().parent.parent.parent.parent
+    / "templates"
+    / "plantilla_periodico.html"
+)
 
 
 def get_domain(url: str) -> str:
@@ -367,7 +360,7 @@ class ArticleGeminiUseCase(ArticleUseCase):
         use_gemini: bool = True,
         gemini_config: Optional[dict] = None,
         ai_model=None,
-        model_provider: str = Settings.AI_PROVIDER,
+        model_provider: str = "gemini",
         **kwargs,
     ):
         super().__init__(

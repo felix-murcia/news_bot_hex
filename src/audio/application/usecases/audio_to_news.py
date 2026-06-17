@@ -4,15 +4,10 @@ import json
 import re
 from pathlib import Path
 from typing import Dict, Any, Optional
-from config.settings import Settings
-
 from config.logging_config import setup_logging, get_logger
 
 setup_logging()
 logger = get_logger("audio_bot")
-
-# Ensure directories exist
-Settings.ensure_directories()
 
 
 def slugify(text: str) -> str:
@@ -24,6 +19,7 @@ def slugify(text: str) -> str:
 
 def check_copyright(url: str) -> bool:
     """Verifica riesgo de copyright."""
+    from config.settings import Settings
     return any(domain in url.lower() for domain in Settings.VIDEO_COPYRIGHT_DOMAINS)
 
 
@@ -33,7 +29,7 @@ class AudioToNewsUseCase:
     def __init__(
         self,
         use_ai: bool = True,
-        model_provider: str = Settings.AI_PROVIDER,
+        model_provider: str = "gemini",
         ai_config: Optional[dict] = None,
         ai_model=None,
     ):
@@ -248,6 +244,7 @@ class AudioToNewsUseCase:
 
     def _save_outputs(self, article_data: Dict, transcript: str):
         """Guarda los outputs."""
+        from config.settings import Settings
         article = article_data.get("article", {})
 
         articles_path = Settings.DATA_DIR / "generated_audio_articles.json"
@@ -271,6 +268,7 @@ class AudioToNewsUseCase:
         if check_copyright(url):
             logger.warning(f"[AUDIO] Posible riesgo de copyright: {url}")
 
+        from config.settings import Settings
         file_id = str(uuid.uuid5(uuid.NAMESPACE_URL, url))
         audio_path = Settings.CACHE_DIR / f"{file_id}.mp3"
         transcript_path = Settings.CACHE_DIR / f"{file_id}.txt"
@@ -298,7 +296,7 @@ class AudioToNewsUseCase:
 
 def process_audio_url(
     url: str,
-    model_provider: str = Settings.AI_PROVIDER,
+    model_provider: str = "gemini",
     use_ai: bool = True,
     ai_config: Optional[dict] = None,
 ) -> Dict[str, Any]:
@@ -313,6 +311,7 @@ def process_audio_url(
 
 def main():
     import argparse
+    from config.settings import Settings
 
     parser = argparse.ArgumentParser(description="Procesar audio y generar artículo")
     parser.add_argument("url", help="URL del audio")

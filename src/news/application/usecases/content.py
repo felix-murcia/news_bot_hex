@@ -3,7 +3,6 @@ import re
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-from config.settings import Settings
 from config.logging_config import get_logger
 from src.news.domain.ports import VerifiedNewsRepository, GeneratedPostsRepository
 from src.shared.adapters.ai.agents import TweetGeopoliticsAgent
@@ -11,11 +10,6 @@ from src.shared.adapters.social_post_adapter import truncate_social_post
 from src.shared.adapters.content_post_editor import post_edit_content
 
 logger = get_logger("news_bot.usecase.content")
-
-# Ensure directories exist
-Settings.ensure_directories()
-
-POSTS_PATH = Settings.DATA_DIR / "generated_posts.json"
 
 POST_LIMITS = {
     "bluesky": 300,
@@ -171,6 +165,7 @@ class ContentGeminiUseCase(ContentUseCase):
         mode: str = "news",
         **kwargs,
     ):
+        from config.settings import Settings
         model_provider = Settings.AI_PROVIDER if use_gemini else "mock"
         super().__init__(
             network=network,
@@ -217,6 +212,7 @@ def run(llm=None):
 
 def main():
     import argparse
+    from config.settings import Settings
 
     parser = argparse.ArgumentParser(description="Generador de tweets")
     parser.add_argument("--local", action="store_true", help="Usar solo modelo local")

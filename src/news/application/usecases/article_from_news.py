@@ -3,15 +3,10 @@ import re
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from config.settings import Settings
 from src.shared.adapters.translator import translate_text
 from config.logging_config import get_logger
 
 logger = get_logger("news_bot.usecase.article_from_news")
-
-CACHE_DIR = Settings.CACHE_DIR
-
-CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def limpiar(texto: str) -> str:
@@ -37,7 +32,7 @@ class ArticleFromNewsUseCase:
     def __init__(
         self,
         use_ai: bool = True,
-        model_provider: str = Settings.AI_PROVIDER,
+        model_provider: str = "gemini",
         ai_config: Optional[dict] = None,
         ai_model=None,
     ):
@@ -71,7 +66,7 @@ class ArticleFromNewsUseCase:
         news_item = {
             "resumen": resumen,
             "source_url": url,
-            "url": Settings.WP_SITE_URL,
+            "url": os.getenv("WP_SITE_URL", "https://nbes.blog"),
             "source": "web",
             "source_type": "news_man",
             "tema": tema,
@@ -227,7 +222,7 @@ def run_from_news(
     url: str = "",
     tema: str = "Noticias",
     use_gemini: bool = True,
-    model_provider: str = Settings.AI_PROVIDER,
+    model_provider: str = "gemini",
     ai_config: Optional[dict] = None,
 ) -> Dict[str, Any]:
     """Función de compatibilidad para pipeline existente."""
@@ -244,6 +239,7 @@ def run_from_news(
 
 def main():
     import argparse
+    from config.settings import Settings
 
     parser = argparse.ArgumentParser(
         description="Generar artículo desde contenido de noticia"
