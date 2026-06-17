@@ -10,12 +10,11 @@ import requests
 
 from config.logging_config import get_logger
 from src.shared.domain.ports.tts_port import TTSPort
-from src.shared.adapters.audio_converter import AudioConverter
+from src.shared.adapters.audio_converter_factory import get_audio_converter
 
 logger = get_logger("shared.adapters.tts")
 
-# Instancia global del conversor de audio (para convertir WAV → MP3 si es necesario)
-_audio_converter = AudioConverter()
+_audio_converter = get_audio_converter()
 
 
 class TTSAdapter(TTSPort):

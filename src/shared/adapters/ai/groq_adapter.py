@@ -13,7 +13,7 @@ import requests
 from dotenv import load_dotenv
 
 from src.shared.utils.retry import retry_with_backoff
-from src.shared.adapters.audio_converter import AudioConverter
+from src.shared.adapters.audio_converter_factory import get_audio_converter
 from config.settings import Settings
 
 load_dotenv(override=True)
@@ -37,7 +37,7 @@ class GroqAdapter:
         self.model = self.config.get("model", Settings.GROQ_TRANSCRIBE_MODEL)
 
         # Inicializar conversor de audio (inyección de dependencia)
-        self.audio_converter = AudioConverter()
+        self.audio_converter = get_audio_converter()
 
         if not self.api_key:
             logger.warning("[GROQ] API key not found in environment")

@@ -306,6 +306,8 @@ class Settings:
   
     # === Audio Converter Configuration (ffmpeg) ===
     FFMPEG_API_URL = os.getenv("FFMPEG_API_URL", "http://localhost:8082")
+    AUDIO_CONVERTER_EXTERNAL_URL = os.getenv("AUDIO_CONVERTER_EXTERNAL_URL", "http://192.168.0.105:8083")
+    AUDIO_CONVERTER_MODE = os.getenv("AUDIO_CONVERTER_MODE", "local")
     AUDIO_CONVERTER_PATH = os.getenv("AUDIO_CONVERTER_PATH", "/audio/convert-by-path")
 
     # === Video Generator Configuration ===

@@ -8,7 +8,7 @@ import yt_dlp
 import requests
 from config.logging_config import get_logger
 from config.settings import Settings
-from src.shared.adapters.audio_converter import AudioConverter
+from src.shared.adapters.audio_converter_factory import get_audio_converter
 
 logger = get_logger("audio_bot.infra.fetcher")
 
@@ -18,7 +18,7 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 MAX_DURATION = 600
 
 # Instancia global del conversor de audio (inyección de dependencia)
-_audio_converter = AudioConverter()
+_audio_converter = get_audio_converter()
 
 
 def extract_audio_id(url: str) -> Optional[str]:
@@ -128,10 +128,10 @@ def _download_with_ytdlp(
 ) -> Optional[str]:
     """Descarga usando yt-dlp y convierte a MP3 mediante servicio HTTP."""
     import yt_dlp
-    from src.shared.adapters.audio_converter import AudioConverter
+    from src.shared.adapters.audio_converter_factory import get_audio_converter
 
     # Inicializar conversor
-    converter = AudioConverter()
+    converter = get_audio_converter()
 
     outtmpl = os.path.join(output_dir, f"{audio_id}.%(ext)s")
 

@@ -6,12 +6,12 @@ from typing import Optional
 import yt_dlp
 from config.logging_config import get_logger
 from config.settings import Settings
-from src.shared.adapters.audio_converter import AudioConverter
+from src.shared.adapters.audio_converter_factory import get_audio_converter
 
 logger = get_logger("video_bot.infra.fetcher")
 
 # Instancia global del conversor (inyección de dependencia)
-_audio_converter = AudioConverter()
+_audio_converter = get_audio_converter()
 
 CACHE_DIR = Settings.CACHE_DIR
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -202,7 +202,7 @@ def download_mp3(
             return audio_path
         else:
             logger.info(f"Converting {os.path.basename(audio_path)} → MP3...")
-            converter = AudioConverter()
+            converter = get_audio_converter()
             mp3_path = converter.convert_to_mp3(
                 input_path=audio_path,
                 output_path=final_mp3,

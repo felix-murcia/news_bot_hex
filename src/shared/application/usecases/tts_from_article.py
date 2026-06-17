@@ -8,13 +8,13 @@ from typing import Dict, Any, List, Optional
 from config.logging_config import get_logger
 from config.settings import Settings
 from src.shared.adapters.tts_adapter import text_to_speech, is_tts_available
-from src.shared.adapters.audio_converter import AudioConverter
+from src.shared.adapters.audio_converter_factory import get_audio_converter
 from src.shared.adapters.tts_text_processor import TTSTextProcessor
 
 logger = get_logger("shared.usecases.tts")
 
 # Instancia global del conversor de audio
-_audio_converter = AudioConverter()
+_audio_converter = get_audio_converter()
 
 # Límite de caracteres para Coqui TTS en español
 COQUI_TTS_CHAR_LIMIT = 239

@@ -167,9 +167,9 @@ class AudioPipelineUseCase(BasePipelineUseCase):
 
                 # Asegurar que el audio esté en MP3 (convertir si es WAV)
                 from pathlib import Path
-                from src.shared.adapters.audio_converter import AudioConverter
+                from src.shared.adapters.audio_converter_factory import get_audio_converter
 
-                _converter = AudioConverter()
+                _converter = get_audio_converter()
                 _audio_path = enriched_article.get("tts_audio_path")
                 if _audio_path and Path(_audio_path).exists():
                     _ext = Path(_audio_path).suffix.lower()

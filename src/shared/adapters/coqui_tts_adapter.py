@@ -7,7 +7,7 @@ from pathlib import Path
 from datetime import datetime
 
 from src.shared.domain.ports.tts_port import TTSPort
-from src.shared.adapters.audio_converter import AudioConverter
+from src.shared.adapters.audio_converter_factory import get_audio_converter
 from src.shared.adapters.tts_text_processor import TTSTextProcessor
 from src.shared.adapters.audio_post_processor import post_process_audio
 from config.logging_config import get_logger
@@ -62,7 +62,7 @@ class CoquiTTSAdapter(TTSPort):
         self.audio_dir.mkdir(parents=True, exist_ok=True)
 
         # Inicializar conversor a MP3
-        self.converter = AudioConverter()
+        self.converter = get_audio_converter()
 
         logger.info(
             f"[COQUI TTS] Adaptador inicializado → API: {self.api_url}, voice: {self.voice}, "

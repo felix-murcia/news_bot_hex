@@ -14,14 +14,14 @@ from dotenv import load_dotenv
 
 from config.settings import Settings
 from config.logging_config import get_logger
-from src.shared.adapters.audio_converter import AudioConverter
+from src.shared.adapters.audio_converter_factory import get_audio_converter
 
 load_dotenv(override=True)
 
 logger = get_logger("video_bot.infra.transcriber")
 
 # Instancia global del conversor (inyección de dependencia)
-_audio_converter = AudioConverter()
+_audio_converter = get_audio_converter()
 
 
 def _send_to_groq(audio_path: str) -> str:

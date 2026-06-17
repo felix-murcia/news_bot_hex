@@ -254,9 +254,9 @@ class BasePipelineUseCase(ABC):
                         f"[{self.mode.upper()}] Intentando convertir WAV → MP3 (64k)..."
                     )
                     try:
-                        from src.shared.adapters.audio_converter import AudioConverter
+                        from src.shared.adapters.audio_converter_factory import get_audio_converter
 
-                        converter = AudioConverter()
+                        converter = get_audio_converter()
                         mp3_path = converter.convert_to_mp3(
                             input_path=audio_path,
                             bitrate="64k",

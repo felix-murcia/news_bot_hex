@@ -12,6 +12,7 @@ from typing import Optional
 
 from config.logging_config import get_logger
 from config.settings import Settings
+from src.shared.adapters.audio_converter_factory import get_audio_converter_url
 
 logger = get_logger("news_bot.adapters.audio_post_processor")
 
@@ -26,7 +27,7 @@ class AudioPostProcessor:
         Args:
             base_url: URL base of ffmpeg-api service (e.g., http://localhost:8082)
         """
-        self.base_url = (base_url or Settings.FFMPEG_API_URL).rstrip("/")
+        self.base_url = (base_url or get_audio_converter_url()).rstrip("/")
         self.post_process_endpoint = f"{self.base_url}/audio/post-process"
         logger.info(f"[AUDIO POST] Inicializado → endpoint: {self.post_process_endpoint}")
 
@@ -117,7 +118,7 @@ def post_process_audio(
     Returns:
         Path to processed audio or None if failed
     """
-    processor = AudioPostProcessor()
+    processor = AudioPostProcessor(base_url=get_audio_converter_url())
 
     # Adjust parameters based on aggressiveness
     noise_gate = -35.0 if aggressive else -40.0
