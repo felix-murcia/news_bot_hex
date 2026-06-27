@@ -93,6 +93,18 @@ class PublishedUrlsRepository(ABC):
         pass
 
 
+class FrozenTermsRepository(ABC):
+    """Puerto para gestionar términos congelados tras publicación."""
+
+    @abstractmethod
+    def get_active_terms(self, ttl_hours: int = 5) -> list:
+        pass
+
+    @abstractmethod
+    def freeze_terms(self, terms: list, title: str) -> bool:
+        pass
+
+
 class KeywordsRepository(ABC):
     """Puerto para gestionar keywords."""
 

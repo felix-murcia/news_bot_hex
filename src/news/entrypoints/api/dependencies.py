@@ -206,12 +206,14 @@ def get_full_verify_usecase(
 ):
     """Use case para verificación completa."""
     from src.news.application.usecases import FullVerifyNewsUseCase
+    from src.news.infrastructure.adapters import MongoFrozenTermsRepository
     return FullVerifyNewsUseCase(
         article_repo=article_repo,
         verified_repo=verified_repo,
         published_urls_repo=published_urls_repo,
         keywords_repo=keywords_repo,
         scoring_config_repo=scoring_config_repo,
+        frozen_terms_repo=MongoFrozenTermsRepository(),
     )
 
 

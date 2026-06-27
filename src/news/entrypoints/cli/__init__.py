@@ -105,6 +105,9 @@ def main_full_verify():
     # Classic validator: TF-IDF + LogisticRegression (CPU, fast)
     fake_news_model = ClassicNewsValidatorAdapter()
 
+    from src.news.infrastructure.adapters import MongoFrozenTermsRepository
+    frozen_terms_repo = MongoFrozenTermsRepository()
+
     use_case = FullVerifyNewsUseCase(
         article_repo=article_repo,
         verified_repo=verified_repo,
@@ -113,6 +116,7 @@ def main_full_verify():
         scoring_config_repo=scoring_config_repo,
         content_extractor=content_extractor,
         fake_news_model=fake_news_model,
+        frozen_terms_repo=frozen_terms_repo,
     )
 
     result = use_case.execute()

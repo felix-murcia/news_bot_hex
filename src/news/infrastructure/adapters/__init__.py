@@ -3,6 +3,7 @@ from src.news.infrastructure.adapters.mongo_repositories import (
     MongoArticleRepository,
     MongoVerifiedNewsRepository,
     MongoPublishedUrlsRepository,
+    MongoFrozenTermsRepository,
     MongoKeywordsRepository,
     MongoScoringConfigRepository,
     MongoGeneratedPostsRepository,
@@ -20,6 +21,8 @@ from src.news.infrastructure.adapters.scoring import (
     resumir_noticia,
     deduplicate_by_similarity,
     apply_diversity_penalty,
+    extract_frozen_terms,
+    apply_frozen_terms_penalty,
 )
 from src.news.infrastructure.adapters.date_utils import (
     parse_date_flexible,

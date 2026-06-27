@@ -95,6 +95,76 @@ def apply_diversity_penalty(
     return articles
 
 
+_FROZEN_TERMS_PROMPT = (
+    "Extract 3 to 5 key named entities (countries, people, organizations, "
+    "specific places) from this news headline. Return ONLY a comma-separated "
+    "list of the entities, nothing else. Example: Irán, Trump, Anthropic\n\n"
+    "Headline: {title}"
+)
+
+
+def extract_frozen_terms(title: str) -> List[str]:
+    """Extract key named entities from a title using LLM."""
+    try:
+        from src.shared.adapters.ai.ai_factory import get_ai_adapter
+        model = get_ai_adapter()
+        raw = model.generate(
+            prompt=_FROZEN_TERMS_PROMPT.format(title=title),
+            temperature=0.0,
+            max_tokens=64,
+        )
+        terms = [t.strip() for t in raw.strip().split(",") if t.strip()]
+        terms = [t for t in terms if 2 < len(t) < 40]
+        logger.info(f"[FROZEN] Extracted terms from '{title[:50]}': {terms}")
+        return terms
+    except Exception as e:
+        logger.warning(f"[FROZEN] LLM extraction failed, using fallback: {e}")
+        return _extract_frozen_terms_fallback(title)
+
+
+def _extract_frozen_terms_fallback(title: str) -> List[str]:
+    """Fallback: extract capitalized words that look like proper nouns."""
+    words = re.findall(r"\w+", title)
+    terms = []
+    for word in words:
+        if len(word) <= 2 or word.lower() in _STOP_WORDS:
+            continue
+        if word[0].isupper() and not word.isupper():
+            terms.append(word)
+    return terms[:5]
+
+
+def apply_frozen_terms_penalty(
+    articles: List[Dict],
+    frozen_terms: List[str],
+    penalty_per_match: int = 2,
+    max_penalty: int = 10,
+) -> List[Dict]:
+    """Penalize articles containing recently frozen terms."""
+    if not frozen_terms:
+        return articles
+
+    frozen_lower = [t.lower() for t in frozen_terms]
+    penalized = 0
+
+    for article in articles:
+        text = f"{article.get('title', '')} {article.get('desc', '')}".lower()
+        matches = [t for t in frozen_lower if t in text]
+        if matches:
+            penalty = min(max_penalty, penalty_per_match * len(matches))
+            original_score = int(article.get("score", 0))
+            article["score"] = max(0, original_score - penalty)
+            article["frozen_penalty"] = penalty
+            article["frozen_matches"] = matches
+            penalized += 1
+
+    logger.info(
+        f"[FROZEN] {penalized} artículos penalizados por términos congelados. "
+        f"Términos activos: {frozen_terms}"
+    )
+    return articles
+
+
 def compute_score(
     article: dict,
     tema: str,

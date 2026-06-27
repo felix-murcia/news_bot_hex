@@ -11,6 +11,7 @@ from src.news.domain.ports import (
     ArticleRepository,
     VerifiedNewsRepository,
     PublishedUrlsRepository,
+    FrozenTermsRepository,
     KeywordsRepository,
     ScoringConfigRepository,
     GeneratedPostsRepository,
@@ -311,6 +312,46 @@ class MongoKeywordsRepository(KeywordsRepository):
         except Exception as e:
             logger.error(f"Error loading trending keywords: {e}")
             return []
+
+
+class MongoFrozenTermsRepository(FrozenTermsRepository):
+    COLLECTION_NAME = "frozen_terms"
+
+    def __init__(self, db=None):
+        if db is None:
+            from src.shared.adapters.mongo_db import get_database
+            db = get_database()
+        self._db = db
+        self._collection = self._db[self.COLLECTION_NAME]
+
+    def get_active_terms(self, ttl_hours: int = 5) -> list:
+        try:
+            cutoff = (datetime.utcnow() - timedelta(hours=ttl_hours)).isoformat()
+            entries = list(self._collection.find(
+                {"frozen_at": {"$gte": cutoff}},
+                {"_id": 0},
+            ))
+            terms = set()
+            for entry in entries:
+                terms.update(entry.get("terms", []))
+            return sorted(terms)
+        except Exception as e:
+            logger.error(f"Error loading frozen terms: {e}")
+            return []
+
+    def freeze_terms(self, terms: list, title: str) -> bool:
+        try:
+            self._collection.insert_one({
+                "terms": terms,
+                "title": title,
+                "frozen_at": datetime.utcnow().isoformat(),
+            })
+            cutoff = (datetime.utcnow() - timedelta(hours=48)).isoformat()
+            self._collection.delete_many({"frozen_at": {"$lt": cutoff}})
+            return True
+        except Exception as e:
+            logger.error(f"Error freezing terms: {e}")
+            return False
 
 
 class MongoScoringConfigRepository(ScoringConfigRepository):

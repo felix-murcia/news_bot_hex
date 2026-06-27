@@ -10,6 +10,7 @@ from src.news.domain.ports import (
     RSSFetcher,
     VerifiedNewsRepository,
     PublishedUrlsRepository,
+    FrozenTermsRepository,
     KeywordsRepository,
     ScoringConfigRepository,
     ContentExtractor,
@@ -29,6 +30,8 @@ from src.news.infrastructure.adapters import (
     resumir_noticia,
     deduplicate_by_similarity,
     apply_diversity_penalty,
+    extract_frozen_terms,
+    apply_frozen_terms_penalty,
 )
 
 class FetchRSSNewsUseCase:
@@ -163,6 +166,7 @@ class FullVerifyNewsUseCase:
         scoring_config_repo: ScoringConfigRepository,
         content_extractor: ContentExtractor = None,
         fake_news_model: FakeNewsModel = None,
+        frozen_terms_repo: FrozenTermsRepository = None,
         config: dict = None,
     ):
         self._article_repo = article_repo
@@ -172,6 +176,7 @@ class FullVerifyNewsUseCase:
         self._scoring_config_repo = scoring_config_repo
         self._content_extractor = content_extractor
         self._fake_news_model = fake_news_model
+        self._frozen_terms_repo = frozen_terms_repo
         self._config = config or {}
         self._weights = self._config.get(
             "weights", {"min_score_threshold": 5, "min_chars": 1000}
@@ -264,6 +269,10 @@ class FullVerifyNewsUseCase:
         recent_topics = self._published_urls_repo.get_recent_topics(hours=24)
         diversified = apply_diversity_penalty(deduplicated, recent_topics)
 
+        if self._frozen_terms_repo:
+            frozen_terms = self._frozen_terms_repo.get_active_terms(ttl_hours=5)
+            diversified = apply_frozen_terms_penalty(diversified, frozen_terms)
+
         diversified_sorted = sort_verified_news(diversified)
 
         self._verified_repo.save_verified_all(
@@ -301,6 +310,12 @@ class FullVerifyNewsUseCase:
         tema = top.get("tema", "")
         if url and tema:
             self._published_urls_repo.save_url_with_topic(url, tema)
+
+        title = top.get("title", "")
+        if self._frozen_terms_repo and title:
+            terms = extract_frozen_terms(title)
+            if terms:
+                self._frozen_terms_repo.freeze_terms(terms, title)
 
         self._verified_repo.delete_all_news()
         self._verified_repo.insert_news([VerifiedArticle.from_dict(top)])
