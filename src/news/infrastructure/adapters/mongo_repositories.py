@@ -68,6 +68,20 @@ class MongoArticleRepository(ArticleRepository):
             logger.error(f"Error retrieving raw news: {e}")
             return []
 
+    def get_recent_articles(self, days: int = 2) -> List[Article]:
+        try:
+            cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat() + "Z"
+            raw = list(self._collection.find(
+                {"publishedAt": {"$gte": cutoff}},
+            ))
+            if not raw:
+                raw = list(self._collection.find({}).sort("_id", -1).limit(500))
+            logger.info(f"[RAW] Loaded {len(raw)} recent articles (last {days} days)")
+            return [Article.from_dict(item) for item in raw]
+        except Exception as e:
+            logger.error(f"Error retrieving recent raw news: {e}")
+            return []
+
     def insert_articles(self, articles: List[Article]) -> bool:
         try:
             data = [a.to_dict() for a in articles]
@@ -199,28 +213,73 @@ class MongoPublishedUrlsRepository(PublishedUrlsRepository):
         try:
             existing = self._collection.find_one({"_id": "urls"})
             url_map = {}
+            tema_map = {}
             if existing and "urls" in existing:
                 for item in existing["urls"]:
                     if isinstance(item, dict):
                         url_map[item["url"]] = item.get(
                             "published_at", datetime.utcnow().isoformat()
                         )
+                        if item.get("tema"):
+                            tema_map[item["url"]] = item["tema"]
             now = datetime.utcnow().isoformat()
             for u in urls:
                 if u not in url_map:
                     url_map[u] = now
             cutoff = datetime.utcnow() - timedelta(days=ttl_days)
-            filtered = [
-                {"url": u, "published_at": ts}
-                for u, ts in url_map.items()
-                if datetime.fromisoformat(ts) > cutoff
-            ]
+            filtered = []
+            for u, ts in url_map.items():
+                if datetime.fromisoformat(ts) > cutoff:
+                    entry = {"url": u, "published_at": ts}
+                    if u in tema_map:
+                        entry["tema"] = tema_map[u]
+                    filtered.append(entry)
             filtered = sorted(filtered, key=lambda x: x["published_at"])[-max_urls:]
             self._collection.delete_many({})
             self._collection.insert_one({"_id": "urls", "urls": filtered})
             return True
         except Exception as e:
             logger.error(f"Error saving URLs: {e}")
+            return False
+
+    def get_recent_topics(self, hours: int = 24) -> dict:
+        try:
+            data = self._collection.find_one({"_id": "urls"})
+            urls_data = data.get("urls", []) if data else []
+            cutoff = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
+            topic_counts = {}
+            for item in urls_data:
+                if isinstance(item, dict) and item.get("published_at", "") > cutoff:
+                    tema = item.get("tema", "")
+                    if tema:
+                        topic_counts[tema] = topic_counts.get(tema, 0) + 1
+            return topic_counts
+        except Exception as e:
+            logger.error(f"Error getting recent topics: {e}")
+            return {}
+
+    def save_url_with_topic(self, url: str, tema: str) -> bool:
+        try:
+            existing = self._collection.find_one({"_id": "urls"})
+            urls = existing.get("urls", []) if existing else []
+            for item in urls:
+                if isinstance(item, dict) and item.get("url") == url:
+                    item["tema"] = tema
+                    break
+            else:
+                urls.append({
+                    "url": url,
+                    "published_at": datetime.utcnow().isoformat(),
+                    "tema": tema,
+                })
+            self._collection.update_one(
+                {"_id": "urls"},
+                {"$set": {"urls": urls}},
+                upsert=True,
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Error saving URL with topic: {e}")
             return False
 
 

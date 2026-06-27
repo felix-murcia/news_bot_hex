@@ -18,6 +18,8 @@ from src.news.infrastructure.adapters.scoring import (
     sort_verified_news,
     parse_iso_date,
     resumir_noticia,
+    deduplicate_by_similarity,
+    apply_diversity_penalty,
 )
 from src.news.infrastructure.adapters.date_utils import (
     parse_date_flexible,

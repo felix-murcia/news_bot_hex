@@ -92,3 +92,4 @@ node_modules/
 .ruffle_cache/
 CLAUDE.md
 .mcp.json
+.codegraph/

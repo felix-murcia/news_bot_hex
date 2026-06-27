@@ -23,26 +23,106 @@ def get_social_post_limit(limit: Optional[int] = None) -> int:
     return min(values) if values else 280
 
 
+def inline_hashtags(text: str) -> str:
+    """Move trailing hashtags inline onto matching keywords in the text.
+
+    Only processes hashtags that appear AFTER the last sentence-ending
+    punctuation (trailing block).  If hashtags are already inline
+    (mixed into sentences), the text is returned unchanged.
+    """
+    text = (text or "").strip()
+    if not text:
+        return text
+
+    match = re.search(r"[.!?](?=\s*#\w+)", text)
+    if not match:
+        return text
+
+    split_pos = match.start() + 1
+    body = text[:split_pos].strip()
+    tail = text[split_pos:].strip()
+
+    trailing = re.findall(r"#\w+", tail)
+    if not trailing:
+        return text
+
+    non_hashtag_tail = re.sub(r"#\w+", "", tail).strip()
+    if non_hashtag_tail:
+        return text
+
+    remaining = []
+    for tag in trailing:
+        word = tag[1:]
+        pattern = re.compile(
+            rf"(?<![#\w]){re.escape(word)}(?!\w)",
+            re.IGNORECASE,
+        )
+        new_body, count = pattern.subn(f"#{word}", body, count=1)
+        if count:
+            body = new_body
+        else:
+            remaining.append(tag)
+
+    if remaining:
+        return f"{body} {' '.join(remaining)}"
+    return body
+
+
+def _strip_inline_hashtags_rtl(text: str, limit: int) -> str:
+    """Remove '#' from inline hashtags right-to-left until text fits the limit."""
+    if len(text) <= limit:
+        return text
+
+    positions = [(m.start(), m.group()) for m in re.finditer(r"#(?=\w)", text)]
+    for pos, _ in reversed(positions):
+        text = text[:pos] + text[pos + 1:]
+        if len(text) <= limit:
+            return text
+    return text
+
+
+def _has_trailing_hashtags(text: str) -> bool:
+    """Check if text ends with a block of hashtags (not inline)."""
+    return bool(re.search(r"\s+#\w+(\s+#\w+)*\s*$", text))
+
+
+def _has_any_hashtags(text: str) -> bool:
+    return bool(re.search(r"#\w+", text))
+
+
 def truncate_social_post(text: str, limit: Optional[int] = None) -> str:
     """Trunca un texto social respetando hashtags y el límite más estricto.
 
-    Reglas de negocio:
-    - Si el texto excede el límite, se eliminan hashtags de derecha a izquierda.
-    - Se mantiene exactamente 1 hashtag si es necesario.
-    - Si aún excede, se trunca el texto en el último espacio completo (SIN añadir "...").
-    - NUNCA se añaden puntos suspensivos para mantener profesionalismo.
+    Handles both inline hashtags (preferred) and trailing hashtags (legacy).
+    If trailing hashtags are found, moves them inline first.
+    If still over the limit, removes '#' from inline hashtags right-to-left,
+    then falls back to text truncation.
     """
-    tweet = (text or "").strip()
+    tweet = inline_hashtags(text)
+    tweet = (tweet or "").strip()
     limit = get_social_post_limit(limit)
     if len(tweet) <= limit:
         return tweet
 
-    # Extraer hashtags y texto plano
+    if _has_trailing_hashtags(tweet) or not _has_any_hashtags(tweet):
+        return _truncate_with_trailing_hashtags(tweet, limit)
+
+    trimmed = _strip_inline_hashtags_rtl(tweet, limit)
+    if len(trimmed) <= limit:
+        return trimmed
+
+    truncated = trimmed[:limit].rsplit(" ", 1)[0]
+    if not truncated:
+        truncated = trimmed[:limit]
+    return truncated.rstrip()
+
+
+def _truncate_with_trailing_hashtags(tweet: str, limit: int) -> str:
+    """Truncate text that has trailing hashtags, preserving at least one."""
     hashtags = re.findall(r"#\w+", tweet)
     plain_text = re.sub(r"#\w+", "", tweet)
     plain_text = re.sub(r"\s+", " ", plain_text).strip()
 
-    # Estrategia 1: Eliminar hashtags uno a uno hasta que quepa
     if hashtags:
         trimmed_hashtags = hashtags.copy()
 
@@ -52,30 +132,24 @@ def truncate_social_post(text: str, limit: Optional[int] = None) -> str:
                 return candidate
             trimmed_hashtags.pop()
 
-        # Probar con solo 1 hashtag
         first_hashtag = trimmed_hashtags[0]
         candidate = f"{plain_text} {first_hashtag}".strip()
         if len(candidate) <= limit:
             return candidate
 
-        # Estrategia 2: Truncar texto en última palabra completa + 1 hashtag
         available_space = limit - len(first_hashtag) - 1
         if available_space > 10:
-            # Truncar en el último espacio completo (sin "...")
             content_part = plain_text[:available_space].rsplit(" ", 1)[0]
             if not content_part:
                 content_part = plain_text[:available_space]
             return f"{content_part} {first_hashtag}".strip()
 
-        # Caso extremo: solo hashtag
         return first_hashtag[:limit]
 
-    # Sin hashtags: truncar en última palabra completa y añadir "..."
     if limit > 3:
-        available = limit - 3  # espacio para texto antes de "..."
-        truncated = tweet[:available].rsplit(" ", 1)[0]
+        available = limit - 3
+        truncated = plain_text[:available].rsplit(" ", 1)[0]
         if not truncated:
-            truncated = tweet[:available]
+            truncated = plain_text[:available]
         return truncated.rstrip() + "..."
-    # Límite muy pequeño, solo truncar sin "..."
-    return tweet[:limit]
+    return plain_text[:limit]

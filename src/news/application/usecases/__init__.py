@@ -27,6 +27,8 @@ from src.news.infrastructure.adapters import (
     is_valid_score,
     sort_verified_news,
     resumir_noticia,
+    deduplicate_by_similarity,
+    apply_diversity_penalty,
 )
 
 class FetchRSSNewsUseCase:
@@ -190,7 +192,7 @@ class FullVerifyNewsUseCase:
             limits.get("ttl_days", 30), limits.get("max_urls", 1000)
         )
 
-        raw_articles = self._article_repo.get_all_articles()
+        raw_articles = self._article_repo.get_recent_articles(days=2)
         articles_to_process = []
         for article in raw_articles:
             url = article.url
@@ -256,11 +258,19 @@ class FullVerifyNewsUseCase:
             verified.append(verified_article)
 
         verificadas_sorted = sort_verified_news([v.to_dict() for v in verified])
+
+        deduplicated = deduplicate_by_similarity(verificadas_sorted)
+
+        recent_topics = self._published_urls_repo.get_recent_topics(hours=24)
+        diversified = apply_diversity_penalty(deduplicated, recent_topics)
+
+        diversified_sorted = sort_verified_news(diversified)
+
         self._verified_repo.save_verified_all(
-            [VerifiedArticle.from_dict(v) for v in verificadas_sorted]
+            [VerifiedArticle.from_dict(v) for v in diversified_sorted]
         )
 
-        top = verificadas_sorted[0] if verificadas_sorted else None
+        top = diversified_sorted[0] if diversified_sorted else None
         if not top:
             self._verified_repo.delete_all_news()
             return {"status": "warning", "message": "Ninguna noticia pasó el filtro."}
@@ -279,8 +289,6 @@ class FullVerifyNewsUseCase:
         except Exception:
             pass
 
-        # Si la URL fue seleccionada como top, marcarla como publicada
-        # incluso si la extracción falló, para evitar repeticiones
         url = top.get("url")
         if url and url not in published_urls:
             published_urls.add(url)
@@ -290,6 +298,10 @@ class FullVerifyNewsUseCase:
                 limits.get("max_urls", 1000),
             )
 
+        tema = top.get("tema", "")
+        if url and tema:
+            self._published_urls_repo.save_url_with_topic(url, tema)
+
         self._verified_repo.delete_all_news()
         self._verified_repo.insert_news([VerifiedArticle.from_dict(top)])
 
@@ -297,5 +309,6 @@ class FullVerifyNewsUseCase:
             "status": "success",
             "processed": len(articles_to_process),
             "verified": len(verified),
+            "deduplicated": len(deduplicated),
             "saved": 1,
         }

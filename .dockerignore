@@ -13,6 +13,7 @@ __pycache__/
 env/
 venv/
 .git/
+.github/
 .gitignore
 .md
 test/
@@ -25,3 +26,8 @@ node_modules/
 tests/
 *.md
 docs/
+.codegraph/
+.env.example
+CLAUDE.md
+run_dev.sh
+run_prod.sh

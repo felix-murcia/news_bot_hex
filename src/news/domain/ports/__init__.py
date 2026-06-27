@@ -25,6 +25,10 @@ class ArticleRepository(ABC):
         pass
 
     @abstractmethod
+    def get_recent_articles(self, days: int = 2) -> List[Article]:
+        pass
+
+    @abstractmethod
     def insert_articles(self, articles: List[Article]) -> bool:
         pass
 
@@ -78,6 +82,14 @@ class PublishedUrlsRepository(ABC):
 
     @abstractmethod
     def save_urls(self, urls: set, ttl_days: int, max_urls: int) -> bool:
+        pass
+
+    @abstractmethod
+    def get_recent_topics(self, hours: int = 24) -> dict:
+        pass
+
+    @abstractmethod
+    def save_url_with_topic(self, url: str, tema: str) -> bool:
         pass
 
 
