@@ -35,19 +35,31 @@ def get_client() -> Client:
 
 
 def compress_image_from_url(url: str, max_kb: int = 950) -> BytesIO:
-    """Descarga y comprime imagen desde URL."""
+    """Descarga y comprime imagen desde URL. Bluesky impone 1 MB (1 000 000 bytes)."""
+    max_bytes = max_kb * 1024
     resp = requests.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
     resp.raise_for_status()
     img = Image.open(BytesIO(resp.content)).convert("RGB")
+
+    # Cap initial dimensions to avoid reaching quality floor with a huge image
+    if img.width > 1200:
+        ratio = 1200 / img.width
+        img = img.resize((1200, int(img.height * ratio)), Image.LANCZOS)
 
     quality = 85
     while True:
         buffer = BytesIO()
         img.save(buffer, format="JPEG", quality=quality)
-        size_kb = buffer.tell() / 1024
-        if size_kb <= max_kb or quality <= 30:
+        if buffer.tell() <= max_bytes or quality <= 20:
             break
         quality -= 5
+
+    # Still over limit at minimum quality → halve dimensions and retry
+    if buffer.tell() > max_bytes:
+        img = img.resize((img.width // 2, img.height // 2), Image.LANCZOS)
+        buffer = BytesIO()
+        img.save(buffer, format="JPEG", quality=75)
+
     buffer.seek(0)
     return buffer
 
