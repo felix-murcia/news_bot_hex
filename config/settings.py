@@ -122,7 +122,7 @@ class Settings:
     GROQ_API_URL = os.getenv(
         "GROQ_API_URL", "https://api.groq.com/openai/v1/audio/transcriptions"
     )
-    GROQ_TRANSCRIBE_MODEL = os.getenv("GROQ_TRANSCRIBE_MODEL", "whisper-large-v3-turbo")
+    GROQ_TTS_MODEL = os.getenv("GROQ_TTS_MODEL", "whisper-large-v3-turbo")
 
     # === Local Model Configuration ===
     LOCAL_MODEL_PATH = MODELS_DIR / os.getenv("LOCAL_MODEL", "qwen2-7b-q4_k_m.gguf")

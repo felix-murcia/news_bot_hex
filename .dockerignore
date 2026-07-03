@@ -31,3 +31,6 @@ docs/
 CLAUDE.md
 run_dev.sh
 run_prod.sh
+node_modules/
+package-lock.json
+package.json

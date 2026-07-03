@@ -1318,7 +1318,7 @@ class Settings:
     GROQ_API_URL = os.getenv(
         "GROQ_API_URL", "https://api.groq.com/openai/v1/audio/transcriptions"
     )
-    GROQ_TRANSCRIBE_MODEL = os.getenv("GROQ_TRANSCRIBE_MODEL", "whisper-large-v3-turbo")
+    GROQ_TTS_MODEL = os.getenv("GROQ_TTS_MODEL", "whisper-large-v3-turbo")
 
     # === Local Model Configuration ===
     LOCAL_MODEL_PATH = MODELS_DIR / os.getenv("LOCAL_MODEL", "qwen2-7b-q4_k_m.gguf")
@@ -9785,7 +9785,7 @@ def _send_to_groq(audio_path: str) -> str:
             Settings.GROQ_API_URL,
             headers={"Authorization": f"Bearer {api_key}"},
             data={
-                "model": Settings.GROQ_TRANSCRIBE_MODEL,
+                "model": Settings.GROQ_TTS_MODEL,
                 "language": "es",
                 "response_format": "text",
             },
@@ -20604,7 +20604,7 @@ class GroqAdapter:
         self.config = config or {}
         self.api_key = Settings.GROQ_API_KEY
         self.api_url = self.config.get("api_url", Settings.GROQ_API_URL)
-        self.model = self.config.get("model", Settings.GROQ_TRANSCRIBE_MODEL)
+        self.model = self.config.get("model", Settings.GROQ_TTS_MODEL)
 
         # Inicializar conversor de audio (inyección de dependencia)
         self.audio_converter = AudioConverter()
@@ -30369,7 +30369,7 @@ def _send_to_groq(audio_path: str) -> str:
             Settings.GROQ_API_URL,
             headers={"Authorization": f"Bearer {api_key}"},
             data={
-                "model": Settings.GROQ_TRANSCRIBE_MODEL,
+                "model": Settings.GROQ_TTS_MODEL,
                 "language": "es",
                 "response_format": "text",
             },

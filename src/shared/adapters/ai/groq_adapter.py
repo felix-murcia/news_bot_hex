@@ -35,7 +35,7 @@ class GroqAdapter(AIModelPort):
         self.config = config or {}
         self.api_key = Settings.GROQ_API_KEY
         self.api_url = self.config.get("api_url", Settings.GROQ_API_URL)
-        self.model = self.config.get("model", Settings.GROQ_TRANSCRIBE_MODEL)
+        self.model = self.config.get("model", Settings.GROQ_TTS_MODEL)
 
         # Inicializar conversor de audio (inyección de dependencia)
         self.audio_converter = get_audio_converter()

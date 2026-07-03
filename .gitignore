@@ -93,3 +93,10 @@ node_modules/
 CLAUDE.md
 .mcp.json
 .codegraph/
+.config
+.config/
+
+package-lock.json
+package.json
+
+scripts/wp_cleanup_2025.py

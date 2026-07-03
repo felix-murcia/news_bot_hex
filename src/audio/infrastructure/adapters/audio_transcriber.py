@@ -49,7 +49,7 @@ def _send_to_groq(audio_path: str) -> str:
             Settings.GROQ_API_URL,
             headers={"Authorization": f"Bearer {api_key}"},
             data={
-                "model": Settings.GROQ_TRANSCRIBE_MODEL,
+                "model": Settings.GROQ_TTS_MODEL,
                 "language": "es",
                 "response_format": "text",
             },
