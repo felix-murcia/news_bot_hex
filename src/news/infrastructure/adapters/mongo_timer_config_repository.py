@@ -24,7 +24,8 @@ class MongoTimerConfigRepository(TimerConfigRepositoryPort):
         {
             "enabled": bool,
             "schedule_time": "HH:MM",
-            "frequency": "daily|hourly|weekly|monthly",
+            "frequency": "daily|hourly|weekly|monthly|business_hours",
+            "end_time": "HH:MM or None (business_hours only)",
             "created_at": datetime,
             "updated_at": datetime,
             "is_active": bool,
@@ -137,6 +138,7 @@ class MongoTimerConfigRepository(TimerConfigRepositoryPort):
             "enabled": config.enabled,
             "schedule_time": config.schedule_time,
             "frequency": config.frequency.value,
+            "end_time": config.end_time,
             "created_at": config.created_at,
             "updated_at": config.updated_at,
             "is_active": is_active,
@@ -155,6 +157,7 @@ class MongoTimerConfigRepository(TimerConfigRepositoryPort):
             "enabled": doc["enabled"],
             "schedule_time": doc["schedule_time"],
             "frequency": doc["frequency"],
+            "end_time": doc.get("end_time"),
             "created_at": doc.get("created_at", datetime.now()),
             "updated_at": doc.get("updated_at", datetime.now()),
         })

@@ -30,6 +30,7 @@ class TimerConfig(BaseModel):
     enabled: bool
     schedule_time: str
     frequency: str = "daily"
+    end_time: Optional[str] = None  # Required when frequency == "business_hours"
 
 
 @router.get("/timer/config", response_model=PipelineResponse)
@@ -47,6 +48,7 @@ async def get_timer_config(timer_repo: TimerConfigRepositoryPort = Depends(get_t
                 "enabled": config.enabled,
                 "schedule_time": config.schedule_time,
                 "frequency": config.frequency.value,
+                "end_time": config.end_time,
             }
         )
     except HTTPException:
@@ -71,6 +73,7 @@ async def update_timer_config(
             enabled=config.enabled,
             schedule_time=config.schedule_time,
             frequency=TimerFrequency(config.frequency),
+            end_time=config.end_time,
             created_at=datetime.now(),
             updated_at=datetime.now(),
         )
@@ -139,6 +142,7 @@ async def update_timer_config(
                 "enabled": updated.enabled,
                 "schedule_time": updated.schedule_time,
                 "frequency": updated.frequency.value,
+                "end_time": updated.end_time,
             }
         )
     except Exception as e:
@@ -216,6 +220,7 @@ async def get_timer_status(timer_repo: TimerConfigRepositoryPort = Depends(get_t
                 "enabled": config.enabled,
                 "schedule_time": config.schedule_time,
                 "frequency": config.frequency.value,
+                "end_time": config.end_time,
                 "status_output": status_output,
                 "timers_output": timers_output,
             }

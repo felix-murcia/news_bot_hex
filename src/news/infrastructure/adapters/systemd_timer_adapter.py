@@ -33,9 +33,10 @@ class SystemdTimerAdapter:
 
             # Generate OnCalendar directive based on frequency and schedule_time
             hour, minute = config.schedule_time.split(":")
+            end_hour = config.end_time.split(":")[0] if config.end_time else None
 
             on_calendar = self._generate_oncalendar(
-                config.frequency.value, hour, minute
+                config.frequency.value, hour, minute, end_hour
             )
 
             # Generate timer file content
@@ -59,13 +60,16 @@ class SystemdTimerAdapter:
             logger.error(f"[SYSTEMD] Error regenerating timer file: {e}")
             return False
 
-    def _generate_oncalendar(self, frequency: str, hour: str, minute: str) -> str:
+    def _generate_oncalendar(
+        self, frequency: str, hour: str, minute: str, end_hour: str | None = None
+    ) -> str:
         """Generate OnCalendar directive based on frequency and time.
 
         Args:
-            frequency: Frequency string (hourly, daily, weekly, monthly)
-            hour: Hour in HH format (00-23)
+            frequency: Frequency string (hourly, daily, weekly, monthly, business_hours)
+            hour: Hour in HH format (00-23). For business_hours, the start hour.
             minute: Minute in MM format (00-59)
+            end_hour: End hour in HH format (00-23), required for business_hours
 
         Returns:
             OnCalendar directive for systemd
@@ -79,6 +83,9 @@ class SystemdTimerAdapter:
         elif frequency == "hourly":
             # Every hour at the specified minute (hour is ignored for hourly frequency)
             return f"*-*-* *:{minute}:00"
+        elif frequency == "business_hours":
+            # Hourly at the specified minute, Mon-Fri, within [hour, end_hour]
+            return f"Mon..Fri *-*-* {hour}..{end_hour}:{minute}:00"
         else:
             # Default to daily
             return f"*-*-* {hour}:{minute}:00"
