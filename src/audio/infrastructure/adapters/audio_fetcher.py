@@ -2,6 +2,7 @@ import os
 import re
 import uuid
 import json
+import time
 from typing import Optional, Dict, Any
 
 import yt_dlp
@@ -17,6 +18,10 @@ CACHE_DIR = Settings.CACHE_DIR
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 MAX_DURATION = 600
+
+# Retry configuration
+MAX_RETRIES = 3
+RETRY_DELAY = 2.0
 
 # Instancia global del conversor de audio (inyección de dependencia)
 _audio_converter = get_audio_converter()
@@ -122,6 +127,28 @@ def _download_direct(url: str, output_dir: str, audio_id: str) -> Optional[str]:
     except Exception as e:
         logger.error(f"[AUDIO] Error en descarga directa: {e}")
         return None
+
+
+def _download_direct_with_retry(url: str, output_dir: str, audio_id: str) -> Optional[str]:
+    """Download with retry logic for transient failures."""
+    for attempt in range(MAX_RETRIES):
+        try:
+            result = _download_direct(url, output_dir, audio_id)
+            if result:
+                return result
+            
+            logger.warning(f"[AUDIO] Descarga fallida en intento {attempt + 1}/{MAX_RETRIES}")
+            
+            if attempt < MAX_RETRIES - 1:
+                logger.info(f"[AUDIO] Reintentando en {RETRY_DELAY}s...")
+                time.sleep(RETRY_DELAY)
+        except Exception as e:
+            logger.warning(f"[AUDIO] Error en intento {attempt + 1}/{MAX_RETRIES}: {e}")
+            if attempt < MAX_RETRIES - 1:
+                time.sleep(RETRY_DELAY)
+    
+    logger.error(f"[AUDIO] Descarga fallida después de {MAX_RETRIES} intentos")
+    return None
 
 
 def _download_with_ytdlp(
@@ -284,7 +311,42 @@ def download_audio(
         except OSError:
             pass
 
-    logger.error(f"Audio download failed: {url}")
+    # ============================================================
+    # ESTRATEGIA 3: Retry con retraso exponencial
+    # ============================================================
+    logger.warning(f"Audio download failed, retrying ({MAX_RETRIES} attempts)...")
+    for attempt in range(MAX_RETRIES):
+        try:
+            time.sleep(RETRY_DELAY * (attempt + 1))
+            
+            # Reintentar descarga directa
+            result = _download_direct(url, output_dir, audio_id)
+            if result and _audio_converter.has_audio_stream(result):
+                logger.info(f"Retry {attempt + 1} completed in {time.time() - step_start:.1f}s")
+                return result
+            
+            if result:
+                try:
+                    os.remove(result)
+                except OSError:
+                    pass
+            
+            # Reintentar con yt-dlp
+            result = _download_with_ytdlp(url, output_dir, audio_id, max_duration)
+            if result and _audio_converter.has_audio_stream(result):
+                logger.info(f"Retry {attempt + 1} (yt-dlp) completed in {time.time() - step_start:.1f}s")
+                return result
+            
+            if result:
+                try:
+                    os.remove(result)
+                except OSError:
+                    pass
+                    
+        except Exception as e:
+            logger.warning(f"Retry {attempt + 1} failed: {e}")
+    
+    logger.error(f"Audio download failed after {MAX_RETRIES} retries: {url}")
     return None
 
 

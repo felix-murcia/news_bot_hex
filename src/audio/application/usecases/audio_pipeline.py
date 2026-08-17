@@ -70,48 +70,74 @@ class AudioPipelineUseCase(BasePipelineUseCase):
         transcript = ""
         audio_path: Optional[str] = None
 
-        try:
-            audio_path = audio_fetcher.fetch(url)
-            if not audio_path:
-                raise RuntimeError(f"Failed to download audio: {url}")
+        # Retry logic for audio download and transcription
+        max_retries = 3
+        retry_delay = 2.0
+        
+        for attempt in range(max_retries):
+            try:
+                audio_path = audio_fetcher.fetch(url)
+                if not audio_path:
+                    raise RuntimeError(f"Failed to download audio: {url}")
 
-            self._track_temp_file(audio_path)
-            transcript = audio_transcriber.transcribe(audio_path)
-            step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-            logger.info(
-                f"[1/4] Audio descargado y transcrito ({len(transcript)} caracteres) en {step_duration_ms}ms"
-            )
-            if metrics:
-                metrics.record_step("Download and transcribe audio", "OK", step_duration_ms)
+                self._track_temp_file(audio_path)
+                transcript = audio_transcriber.transcribe(audio_path)
+                step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
+                logger.info(
+                    f"[1/4] Audio descargado y transcrito ({len(transcript)} caracteres) en {step_duration_ms}ms"
+                )
+                if metrics:
+                    metrics.record_step("Download and transcribe audio", "OK", step_duration_ms)
+                break  # Success, exit retry loop
 
-        except Exception as e:
-            step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-            logger.error(f"[1/4] Error en descarga/transcripción: {e}")
-            if metrics:
-                metrics.record_step("Download and transcribe audio", "FAILED", step_duration_ms, str(e))
-            raise RuntimeError(f"Error in audio download/transcription: {e}") from e
+            except Exception as e:
+                step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
+                logger.warning(f"[1/4] Error en intento {attempt + 1}/{max_retries}: {e}")
+                if metrics:
+                    metrics.record_step("Download and transcribe audio", "FAILED", step_duration_ms, str(e))
+                
+                if attempt < max_retries - 1:
+                    logger.info(f"[1/4] Reintentando en {retry_delay}s...")
+                    time.sleep(retry_delay)
+                else:
+                    logger.error(f"[1/4] Falló después de {max_retries} intentos")
+                    raise RuntimeError(f"Error in audio download/transcription after {max_retries} attempts: {e}") from e
 
         # Steps 2-4: Article generation
         step_start_ns = time.time_ns()
         logger.info("[2/4] Generando artículo y posts con IA...")
-        try:
-            result = run_from_transcript(
-                transcript=transcript,
-                url=url,
-                tema=tema,
-                llm_provider=Settings.AI_PROVIDER,
-                source_type="audio",
-            )
-            step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-            logger.info(f"[2/4] Artículo generado en {step_duration_ms}ms")
-            if metrics:
-                metrics.record_step("Generate article and posts", "OK", step_duration_ms)
-        except Exception as e:
-            step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-            logger.error(f"[2/4] Error en generación de contenido: {e}")
-            if metrics:
-                metrics.record_step("Generate article and posts", "FAILED", step_duration_ms, str(e))
-            raise
+        
+        # Retry logic for article generation
+        max_retries = 3
+        retry_delay = 2.0
+        result = None
+        
+        for attempt in range(max_retries):
+            try:
+                result = run_from_transcript(
+                    transcript=transcript,
+                    url=url,
+                    tema=tema,
+                    llm_provider=Settings.AI_PROVIDER,
+                    source_type="audio",
+                )
+                step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
+                logger.info(f"[2/4] Artículo generado en {step_duration_ms}ms")
+                if metrics:
+                    metrics.record_step("Generate article and posts", "OK", step_duration_ms)
+                break  # Success, exit retry loop
+            except Exception as e:
+                step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
+                logger.warning(f"[2/4] Error en intento {attempt + 1}/{max_retries}: {e}")
+                if metrics:
+                    metrics.record_step("Generate article and posts", "FAILED", step_duration_ms, str(e))
+                
+                if attempt < max_retries - 1:
+                    logger.info(f"[2/4] Reintentando en {retry_delay}s...")
+                    time.sleep(retry_delay)
+                else:
+                    logger.error(f"[2/4] Falló después de {max_retries} intentos")
+                    raise
 
         article = result["article"]
         tweet = result["tweet"]

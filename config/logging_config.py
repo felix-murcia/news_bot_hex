@@ -33,6 +33,9 @@ except Exception:
         local_tz = timezone(sign * timedelta(hours=hours, minutes=minutes))
     else:
         # Default to UTC if we can't determine timezone
+        # Log warning but don't raise exception to prevent app crash
+        import warnings
+        warnings.warn(f"Cannot determine timezone from TZ={_tz_name}, defaulting to UTC")
         local_tz = timezone.utc
 
 # Log directory: /app/logs inside Docker, falls back to /tmp/logs on host
