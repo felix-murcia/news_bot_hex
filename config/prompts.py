@@ -9,7 +9,7 @@ from .logging_config import setup_logging
 logger = setup_logging("news_bot")
 
 # Cargar variables desde .env
-load_dotenv(override=True)
+load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 

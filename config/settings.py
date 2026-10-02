@@ -10,8 +10,10 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from dotenv import load_dotenv
 
-# Override existing env vars with values from .env file
-load_dotenv(override=True)
+# Do NOT override real environment variables: a var already present in the
+# process environment (CI, docker, shell) takes precedence over .env.
+# Without override=True, .env only fills in what is missing.
+load_dotenv()
 
 
 class Settings:
