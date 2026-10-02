@@ -100,8 +100,35 @@ def _validar_titulo(titulo: str) -> str:
     return seo_clean_title(titulo)
 
 
+class ArticleTooShortError(ValueError):
+    """El artículo no alcanzó el mínimo de palabras ni regenerando.
+
+    Hereda de ValueError por compatibilidad con quien ya capture ese tipo,
+    pero se distingue para no caer al _generate_fallback: un artículo corto
+    debe fallar el pipeline, no publicarse truncado.
+    """
+
+
+def _contar_palabras(html: str) -> int:
+    """Cuenta palabras del texto visible, ignorando las etiquetas HTML.
+
+    El artículo se mide sobre lo que se publica, no sobre lo que devolvió el
+    modelo: contar etiquetas inflaría el resultado y dejaría pasar artículos cortos.
+    """
+    sin_tags = re.sub(r"<[^>]+>", " ", html or "")
+    sin_entities = re.sub(r"&[a-zA-Z]+;|&#\d+;", " ", sin_tags)
+    return len([p for p in sin_entities.split() if p.strip()])
+
+
 class ArticleUseCase:
     """Caso de uso para generar artículos con IA (DIP: inyección de repositorio)."""
+
+    # El prompt exige 800 palabras, pero el modelo las produce cuando quiere:
+    # medido con Gemma 4 devuelve 520-620 y finish_reason="stop" — no se queda
+    # sin tokens, decide parar antes. Un artículo de 500 palabras no tiene
+    # densidad de noticia, así que se mide y se regenera si no llega.
+    MIN_WORDS = 800
+    MAX_REGENERATIONS = 2
 
     def __init__(
         self,
@@ -191,15 +218,52 @@ class ArticleUseCase:
             keyphrase = extract_focus_keyphrase(title)
 
             agent = ArticleAgent(model)
-            result = agent.generate(
-                topic_or_news=(
-                    f"Título: {title}\n"
-                    f"Tema: {tema}\n"
-                    f"Palabra clave SEO (incluir 3-5 veces de forma natural): {keyphrase}\n\n"
-                    f"Contenido informativo:\n{content_es}"
-                )
+            peticion = (
+                f"Título: {title}\n"
+                f"Tema: {tema}\n"
+                f"Palabra clave SEO (incluir 3-5 veces de forma natural): {keyphrase}\n\n"
+                f"Contenido informativo:\n{content_es}"
             )
-            return _limpiar_html(result)
+
+            html = _limpiar_html(agent.generate(topic_or_news=peticion))
+            palabras = _contar_palabras(html)
+            intentos = 0
+
+            while palabras < self.MIN_WORDS and intentos < self.MAX_REGENERATIONS:
+                intentos += 1
+                faltan = self.MIN_WORDS - palabras
+                logger.warning(
+                    f"[ARTICLE] Corto: {palabras} palabras (mínimo {self.MIN_WORDS}). "
+                    f"Regenerando {intentos}/{self.MAX_REGENERATIONS}, faltan {faltan}."
+                )
+                # Se pide explícitamente la longitud: el prompt por sí solo no basta
+                # (Gemma devuelve ~550 y finish_reason="stop" sin quedarse sin tokens).
+                refuerzo = (
+                    f"\n\nIMPORTANTE: el borrador anterior se quedó en {palabras} palabras "
+                    f"y necesita al menos {self.MIN_WORDS}. Amplía el desarrollo de los "
+                    f"hechos, añade contexto y análisis, y distribúyelo en 14-16 párrafos "
+                    f"con 5-6 secciones <h2>. No resumas, no repitas y no añadas etiquetas "
+                    f"de estructura."
+                )
+                html = _limpiar_html(agent.generate(topic_or_news=peticion + refuerzo))
+                nuevas = _contar_palabras(html)
+                logger.info(f"[ARTICLE] Regeneración {intentos}: {palabras} → {nuevas} palabras")
+                palabras = nuevas
+
+            if palabras < self.MIN_WORDS:
+                # Fail-fast: publicar un artículo que no llega al estándar es peor
+                # que no publicar. El caller decide con el error.
+                raise ArticleTooShortError(
+                    f"Artículo demasiado corto tras {intentos} regeneraciones: "
+                    f"{palabras} palabras, mínimo exigido {self.MIN_WORDS}"
+                )
+
+            logger.info(f"[ARTICLE] Generado: {palabras} palabras ({intentos} regeneraciones)")
+            return html
+        except ArticleTooShortError:
+            # No se degrada a fallback: publicar el artículo truncado del
+            # extractor sería justo lo que la comprobación evita.
+            raise
         except Exception as e:
             logger.error(f"[ARTICLE] Error generando con IA: {e}")
             return self._generate_fallback(news_item)

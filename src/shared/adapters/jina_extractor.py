@@ -1,10 +1,37 @@
 import requests
+import re
 import time
 from typing import Tuple, Optional
 from config.logging_config import get_logger
 from config.settings import Settings
 
 logger = get_logger("news_bot")
+
+# Jina antepone su propia cabecera al cuerpo: "Title: <titulo>\n\nURL Source: <url>\n\n".
+# Sin limpiarla, el prefijo "Title:" acaba en el título del artículo, en el slug
+# (title-video-...), en las keywords SEO y en el texto que ve el modelo de IA.
+_JINA_HEADER = re.compile(r"\A\s*(Title|Published Time|URL Source|Warning|Markdown Content):.*?(?=\n\s*\n|\Z)", re.DOTALL)
+
+
+def limpiar_cabecera_jina(contenido: str) -> str:
+    """Elimina la cabecera de Jina del principio del contenido.
+
+    Devuelve el cuerpo limpio. Si no hay cabecera reconocible, devuelve la
+    entrada sin tocar: es preferible no normalizar antes que truncar contenido.
+    """
+    if not contenido:
+        return contenido
+
+    limpio = _JINA_HEADER.sub("", contenido, count=1).lstrip()
+
+    # Jina puede no poner línea en blanco tras "Title:"; en ese caso quitamos
+    # las líneas de cabecera sueltas que queden al principio.
+    lineas = limpio.split("\n")
+    while lineas and re.match(
+        r"\s*(Title|Published Time|URL Source|Warning|Markdown Content):", lineas[0]
+    ):
+        lineas.pop(0)
+    return "\n".join(lineas).lstrip()
 
 class JinaExtractor:
     def __init__(self):
@@ -37,7 +64,7 @@ class JinaExtractor:
                 )
 
                 if response.status_code == 200:
-                    content = response.text
+                    content = limpiar_cabecera_jina(response.text)
                     if len(content) > 200:
                         self.stats["success"] += 1
                         self.stats["last_request"] = time.time()
