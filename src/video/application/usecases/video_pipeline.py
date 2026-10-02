@@ -7,6 +7,7 @@ and publishing to WordPress and social media.
 
 import asyncio
 import os
+import re
 import time
 import random
 from typing import Dict, Any, List, Optional
@@ -257,11 +258,9 @@ class VideoPipelineUseCase(BasePipelineUseCase):
                         placeholder_url = enriched_article.get("url", "")
                         if placeholder_url in tweet:
                             tweet = tweet.replace(placeholder_url, wordpress_url)
-                        elif Settings.WP_SITE_URL in tweet:
-                            # Replace any nbes.blog URL with the actual one
-                            import re
-
-                            tweet = re.sub(r"https?://nbes\.blog/\S+", wordpress_url, tweet)
+                        elif re.search(r"https?://(?:api\.)?nbes\.blog/\S+", tweet):
+                            # Replace any legacy nbes.blog URL with the actual one
+                            tweet = re.sub(r"https?://(?:api\.)?nbes\.blog/\S+", wordpress_url, tweet)
                         # Append URL if not present
                         if wordpress_url not in tweet:
                             tweet = f"{tweet}\n\nMás info: {wordpress_url}"

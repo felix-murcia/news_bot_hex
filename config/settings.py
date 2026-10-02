@@ -29,12 +29,12 @@ class Settings:
     IMAGES_DIR = Path(os.getenv("IMAGES_DIR", DATA_DIR / "images"))
 
     # === WordPress Configuration ===
-    WP_HOSTING_API_BASE = os.getenv("WP_HOSTING_API_BASE", "https://news.nbes.blog")
+    WP_HOSTING_API_BASE = os.getenv("WP_HOSTING_API_BASE", "https://news.sagarebel.com")
     WP_HOSTING_JWT_TOKEN = os.getenv("WP_HOSTING_JWT_TOKEN", "")
     WP_DEFAULT_IMAGE_URL = os.getenv(
-        "WP_DEFAULT_IMAGE_URL", "https://news.nbes.blog/wp-content/uploads/2025/10/logo.jpg"
+        "WP_DEFAULT_IMAGE_URL", "https://news.sagarebel.com/wp-content/uploads/2026/08/logo__NBES.svg"
     )
-    WP_SITE_URL = os.getenv("WP_SITE_URL", "https://nbes.blog")
+    WP_SITE_URL = os.getenv("WP_SITE_URL", "https://news.sagarebel.com")
     WP_API_URL = os.getenv("WP_API_URL", f"{WP_HOSTING_API_BASE}/wp-json/wp/v2")
     WP_DEFAULT_CATEGORY = os.getenv("WP_DEFAULT_CATEGORY", "Noticias")
     WP_DEFAULT_IMAGE_ENDPOINT = os.getenv("WP_DEFAULT_IMAGE_ENDPOINT", "/image-310/")
@@ -115,7 +115,7 @@ class Settings:
     OPENROUTER_AUTH_URL = os.getenv(
         "OPENROUTER_AUTH_URL", "https://openrouter.ai/api/v1/auth/key"
     )
-    OPENROUTER_REFERER = os.getenv("OPENROUTER_REFERER", "http://nbes.blog")
+    OPENROUTER_REFERER = os.getenv("OPENROUTER_REFERER", "https://news.sagarebel.com")
     OPENROUTER_APP_TITLE = os.getenv("OPENROUTER_APP_TITLE", "news_bot")
     WHISPER_MODEL = os.getenv("WHISPER_MODEL", "medium")
 
