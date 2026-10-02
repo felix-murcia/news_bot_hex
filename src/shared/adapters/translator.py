@@ -104,8 +104,12 @@ def translate_text(text: str, target_lang: str = "es") -> str:
     cache_file = os.path.join(CACHE_DIR, f"{_cache_key(text)}_{target_lang}.txt")
     if os.path.exists(cache_file):
         with open(cache_file, "r", encoding="utf-8") as f:
-            logger.info("[TRANSLATOR] Traducción obtenida de caché")
-            return f.read()
+            cached_translation = f.read()
+            if "Error 500 (Server Error)" not in cached_translation and "That’s an error" not in cached_translation:
+                logger.info("[TRANSLATOR] Traducción obtenida de caché")
+                return cached_translation
+            else:
+                logger.warning("[TRANSLATOR] Caché inválida (Error 500 detectado), se reintentará la traducción")
 
     try:
         chunks = _split_into_chunks(text, max_chars=4500)
@@ -115,9 +119,10 @@ def translate_text(text: str, target_lang: str = "es") -> str:
             logger.info(f"[TRANSLATOR] Traduciendo chunk {i + 1}/{len(chunks)}...")
             translator = _get_translator()
             result = translator.translate(chunk)
-            if result:
+            if result and "Error 500 (Server Error)" not in result and "That’s an error" not in result:
                 translated_chunks.append(result)
             else:
+                logger.warning("[TRANSLATOR] Traductor devolvió un error 500, usando texto original")
                 translated_chunks.append(chunk)
 
         full_translation = "\n\n".join(translated_chunks)

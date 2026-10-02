@@ -2,9 +2,9 @@ import requests
 import time
 from typing import Tuple, Optional
 from config.logging_config import get_logger
+from config.settings import Settings
 
 logger = get_logger("news_bot")
-
 
 class JinaExtractor:
     def __init__(self):
@@ -16,6 +16,15 @@ class JinaExtractor:
         self.stats["requests"] += 1
         proxy_url = f"https://r.jina.ai/{url}"
 
+        headers = {
+            "User-Agent": "NewsBot-Jina/1.0",
+            "Accept": "text/plain,text/markdown,*/*",
+            "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+        }
+        
+        if getattr(Settings, "JINA_API_KEY", None):
+            headers["Authorization"] = f"Bearer {Settings.JINA_API_KEY}"
+
         for attempt in range(max_retries):
             try:
                 if attempt > 0:
@@ -24,11 +33,7 @@ class JinaExtractor:
                 response = requests.get(
                     proxy_url,
                     timeout=25,
-                    headers={
-                        "User-Agent": "NewsBot-Jina/1.0",
-                        "Accept": "text/plain,text/markdown,*/*",
-                        "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
-                    },
+                    headers=headers,
                 )
 
                 if response.status_code == 200:

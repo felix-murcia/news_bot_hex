@@ -80,7 +80,7 @@ def get_image_urls(post: dict) -> list:
     def norm(url):
         if not url:
             return None
-        if "nbes.blog" in url or url == DEF_LOGO_URL:
+        if Settings.WP_SITE_URL in url or url == DEF_LOGO_URL:
             return None
         return url
 
@@ -114,7 +114,7 @@ class ImageEnricher:
 
         for post in posts:
             # Si ya tiene imagen válida (no fallback), no sobrescribir
-            if post.get("image_url") and "nbes.blog" not in post.get("image_url", ""):
+            if post.get("image_url") and Settings.WP_SITE_URL not in post.get("image_url", ""):
                 # Verificar que la imagen sea accesible (no 403 de sitios con protección)
                 current_url = post.get("image_url", "")
                 if not self._is_accessible_image(current_url):
@@ -151,7 +151,7 @@ class ImageEnricher:
                     logger.debug(f"[IMAGES] Imagen no accesible, saltando: {url[:60]}...")
 
             if not assigned:
-                orig_url = post.get("url") or post.get("original_url")
+                orig_url = post.get("original_url") or post.get("url")
                 if orig_url:
                     extracted = extract_image(orig_url)
                     if extracted and self._is_accessible_image(extracted):
@@ -166,7 +166,7 @@ class ImageEnricher:
                 assign_fallback(post)
 
             logger.info(
-                f"[IMAGES] {post.get('title', '')[:40]}: {post.get('image_url', 'fallback')[:50]}"
+                f"[IMAGES] {post.get('title', '')[:40]}: {post.get('image_url', 'fallback')}"
             )
 
         logger.info(f"[IMAGES] {changed} posts enriched")
@@ -182,7 +182,16 @@ class ImageEnricher:
             return False
         try:
             # GET parcial: descargar solo primeros 1KB para validar
-            headers = {"Range": "bytes=0-1023"}
+            headers = {
+                "Range": "bytes=0-1023",
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/122.0.0.0 Safari/537.36"
+                ),
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+                "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+            }
             resp = requests.get(url, headers=headers, timeout=timeout, stream=True)
             # 206 = Partial Content (éxito), 200 = OK completo
             if resp.status_code in (200, 206):

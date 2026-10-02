@@ -165,6 +165,7 @@ class AudioToNewsUseCase:
     ) -> Dict[str, Any]:
         """Genera artículo desde transcripción."""
         try:
+            from config.settings import Settings
             from src.shared.adapters.ai.agents import ArticleFromContentAgent
 
             model = self._get_ai_model()
@@ -185,7 +186,7 @@ class AudioToNewsUseCase:
                 "slug": slug,
                 "labels": [tema],
                 "source_type": "audio_man",
-                "url": f"https://nbes.blog/{slug}",
+                "url": f"{Settings.WP_SITE_URL}/{slug}",
                 "original_url": url,
             }
 

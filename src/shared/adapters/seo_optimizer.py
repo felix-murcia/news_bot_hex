@@ -4,6 +4,7 @@ import re
 import json
 import unicodedata
 from typing import Optional
+from config.settings import Settings
 
 
 _STOP_WORDS_ES = {
@@ -131,8 +132,11 @@ def build_news_article_schema(
     date_published: str,
     author_name: str = "NBES Redacción",
     publisher_name: str = "NBES",
-    publisher_logo: str = "https://nbes.blog/wp-content/uploads/logo.png",
+    publisher_logo: Optional[str] = None,
 ) -> str:
+    from config.settings import Settings
+    if not publisher_logo:
+        publisher_logo = Settings.WP_DEFAULT_IMAGE_URL
     """Return a NewsArticle JSON-LD script block ready to inject into post content."""
     schema = {
         "@context": "https://schema.org",

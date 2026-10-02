@@ -7,7 +7,7 @@ from config.logging_config import get_logger
 
 logger = get_logger("news_bot")
 
-load_dotenv(override=True)
+load_dotenv()
 
 UNSPLASH_ACCESS_KEY = Settings.UNSPLASH_ACCESS_KEY
 if not UNSPLASH_ACCESS_KEY:

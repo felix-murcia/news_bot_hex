@@ -14,6 +14,7 @@ import requests
 
 from config.logging_config import get_logger
 from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
+from config.settings import Settings
 
 logger = get_logger("shared.adapters.video_generator")
 
@@ -89,8 +90,6 @@ class VideoGeneratorAdapter(VideoGeneratorPort):
             image_provider: Proveedor de imágenes. Si es None, se crea uno
                           con el directorio desde Settings.VIDEO_GENERATOR_IMAGES_DIR.
         """
-        from config.settings import Settings
-
         self.base_url = base_url or Settings.FFMPEG_API_URL
         self.base_url = self.base_url.rstrip("/")
         self.create_from_audio_endpoint = f"{self.base_url}/create-from-audio"

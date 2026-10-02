@@ -157,14 +157,15 @@ class ProcessUrlPipeline:
                 try:
                     fn()
                 except Exception as e:
-                    logger.warning(f"[PROCESS_URL] Social publisher error: {e}")
+                    logger.error(f"[PROCESS_URL] Social publisher error: {e}")
+                    raise RuntimeError(f"Social publisher crítico falló: {e}")
 
-        run_step("Fetch Images", fetch_images)
-        run_step("Enrich Images", enrich_images)
-        run_step("Generate Audio", generate_audio)
-        run_step("Generate Video", generate_video)
-        run_step("Publish WordPress", publish_wordpress)
-        run_step("Publish Social", publish_social)
+        run_step("Fetch Images", fetch_images, critical=True)
+        run_step("Enrich Images", enrich_images, critical=True)
+        run_step("Generate Audio", generate_audio, critical=True)
+        run_step("Generate Video", generate_video, critical=True)
+        run_step("Publish WordPress", publish_wordpress, critical=True)
+        run_step("Publish Social", publish_social, critical=True)
 
         if metrics:
             try:

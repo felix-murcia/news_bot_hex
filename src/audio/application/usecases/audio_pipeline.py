@@ -273,7 +273,7 @@ class AudioPipelineUseCase(BasePipelineUseCase):
                         placeholder_url = enriched_article.get("url", "")
                         if placeholder_url in tweet:
                             tweet = tweet.replace(placeholder_url, wordpress_url)
-                        elif "nbes.blog" in tweet:
+                        elif Settings.WP_SITE_URL in tweet:
                             # Replace any nbes.blog URL with the actual one
                             import re
 

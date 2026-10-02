@@ -10,6 +10,7 @@ import os
 from typing import List, Tuple
 
 from src.news.domain.ports import FakeNewsModel
+from config.settings import Settings
 from src.news.domain.services.classic_news_validator import (
     preprocess_text,
     heuristic_predict,

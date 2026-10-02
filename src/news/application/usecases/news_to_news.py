@@ -114,7 +114,7 @@ class NewsToNewsUseCase:
         from src.shared.adapters.social_post_adapter import truncate_social_post
 
         title = article_data.get("article", {}).get("title", "")
-        url = article_data.get("article", {}).get("url", os.getenv("WP_SITE_URL", "https://nbes.blog"))
+        url = article_data.get("article", {}).get("url", Settings.WP_SITE_URL)
         tema = article_data.get("news_item", {}).get("tema", "Noticias")
         desc = article_data.get("article", {}).get("desc", "")[:200]
 

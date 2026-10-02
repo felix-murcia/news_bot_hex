@@ -195,7 +195,7 @@ class VideoToNewsUseCase:
                 "slug": slug,
                 "labels": [tema],
                 "source_type": "video_man",
-                "url": f"https://nbes.blog/{slug}",
+                "url": f"{Settings.WP_SITE_URL}/{slug}",
                 "original_url": url,
             }
 

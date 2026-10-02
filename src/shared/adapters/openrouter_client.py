@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from config.settings import Settings
 from config.logging_config import get_logger
 
-load_dotenv(override=True)
+load_dotenv()
 
 logger = get_logger("news_bot")
 

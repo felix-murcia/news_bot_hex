@@ -17,7 +17,7 @@ from config.logging_config import get_logger
 from src.shared.adapters.audio_converter_factory import get_audio_converter
 from src.audio.domain.ports.audio_transcriber_port import AudioTranscriberPort
 
-load_dotenv(override=True)
+load_dotenv()
 
 logger = get_logger("audio_bot.infra.transcriber")
 

@@ -93,6 +93,7 @@ class VerifyNewsUseCase:
         self._content_extractor = content_extractor
 
     def execute(self) -> dict:
+        from config.settings import Settings
         from src.shared.adapters.mongo_db import get_database
         db = get_database()
         new_articles = list(db["generated_articles"].find({}))
@@ -121,7 +122,7 @@ class VerifyNewsUseCase:
                 desc=content,
                 source=art.get("source", "NBES"),
                 origin="Noticias Web",
-                url=f"https://nbes.blog/{slug}",
+                url=f"{Settings.WP_SITE_URL}/{slug}",
                 publishedAt=datetime.now(),
                 tema=art.get("tema", "Noticias"),
                 resumen=resumir_noticia(title, content),
@@ -138,7 +139,7 @@ class VerifyNewsUseCase:
                 focus_keyword=art.get("focus_keyword", ""),
                 image_credit=art.get("image_credit", ""),
                 is_draft=art.get("is_draft", False),
-                source_url=art.get("source_url", f"https://nbes.blog/{slug}"),
+                source_url=art.get("source_url", f"{Settings.WP_SITE_URL}/{slug}"),
                 alt_text=art.get("alt_text", title),
                 source_type="news_man",
                 original_url=art.get("original_url", ""),

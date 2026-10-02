@@ -69,6 +69,10 @@ def _limpiar_html(html: str) -> str:
 
     # Remove <h1> tags
     html = re.sub(r"<h1>.*?</h1>", "", html, flags=re.DOTALL)
+    
+    # Remove generic 'Título:' prefix at the start of text or within tags
+    html = re.sub(r"^(<[^>]+>)*\s*T[íi]tulo:\s*(?:<[/]strong>)?\s*", r"\1", html, flags=re.IGNORECASE).strip()
+    html = re.sub(r"(?i)<p>(?:<strong>)?\s*T[íi]tulo:(?:<[/]strong>)?\s*", "<p>", html)
 
     # Remove <div> tags
     html = re.sub(r"<div.*?>", "", html)
@@ -87,7 +91,11 @@ def _limpiar_html(html: str) -> str:
 
 
 def _validar_titulo(titulo: str) -> str:
-    if not titulo or len(titulo) < 5:
+    if not titulo:
+        return "Noticia de Última Hora"
+    # Clean up AI output prefixes if any
+    titulo = re.sub(r"(?i)^T[íi]tulo:\s*", "", titulo).strip()
+    if len(titulo) < 10 or "un momento" in titulo.lower():
         return "Noticia de Última Hora"
     return seo_clean_title(titulo)
 
@@ -212,6 +220,8 @@ class ArticleUseCase:
         return body
 
     def make_payload(self, news_item: Dict, article_body: str) -> Dict:
+        from config.settings import Settings
+
         raw_title = news_item.get("title", "Noticia de Última Hora")
         try:
             titulo = news_item.get("title_es") or translate_text(
@@ -245,10 +255,10 @@ class ArticleUseCase:
             "meta_description": meta_description,
             "labels": [news_item.get("tema", "Noticias")],
             "source_type": news_item.get("source_type", "news_man"),
-            "image_url": news_item.get("image_url", "https://api.nbes.blog/image-310/"),
+            "image_url": news_item.get("image_url", Settings.WP_DEFAULT_IMAGE_URL),
             "image_credit": "NBES",
             "alt_text": titulo_limpio,
-            "url": f"https://nbes.blog/{slug}",
+            "url": f"{Settings.WP_SITE_URL}/{slug}",
             "original_url": news_item.get("url", ""),
             "seo_title": seo_title,
             "focus_keyword": focus_keyword,
@@ -301,6 +311,12 @@ class ArticleUseCase:
             if not body_html or len(body_html) < 100:
                 logger.warning(f"[ARTICLE] Artículo inválido para: {item.get('title')}")
                 continue
+
+            # Check for AI translation or server errors that might have bypassed other checks
+            error_patterns = ["Error 500", "Server Error", "That’s an error", "403 Forbidden"]
+            for pattern in error_patterns:
+                if pattern.lower() in body_html.lower() or pattern.lower() in str(item.get('title', '')).lower():
+                    raise RuntimeError(f"Contenido generado inválido, posible página de error devuelta por IA o Traductor: {pattern}")
 
             payload = self.make_payload(item, body_html)
 

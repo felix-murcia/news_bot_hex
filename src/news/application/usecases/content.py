@@ -103,6 +103,11 @@ class ContentUseCase:
                 f"Tweet vacío para '{title[:80]}...'. No se publica contenido de baja calidad."
             )
 
+        error_patterns = ["Error 500", "Server Error", "That’s an error", "403 Forbidden"]
+        for pattern in error_patterns:
+            if pattern.lower() in tweet.lower() or pattern.lower() in title.lower():
+                raise RuntimeError(f"Contenido generado inválido, posible página de error devuelta por IA o Traductor: {pattern}")
+
         return tweet
 
     def _load_content_from_cache(self, url: str) -> Optional[str]:

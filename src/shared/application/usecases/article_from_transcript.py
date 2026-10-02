@@ -91,6 +91,7 @@ class ArticleFromTranscriptUseCase:
         self, transcript: str, url: str, tema: str
     ) -> Dict[str, Any]:
         """Core article generation logic."""
+        from config.settings import Settings
         from src.shared.adapters.ai.agents import ArticleFromContentAgent
         from src.shared.adapters.translator import translate_text
         from src.shared.adapters.web_search import enriquecer_con_contexto
@@ -162,10 +163,10 @@ class ArticleFromTranscriptUseCase:
             "excerpt": first_p,
             "labels": [tema],
             "source_type": f"{self.source_type}_man",
-            "image_url": "https://api.nbes.blog/image-310/",
+            "image_url": Settings.WP_DEFAULT_IMAGE_URL,
             "image_credit": "NBES",
             "alt_text": title,
-            "url": f"https://nbes.blog/{slug}",
+            "url": f"{Settings.WP_SITE_URL}/{slug}",
             "original_url": url,
         }
 

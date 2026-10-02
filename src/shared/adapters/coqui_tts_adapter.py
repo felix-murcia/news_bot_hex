@@ -11,6 +11,7 @@ from src.shared.adapters.audio_converter_factory import get_audio_converter
 from src.shared.adapters.tts_text_processor import TTSTextProcessor
 from src.shared.adapters.audio_post_processor import post_process_audio
 from config.logging_config import get_logger
+from config.settings import Settings
 
 logger = get_logger("news_bot.adapters.coqui_tts")
 
@@ -112,8 +113,23 @@ class CoquiTTSAdapter(TTSPort):
             return None
 
     def is_available(self) -> bool:
-        """Verifica si el servicio Coqui TTS está disponible."""
-        return True
+        """Verifica si el servicio Coqui TTS está disponible.
+
+        Sondea el endpoint /health del servidor Coqui, igual que hacen los
+        adaptadores Speaches (tts_adapter.py) y Jetson (jetson_tts_adapter.py).
+
+        Nunca lanza: un fallo de red se traduce a False para que los use-cases
+        puedan degradar con elegancia en vez de reventar (ver
+        TtsFromArticleUseCase, que consulta is_available() antes de sintetizar).
+        """
+        try:
+            response = requests.get(f"{self.api_url}/health", timeout=5)
+            return response.status_code == 200
+        except OSError as e:
+            # requests.RequestException hereda de OSError, de modo que esto
+            # cubre timeouts, errores de conexión y fallos de socket.
+            logger.warning(f"[COQUI TTS] Servicio no disponible ({self.api_url}): {e}")
+            return False
 
     def text_to_speech(
         self,

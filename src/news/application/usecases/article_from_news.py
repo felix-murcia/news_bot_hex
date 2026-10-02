@@ -54,6 +54,8 @@ class ArticleFromNewsUseCase:
     def execute(
         self, content: str, url: str = "", tema: str = "Noticias"
     ) -> Dict[str, Any]:
+        from config.settings import Settings
+
         logger.info(
             f"[ARTICLE_NEWS] Iniciando generación desde noticia para tema: {tema}"
         )
@@ -66,7 +68,7 @@ class ArticleFromNewsUseCase:
         news_item = {
             "resumen": resumen,
             "source_url": url,
-            "url": os.getenv("WP_SITE_URL", "https://nbes.blog"),
+            "url": Settings.WP_SITE_URL,
             "source": "web",
             "source_type": "news_man",
             "tema": tema,
@@ -91,9 +93,20 @@ class ArticleFromNewsUseCase:
             f"[ARTICLE_NEWS] Artículo generado: {parrafos} párrafos, {subtitulos} subtítulos"
         )
 
-        # Extract title from article_body if it contains <h1>
+        # Extract title from article_body if it contains <h1>, then remove the tag if found.
         extracted_title = self._extract_title_from_html(article_body)
-        title = extracted_title or "Noticia de Última Hora"
+        
+        # Robust Validation: if the title is too short or clearly AI conversational garbage, fallback.
+        if not extracted_title or len(extracted_title) < 10 or "un momento" in extracted_title.lower():
+            title = news_item.get("title", "Noticia de Última Hora")
+        else:
+            title = extracted_title
+            
+        # Remove <h1> tag from body so it's not rendered in WP
+        import re
+        article_body = re.sub(r"<h1>.*?</h1>", "", article_body, flags=re.DOTALL)
+        # Remove any leading 'Título:' that the AI might have outputted instead of in an <h1>
+        article_body = re.sub(r"^(<[^>]+>)*\s*T[íi]tulo:\s*", r"\1", article_body, flags=re.IGNORECASE).strip()
 
         payload = {
             "title": title,
@@ -103,7 +116,7 @@ class ArticleFromNewsUseCase:
             "slug": self._generate_slug(title),
             "labels": [tema],
             "source_type": "news_man",
-            "image_url": "https://api.nbes.blog/image-310/",
+            "image_url": Settings.WP_DEFAULT_IMAGE_URL,
             "image_credit": "NBES",
             "alt_text": "Logo NBES",
             "original_url": url,
@@ -188,8 +201,10 @@ Requisitos:
         return response.strip()
 
     def _generate_tweet(self, news_item: Dict) -> str:
+        from config.settings import Settings
+
         title = news_item.get("title", "Nueva noticia")
-        url = news_item.get("url", "https://nbes.blog")
+        url = news_item.get("url", Settings.WP_SITE_URL)
         tema = news_item.get("tema", "Noticias")
         tweet = f"📰 {title[:200]}\n\nLeer más: {url}"
 
@@ -199,11 +214,13 @@ Requisitos:
         return tweet
 
     def _extract_title_from_html(self, html: str) -> str:
-        """Extract title from HTML <h1> tag if present."""
+        """Extract title from HTML <h1> tag if present, stripping generic 'Titulo' prefixes."""
         import re
         match = re.search(r"<h1[^>]*>([^<]+)</h1>", html, re.IGNORECASE)
         if match:
             title = match.group(1).strip()
+            # Clean "Título: " prefix if present
+            title = re.sub(r"(?i)^T[íi]tulo:\s*", "", title).strip()
             if title:
                 return title
         return ""

@@ -153,6 +153,8 @@ class BasePipelineUseCase(ABC):
         self, article: Dict[str, Any], tema: str
     ) -> Optional[str]:
         """Publish an article to WordPress."""
+        from config.settings import Settings
+
         if self.no_publish:
             logger.info("WordPress publishing skipped (no-publish mode)")
             return None
@@ -202,7 +204,7 @@ class BasePipelineUseCase(ABC):
             # Upload featured image
             image_url = article.get("image_url")
             featured_image_id = None
-            if image_url and "nbes.blog" not in image_url:
+            if image_url and Settings.WP_SITE_URL not in image_url:
                 try:
                     featured_image_id = upload_image_from_url(
                         image_url,
