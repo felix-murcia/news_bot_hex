@@ -6,9 +6,16 @@ Uses modular routers for clean organization.
 """
 
 import os
+import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+
+class EndpointFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not (record.args and len(record.args) >= 3 and record.args[2] == "/api/v1/account/info")
+
+logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
 
 from config.logging_config import setup_logging, get_logger
 

@@ -221,9 +221,9 @@ def execute_pipeline_async(job_id: str) -> bool:
                 record_step_metric("Generate Audio", "OK", step_duration_ms)
             except Exception as e:
                 step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-                logger.warning(f"[PIPELINE-JOB] {job_id} Warning en Audio: {e}")
-                add_step(job_id, ProcessingStepName.GENERATE_AUDIO, ProcessingStepStatus.SKIPPED)
-                record_step_metric("Generate Audio", "SKIPPED", step_duration_ms, str(e))
+                logger.error(f"[PIPELINE-JOB] {job_id} Error en Audio: {e}")
+                add_step(job_id, ProcessingStepName.GENERATE_AUDIO, ProcessingStepStatus.ERROR)
+                record_step_metric("Generate Audio", "FAILED", step_duration_ms, str(e))
                 raise
 
             # Step 8: Generate Video
@@ -242,26 +242,23 @@ def execute_pipeline_async(job_id: str) -> bool:
                     for article in articles:
                         audio_path = article.get("tts_audio_path")
                         if audio_path and os.path.exists(audio_path):
-                            try:
-                                video_path = video_gen.create_video_from_audio(
-                                    audio_path=audio_path
+                            video_path = video_gen.create_video_from_audio(
+                                audio_path=audio_path
+                            )
+                            if video_path:
+                                articles_coll.update_one(
+                                    {"_id": article["_id"]},
+                                    {"$set": {"generated_video_path": video_path}},
                                 )
-                                if video_path:
-                                    articles_coll.update_one(
-                                        {"_id": article["_id"]},
-                                        {"$set": {"generated_video_path": video_path}},
-                                    )
-                            except Exception as e:
-                                logger.warning(f"Error generando video: {e}")
                     logger.info(f"[PIPELINE-JOB] {job_id} Videos generados")
                 step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
                 add_step(job_id, ProcessingStepName.GENERATE_VIDEO, ProcessingStepStatus.OK)
                 record_step_metric("Generate Video", "OK", step_duration_ms)
             except Exception as e:
                 step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-                logger.warning(f"[PIPELINE-JOB] {job_id} Warning en Video: {e}")
-                add_step(job_id, ProcessingStepName.GENERATE_VIDEO, ProcessingStepStatus.SKIPPED)
-                record_step_metric("Generate Video", "SKIPPED", step_duration_ms, str(e))
+                logger.error(f"[PIPELINE-JOB] {job_id} Error en Video: {e}")
+                add_step(job_id, ProcessingStepName.GENERATE_VIDEO, ProcessingStepStatus.ERROR)
+                record_step_metric("Generate Video", "FAILED", step_duration_ms, str(e))
                 raise
 
             # Step 9: WordPress
@@ -294,19 +291,22 @@ def execute_pipeline_async(job_id: str) -> bool:
                 run_bluesky()
                 social_ok += 1
             except Exception as e:
-                logger.warning(f"[PIPELINE-JOB] {job_id} Warning en Bluesky: {e}")
+                logger.error(f"[PIPELINE-JOB] {job_id} Error en Bluesky: {e}")
+                raise RuntimeError(f"Fallo crítico publicando en Bluesky: {e}")
 
             try:
                 run_facebook()
                 social_ok += 1
             except Exception as e:
-                logger.warning(f"[PIPELINE-JOB] {job_id} Warning en Facebook: {e}")
+                logger.error(f"[PIPELINE-JOB] {job_id} Error en Facebook: {e}")
+                raise RuntimeError(f"Fallo crítico publicando en Facebook: {e}")
 
             try:
                 run_mastodon()
                 social_ok += 1
             except Exception as e:
-                logger.warning(f"[PIPELINE-JOB] {job_id} Warning en Mastodon: {e}")
+                logger.error(f"[PIPELINE-JOB] {job_id} Error en Mastodon: {e}")
+                raise RuntimeError(f"Fallo crítico publicando en Mastodon: {e}")
 
             step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
             add_step(job_id, ProcessingStepName.PUBLISH_SOCIAL, ProcessingStepStatus.OK)
