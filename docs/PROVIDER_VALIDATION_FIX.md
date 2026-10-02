@@ -18,11 +18,17 @@ When users selected "openai" or "anthropic", the backend would reject them as un
    - Validates provider against `Settings.AI_ADAPTER_MAP`
    - Returns clear error message with available options
 
-2. **New Endpoint: `/news/providers`**
+2. **New Endpoint: `/admin/providers`**
    ```python
-   GET /news/providers
+   GET /admin/providers
    Returns: {"status": "ok", "data": {"providers": ["openrouter", "gemini", "local", "mock"]}}
    ```
+> ⚠️ **Corrección (Fase 4, 2026-10-02).** Este documento decía `/news/providers`.
+   > El endpoint real vive en el router de administración:
+   > `src/news/entrypoints/api/admin_router.py:153`, es decir **`/admin/providers`**.
+   > El frontend lo consume como tal en `frontend/src/api/news.ts:30`.
+   > Cuando se extrajeron los endpoints de administración fuera de
+   > `news_router.py`, la ruta cambió y esta documentación se quedó atrás.
 
 3. **Improved Error Handling**
    - Provider validation in `/process_url` endpoint
@@ -49,7 +55,7 @@ When users selected "openai" or "anthropic", the backend would reject them as un
 ## How It Works Now
 
 1. User opens "Procesar URL Concreta" section
-2. NewsTab mounts and fetches `/news/providers`
+2. NewsTab mounts and fetches `/admin/providers`
 3. Provider dropdowns display only actual supported options
 4. User selects a valid provider (e.g., "gemini")
 5. Request is sent and processed successfully

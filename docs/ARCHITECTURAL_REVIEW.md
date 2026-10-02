@@ -220,11 +220,17 @@ The domain has `Article` and `VerifiedArticle` dataclasses with only `to_dict()`
 `pipeline_executor.execute_pipeline_async.run_pipeline` is a 200-line god-function. `unsplash_fetcher.py` (788) and `wordpress_publisher.py` (550) are god-modules.
 
 ### 6.5 Improper Error Handling — High
-- `pipeline_executor.py:131-135`: catches Exception, sets step to `"skipped"`, then `raise` — the `raise` will overwrite the skipped status downstream by going to the outer except which calls `update_job_status(FAILED)`. The `"skipped"` marker is meaningless.
+
+> **Doctrina vigente (decisión de Felix, 2026-10-02): fail-fast.** Si hay error, el pipeline **termina**. No existe el modo "no bloquea / continúa". Los findings de esta sección que describen tolerancia a fallos se leen como **incumplimientos pendientes**, no como comportamiento aceptado.
+
+- `pipeline_executor.py` (steps 7 y 8, audio y video) — **RESUELTO.** Antes: capturaba Exception, marcaba el paso como `"skipped"` y hacia `raise`. El marcador `"skipped"` era incorrecto (SKIPPED significa "no ejecutado intencionadamente", nunca "intentado y falló") y el log iba a `warning`. Ahora ambos pasos registran `ProcessingStepStatus.ERROR` + métrica `"FAILED"` y loguean a `error`. Cubierto por `tests/test_pipeline_fail_fast.py`.
+- `pipeline_executor.py` step 8 — **RESUELTO.** El bucle interno de video tenía `except Exception: logger.warning(...)` que **tragaba** el error de `create_video_from_audio`, registraba el paso como `OK` y seguía al siguiente artículo. Bajo fail-fast esa recuperación se eliminó: el error propaga al `except` externo, que marca `ERROR` y aborta.
+- **PENDIENTE — `news_to_news.py:205-207` y `:224-233` (path vivo de `/news/process_url`).** El generador de TTS y el de video siguen capturando la excepción y registrando `"no bloquea"`, reanudando el pipeline. Esto contradice la doctrina fail-fast: un fallo de TTS o video deja el artículo a medio publicar sin señal de error. `get_process_url_content_processor` (`dependencies.py:356`) enruta el endpoint `POST /news/process_url` a `news_to_news.process_news_url`, así que **no es código muerto**. No se ha tocado: cambiarlo altera el comportamiento del endpoint y requiere decisión explícita.
 - `pipeline_log_handler.emit` swallows all exceptions silently (`except Exception: pass`) — debugging logging failures becomes impossible.
-- `news_to_news.process_url:220-245`: catches Exception, logs "no bloquea" and continues — but the upstream `ProcessUrlCompleteUseCase` will then `raise` on the same kind of issue. Inconsistent recovery semantics.
-- `process_url_complete.py:104-106`: catches `Exception`, logs, re-raises — but leaves the database in a partial state (article inserted, video not generated, no rollback / Saga / Outbox).
+- **PENDIENTE — `process_url_pipeline.py:38-52`.** El helper `run_step(name, fn, critical=False)` permite continuar ante fallos. Todos los llamantes actuales pasan `critical=True` (líneas 94-168), así que la rama permisiva es inalcanzable hoy, pero el default `False` contradice fail-fast.
+- `pipeline_job.py:81` — `store or {}` descarta un dict vacío.
 - No retry on transient I/O failures despite `shared/utils/retry.py` existing.
+- `process_url_complete.py:104-106` (ya borrado como código muerto): dejaba la base de datos en estado parcial sin rollback / Saga / Outbox. El mismo riesgo persiste en `pipeline_executor.py`, que escribe en `generated_articles` paso a paso sin transacción.
 
 ### 6.6 Threading without back-pressure — Medium
 `execute_async` and `execute_pipeline_async` spawn `daemon=True` threads with **no concurrency limit, no queue, no cancellation token**. Two clients hitting `/process_url` → two unbounded background pipelines hitting the same Mongo collections (`"generated_articles"`, `"generated_posts"`) concurrently. Race conditions guaranteed (`posts[-1]` in `process_url_complete.py:87` will pick whichever post happened to land last across threads).
