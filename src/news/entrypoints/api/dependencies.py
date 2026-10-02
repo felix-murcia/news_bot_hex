@@ -314,36 +314,6 @@ def get_video_generator_port():
     return create_video_generator()
 
 
-def get_image_fetcher_usecase(
-    generated_posts_repo=Depends(get_generated_posts_repo),
-    image_fetcher=Depends(get_image_fetcher_port),
-):
-    """Use case para descargar imágenes."""
-    from src.news.application.usecases.publishing_pipeline import ImageFetcherUseCase
-    return ImageFetcherUseCase(generated_posts_repo, image_fetcher)
-
-
-def get_image_enricher_usecase(
-    generated_posts_repo=Depends(get_generated_posts_repo),
-    generated_articles_repo=Depends(get_generated_articles_repo),
-    image_enricher=Depends(get_image_enricher_port),
-):
-    """Use case para enriquecer con imágenes."""
-    from src.news.application.usecases.publishing_pipeline import ImageEnricherUseCase
-    return ImageEnricherUseCase(generated_posts_repo, generated_articles_repo, image_enricher)
-
-
-def get_publishers_usecase(
-    generated_posts_repo=Depends(get_generated_posts_repo),
-    generated_articles_repo=Depends(get_generated_articles_repo),
-    wordpress_publisher=Depends(get_wordpress_publisher_port),
-    social_publishers=Depends(get_social_publisher_ports),
-):
-    """Use case para publicar en redes sociales."""
-    from src.news.application.usecases.publishing_pipeline import PublishersUseCase
-    return PublishersUseCase(generated_posts_repo, generated_articles_repo, wordpress_publisher, social_publishers)
-
-
 # ============================================================
 # Process URL ("Procesar URL Concreta") Dependencies
 # ============================================================
