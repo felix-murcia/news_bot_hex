@@ -100,3 +100,33 @@ package-lock.json
 package.json
 
 scripts/wp_cleanup_2025.py
+
+# === Agentes de OpenCode ===
+# El agente se define en .opencode/agents/, pero OpenCode también genera
+# node_modules/ (~63M), package.json y package-lock.json dentro de esa carpeta.
+# Ignoramos la carpeta completa para no commitear artefactos de la herramienta.
+# Si prefieres versionar la definición del agente, descomenta las excepciones
+# de abajo y añade el fichero concreto, no toda la carpeta.
+.opencode/
+#!.opencode/agents/
+#!.opencode/agents/*.md
+
+# Puntero local al agente CINE. La fuente canónica vive en
+# .opencode/agents/cine.md (también ignorada, ver arriba). Este .md solo
+# apunta allí; mantenerlo versionado daría dos rutas al mismo agente y
+# ninguna se actualiza al reinstalar.
+AGENTE_CINE.md
+
+# === Entornos de test ===
+# .env.test SÍ se commitea a propósito: lo necesita el job `test` de CI.
+# Es un fichero de mínimos, sin secretos reales (claves de IA vacías y
+# credenciales sociales inertes). Si algún día contiene una clave real,
+# el patrón de abajo lo bloquea — no lo commitees, rotala.
+.env.local
+.env.*.local
+.env.backup
+
+# Backups de datos generados durante depuración de tests
+*.backup.json
+appdb_test/
+appdb_prod_clone/
