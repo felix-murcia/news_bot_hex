@@ -21,7 +21,10 @@ class LocalAdapter(AIModelPort):
         "bullet",
     ]
 
-    def __init__(self, config: Dict = None):
+    def __init__(self, config: Dict = None, validate_on_init: bool = False):
+        # validate_on_init se acepta por contrato de la factory
+        # (ai_factory.get_ai_adapter siempre lo pasa). El adaptador local no
+        # usa claves de API, así que no hay nada que validar.
         self.config = config or {}
 
     @property
@@ -70,7 +73,10 @@ class MockAdapter(AIModelPort):
         "ejecutivo",
     ]
 
-    def __init__(self, config: Dict = None):
+    def __init__(self, config: Dict = None, validate_on_init: bool = False):
+        # validate_on_init se acepta por contrato de la factory
+        # (ai_factory.get_ai_adapter siempre lo pasa). El adapter mock no usa
+        # claves de API, así que no hay nada que validar.
         self.config = config or {}
 
     @property

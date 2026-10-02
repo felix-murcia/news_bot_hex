@@ -9,6 +9,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from src.shared.adapters.ai.prompt_loader import load_prompt
+from config.settings import Settings
 
 if TYPE_CHECKING:
     from src.shared.domain.ports.ai_model_port import AIModelPort

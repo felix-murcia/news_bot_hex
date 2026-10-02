@@ -15,7 +15,7 @@ from src.shared.utils.retry import retry_with_backoff
 from src.shared.domain.ports.ai_model_port import AIModelPort
 from config.settings import Settings
 
-load_dotenv(override=True)
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 

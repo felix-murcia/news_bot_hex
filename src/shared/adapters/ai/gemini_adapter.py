@@ -13,7 +13,7 @@ from src.shared.domain.ports.ai_model_port import AIModelPort
 from config.settings import Settings
 from src.shared.utils.retry import retry_with_backoff
 
-load_dotenv(override=True)
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
