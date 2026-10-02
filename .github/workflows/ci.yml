@@ -6,9 +6,25 @@ on:
   pull_request:
     branches: [main, master]
 
+# Both jobs build the same environment from scratch. The setup steps are
+# duplicated on purpose: with only two jobs, a composite action or a reusable
+# workflow would cost more indirection than it saves. If a THIRD job appears,
+# extract `.github/actions/setup-test-env/action.yml`.
 jobs:
+  # Job 1: hermetic mode (default). Uses appdb_test and never touches appdb.
   test:
     runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout code
@@ -25,6 +41,140 @@ jobs:
           pip install -r requirements.txt
           pip install pytest
 
+      # config/settings.py calls load_dotenv() WITHOUT override=True, so real
+      # environment variables take precedence over any .env file. Sourcing
+      # .env.test (a minimal, secret-free fixture) therefore yields a
+      # deterministic environment instead of the runner's empty one.
+      - name: Load test environment
+        run: |
+          set -a
+          source .env.test
+          set +a
+          echo "MONGO_HOST=$MONGO_HOST"
+          echo "MONGO_DB_NAME=$MONGO_DB_NAME"
+          echo "AI_PROVIDER=$AI_PROVIDER"
+
+      - name: Verify MongoDB is reachable
+        run: |
+          python - <<'PY'
+          import os
+          from pymongo import MongoClient
+          c = MongoClient(
+              host=os.environ["MONGO_HOST"],
+              port=int(os.environ["MONGO_PORT"]),
+              serverSelectionTimeoutMS=10000,
+          )
+          print("MongoDB ping:", c.admin.command("ping"))
+          PY
+
       - name: Run tests
         run: |
           python -m pytest tests/ -v
+
+  # Job 2: production mode (opt-in, decisión 5 de Felix).
+  #
+  # Runs the `production`-marked tests against a CLONE of `appdb`, never against
+  # `appdb` itself (conftest.py::_production_clone_provisioned). The clone is
+  # created at session start and dropped at session end, so the CI database is
+  # left as it was found.
+  #
+  # The Mongo service starts EMPTY, so `appdb` is seeded first with a fixture that
+  # reproduces its SCHEMA and its thresholds (22 RSS sources, 1200 articles).
+  # `tests/test_ci_seed_fixture.py` is what proves that fixture satisfies every
+  # assertion the production tests make.
+  #
+  # No secrets: the social/AI credentials are the inert placeholders that
+  # conftest.py injects and `AI_PROVIDER=mock` keeps the suite offline. The
+  # only outbound traffic is the live RSS fetch performed by
+  # `test_fetch_rss_news_use_case_executes`, which is inherent to these tests.
+  test-production:
+    runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Load test environment
+        run: |
+          set -a
+          source .env.test
+          set +a
+          echo "MONGO_HOST=$MONGO_HOST"
+          echo "MONGO_DB_NAME=$MONGO_DB_NAME (conftest.py lo sustituye por el clon)"
+          echo "AI_PROVIDER=$AI_PROVIDER"
+
+      - name: Verify MongoDB is reachable
+        run: |
+          python - <<'PY'
+          import os
+          from pymongo import MongoClient
+          c = MongoClient(
+              host=os.environ["MONGO_HOST"],
+              port=int(os.environ["MONGO_PORT"]),
+              serverSelectionTimeoutMS=10000,
+          )
+          print("MongoDB ping:", c.admin.command("ping"))
+          PY
+
+      # The Mongo service is empty: without this the clone would abort because
+      # there is nothing to copy. `--allow-production` is mandatory by design,
+      # so writing to `appdb` here is an explicit, visible decision.
+      - name: Seed appdb with the CI fixture
+        run: |
+          python scripts/seed_ci_production_db.py --db appdb --allow-production
+          python - <<'PY'
+          import os
+          from pymongo import MongoClient
+          c = MongoClient(host=os.environ["MONGO_HOST"], port=27017)
+          db = c["appdb"]
+          print("raw_news:", db["raw_news"].count_documents({}))
+          print("sources:", len(db["sources_rss"].find_one({"_id": "sources"})["sources"]))
+          PY
+
+      - name: Run tests in production mode (against the appdb clone)
+        env:
+          NEWS_BOT_RUN_PRODUCTION_TESTS: "1"
+        run: |
+          python -m pytest tests/ -v
+
+      # Proves the guarantee of decision 2: the clone is a copy, so whatever the
+      # production tests wrote there, `appdb` itself must be unchanged. The
+      # fixture already asserts this at session end; this step makes it visible
+      # in the CI log.
+      - name: Verify appdb survived the production run
+        run: |
+          python - <<'PY'
+          import os
+          from pymongo import MongoClient
+          c = MongoClient(host=os.environ["MONGO_HOST"], port=27017)
+          names = c.list_database_names()
+          assert "appdb_prod_clone" not in names, (
+              f"El clon no se dropeó al terminar la sesión: {names}"
+          )
+          db = c["appdb"]
+          print("appdb raw_news tras la sesión:", db["raw_news"].count_documents({}))
+          print("Colecciones:", sorted(db.list_collection_names()))
+          print("OK: appdb intacto y clon eliminado.")
+          PY
