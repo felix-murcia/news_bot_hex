@@ -12,6 +12,10 @@ These tests FAIL if infrastructure is misconfigured.
 
 import pytest
 
+# Todo este fichero afirma datos reales de appdb. Es opt-in: requiere
+# NEWS_BOT_RUN_PRODUCTION_TESTS=1 (ver conftest.py).
+pytestmark = pytest.mark.production
+
 
 class TestRSSSourcesFromAppDB:
     """Validate that RSS sources load from real appdb, not mocks or defaults."""
@@ -64,13 +68,19 @@ class TestRSSSourcesFromAppDB:
             assert len(source["url"]) > 0, f"Source {i} URL cannot be empty"
 
     def test_rss_sources_are_from_production_appdb(self):
-        """Verify sources come from appdb, not test database or hardcoded."""
+        """Verify sources come from the appdb data, not a test database.
+
+        En modo producción se afirma contra el CLON de appdb (decisión 2 de la
+        Fase 4), de ahí `production_data_db()` en lugar del literal "appdb".
+        """
         from src.news.infrastructure.adapters import MongoRSSSourceRepository
         from config.settings import Settings
+        from conftest import production_data_db
 
         # Verify we're using the correct database
-        assert Settings.MONGO_DB_NAME == "appdb", (
-            "Tests must use appdb. Check MONGO_DB_NAME environment variable."
+        expected_db = production_data_db()
+        assert Settings.MONGO_DB_NAME == expected_db, (
+            f"Tests must use '{expected_db}'. Check MONGO_DB_NAME environment variable."
         )
 
         repo = MongoRSSSourceRepository()

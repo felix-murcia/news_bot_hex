@@ -13,6 +13,10 @@ If these tests fail, infrastructure or data is misconfigured.
 
 import pytest
 
+# Todo este fichero afirma datos reales de appdb. Es opt-in: requiere
+# NEWS_BOT_RUN_PRODUCTION_TESTS=1 (ver conftest.py).
+pytestmark = pytest.mark.production
+
 
 class TestNewsProcessingPipelineWithRealData:
     """Test the complete news pipeline with real appdb data."""
@@ -60,11 +64,15 @@ class TestNewsProcessingPipelineWithRealData:
         # Execute the use case
         try:
             result = use_case.execute()
-            # Result should indicate success or partial success
+            # FetchRSSNewsUseCase returns a single canonical status.
+            # WARNING: this test has SIDE EFFECTS — it fetches live RSS feeds
+            # and inserts any new articles into appdb.raw_news.
             assert "status" in result, "Use case should return status"
-            assert result["status"] in ["ok", "warning", "error"], (
+            assert result["status"] == "success", (
                 f"Invalid status: {result['status']}"
             )
+            assert result["new_articles"] >= 0
+            assert result["total_articles"] > 0
         except Exception as e:
             pytest.fail(f"FetchRSSNewsUseCase failed: {str(e)}")
 
@@ -151,11 +159,18 @@ class TestPipelineDataIntegrity:
     """Validate that pipeline data comes from correct sources."""
 
     def test_articles_from_correct_database(self):
-        """Articles must come from appdb, not any other database."""
-        from config.settings import Settings
+        """Articles must come from the appdb data database, not any other.
 
-        assert Settings.MONGO_DB_NAME == "appdb", (
-            "Tests must run against appdb, not test database"
+        En modo producción se afirma contra el CLON de appdb (decisión 2 de la
+        Fase 4), de ahí `production_data_db()` en lugar del literal "appdb".
+        """
+        from config.settings import Settings
+        from conftest import production_data_db
+
+        expected = production_data_db()
+        assert Settings.MONGO_DB_NAME == expected, (
+            f"Los tests de datos reales deben correr contra '{expected}', "
+            f"no contra la BD de pruebas. Actual: '{Settings.MONGO_DB_NAME}'."
         )
 
     def test_rss_sources_are_production_quality(self):
@@ -240,11 +255,17 @@ class TestPipelineConfiguration:
     """Validate pipeline is configured correctly."""
 
     def test_pipeline_env_uses_appdb(self):
-        """Application must be configured to use appdb."""
-        from config.settings import Settings
+        """Application must be configured with the appdb data database.
 
-        assert Settings.MONGO_DB_NAME == "appdb", (
-            f"MONGO_DB_NAME should be 'appdb', got '{Settings.MONGO_DB_NAME}'. "
+        Ver `test_articles_from_correct_database`: en modo producción la BD
+        efectiva es el clon de appdb.
+        """
+        from config.settings import Settings
+        from conftest import production_data_db
+
+        expected = production_data_db()
+        assert Settings.MONGO_DB_NAME == expected, (
+            f"MONGO_DB_NAME should be '{expected}', got '{Settings.MONGO_DB_NAME}'. "
             f"Check environment variables and .env file."
         )
 

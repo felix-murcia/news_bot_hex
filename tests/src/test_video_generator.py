@@ -92,20 +92,28 @@ class TestVideoGeneratorAdapter:
                 == "http://mock-ffmpeg:8082/create-from-audio"
             )
 
-    def test_create_video_from_audio_success(self):
+    def test_create_video_from_audio_success(self, tmp_path):
         """Debe generar video correctamente cuando el servicio responde OK."""
         from src.shared.adapters.video_generator import VideoGeneratorAdapter
 
         # Mock del image provider
         mock_provider = Mock()
-        mock_provider.get_random_image.return_value = "/tmp/images/test.jpg"
+        mock_provider.get_random_image.return_value = str(tmp_path / "test.jpg")
+
+        # El servicio genera el MP4 en disco; el adaptador lo valida con exists().
+        output_path = tmp_path / "test_video.mp4"
+        output_path.write_bytes(b"fake mp4")
+
+        # El adaptador también valida que el audio de entrada exista.
+        audio_path = tmp_path / "test.mp3"
+        audio_path.write_bytes(b"fake mp3")
 
         # Mock de requests.post
         with patch("src.shared.adapters.video_generator.requests.post") as mock_post:
             mock_response = Mock()
             mock_response.status_code = 200
             mock_response.json.return_value = {
-                "output_path": "/tmp/videos/test_video.mp4",
+                "output_path": str(output_path),
                 "image_used": "test.jpg",
             }
             mock_post.return_value = mock_response
@@ -114,22 +122,42 @@ class TestVideoGeneratorAdapter:
                 base_url="http://ffmpeg-service:8082",
                 image_provider=mock_provider,
             )
-            # Asegurar que el directorio del video existe
-            os.makedirs("/tmp/videos", exist_ok=True)
-            Path("/tmp/videos/test_video.mp4").touch()
 
-            result = adapter.create_video_from_audio("/tmp/audio/test.mp3")
+            result = adapter.create_video_from_audio(str(tmp_path / "test.mp3"))
 
-            assert result == "/tmp/videos/test_video.mp4"
+            assert result == str(output_path)
             mock_provider.get_random_image.assert_called_once()
             mock_post.assert_called_once_with(
                 "http://ffmpeg-service:8082/create-from-audio",
                 json={
-                    "audio_path": "/tmp/audio/test.mp3",
-                    "image_path": "/tmp/images/test.jpg",
+                    "audio_path": str(tmp_path / "test.mp3"),
+                    "image_path": str(tmp_path / "test.jpg"),
                 },
                 timeout=300,
             )
+
+    def test_create_video_from_audio_rejects_missing_output(self, tmp_path):
+        """Si el servicio responde 200 pero no dejó el MP4 en disco, debe fallar."""
+        from src.shared.adapters.video_generator import VideoGeneratorAdapter
+
+        mock_provider = Mock()
+        mock_provider.get_random_image.return_value = str(tmp_path / "test.jpg")
+
+        audio_path = tmp_path / "test.mp3"
+        audio_path.write_bytes(b"fake mp3")
+
+        with patch("src.shared.adapters.video_generator.requests.post") as mock_post:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"output_path": str(tmp_path / "ghost.mp4")}
+            mock_post.return_value = mock_response
+
+            adapter = VideoGeneratorAdapter(
+                base_url="http://ffmpeg-service:8082",
+                image_provider=mock_provider,
+            )
+
+            assert adapter.create_video_from_audio(str(audio_path)) is None
 
     def test_create_video_from_audio_audio_not_found(self):
         """Debe devolver None si el archivo de audio no existe."""

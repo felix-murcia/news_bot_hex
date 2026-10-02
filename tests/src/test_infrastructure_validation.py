@@ -16,17 +16,26 @@ import sys
 from typing import Optional
 
 
+@pytest.mark.production
 class TestDatabaseConfiguration:
     """Test that database is correctly configured."""
 
     def test_mongo_db_name_is_appdb(self):
-        """CRITICAL: MONGO_DB_NAME must be 'appdb' for production data."""
-        from config.settings import Settings
+        """CRITICAL: MONGO_DB_NAME must be the appdb data database.
 
+        En el modo producción la suite afirma contra el CLON de appdb
+        (decisión 2 de la Fase 4), no contra appdb: por eso se compara contra
+        `production_data_db()` y no contra el literal "appdb".
+        """
+        from config.settings import Settings
+        from conftest import production_data_db
+
+        expected = production_data_db()
         db_name = Settings.MONGO_DB_NAME
-        assert db_name == "appdb", (
-            f"MONGO_DB_NAME must be 'appdb' for production data. "
-            f"Current: '{db_name}'. Check your .env file."
+        assert db_name == expected, (
+            f"MONGO_DB_NAME debe ser '{expected}' (los datos reales de appdb, "
+            f"directamente o a través de su clon). Current: '{db_name}'. "
+            f"Check your .env file."
         )
 
     def test_mongo_db_name_not_news_bot(self):
@@ -36,7 +45,7 @@ class TestDatabaseConfiguration:
         db_name = Settings.MONGO_DB_NAME
         assert db_name != "news_bot", (
             f"MONGO_DB_NAME is '{db_name}' (empty database). "
-            f"Must be 'appdb' which contains production data."
+            f"Must contain the real appdb data."
         )
 
 
@@ -69,6 +78,7 @@ class TestMongoDBConnection:
         )
 
 
+@pytest.mark.production
 class TestDatabaseDataQuantities:
     """Test that database has minimum required data."""
 
@@ -127,6 +137,7 @@ class TestDatabaseDataQuantities:
         )
 
 
+@pytest.mark.production
 class TestRequiredCollections:
     """Test that all required MongoDB collections exist."""
 
@@ -181,9 +192,19 @@ class TestRequiredCollections:
 class TestStartupValidatorIntegration:
     """Test that startup validator works correctly."""
 
-    def test_startup_validator_passes_with_appdb(self):
-        """Startup validator must pass when infrastructure is correct."""
+    @pytest.mark.production
+    def test_startup_validator_passes_with_appdb(self, monkeypatch):
+        """Startup validator must pass when infrastructure is correct.
+
+        `StartupValidator._validate_database_name()` (startup_validator.py:80)
+        exige literalmente MONGO_DB_NAME == 'appdb' y llama a sys.exit(1) si no.
+        Es la validación de la APP REAL, así que no se relaja: en este test se
+        le presenta 'appdb' explícitamente. Los datos que lee son los del clon,
+        que es una copia de appdb, así que los umbrales se cumplen igual.
+        """
         from src.shared.infrastructure.startup_validator import StartupValidator
+
+        monkeypatch.setenv("MONGO_DB_NAME", "appdb")
 
         # Should not raise exception
         try:
@@ -191,26 +212,29 @@ class TestStartupValidatorIntegration:
         except SystemExit as e:
             pytest.fail(
                 f"Startup validator failed unexpectedly with exit code {e.code}. "
-                f"Ensure appdb is configured and contains data."
+                f"Ensure the appdb data is configured and present."
             )
 
     def test_startup_validator_detects_wrong_database_name(self, monkeypatch):
-        """Startup validator must detect wrong database name."""
-        from src.shared.infrastructure.startup_validator import (
-            StartupValidator,
-            InfrastructureValidationError,
-        )
+        """Startup validator must abort the boot when MONGO_DB_NAME is wrong."""
+        from src.shared.infrastructure.startup_validator import StartupValidator
 
         # Temporarily change database name
         monkeypatch.setenv("MONGO_DB_NAME", "wrong_db")
 
-        with pytest.raises(InfrastructureValidationError):
-            # Need to reimport to pick up new env var
-            import importlib
-            import config.settings
-
-            importlib.reload(config.settings)
+        # validate_all() turns InfrastructureValidationError into SystemExit(1)
+        # so the process cannot continue booting ("Application cannot start").
+        #
+        # NOTE: no importlib.reload(config.settings) here on purpose.
+        # _validate_database_name() reads os.getenv('MONGO_DB_NAME') at call
+        # time, so the monkeypatched env var is picked up without any reload.
+        # Reloading config.settings rebinds the `Settings` class object, which
+        # silently breaks every module that did `from config.settings import
+        # Settings` at import time (e.g. tts_factory).
+        with pytest.raises(SystemExit) as exc_info:
             StartupValidator.validate_all()
+
+        assert exc_info.value.code == 1
 
     def test_startup_validator_detects_insufficient_articles(self, monkeypatch):
         """Startup validator must detect insufficient article count."""
@@ -227,17 +251,16 @@ class TestStartupValidatorIntegration:
 
         monkeypatch.setenv("MONGO_DB_NAME", "wrong_db")
 
-        try:
-            import importlib
-            import config.settings
+        # The message is carried by the InfrastructureValidationError raised by
+        # the individual check; validate_all() logs it and then exits with 1
+        # (covered by test_startup_validator_detects_wrong_database_name).
+        with pytest.raises(InfrastructureValidationError) as exc_info:
+            StartupValidator._validate_database_name()
 
-            importlib.reload(config.settings)
-            StartupValidator.validate_all()
-        except InfrastructureValidationError as e:
-            error_msg = str(e)
-            # Error message should be clear and actionable
-            assert "MONGO_DB_NAME" in error_msg or "appdb" in error_msg
-            assert len(error_msg) > 20, "Error message should be descriptive"
+        error_msg = str(exc_info.value)
+        # Error message should be clear and actionable
+        assert "MONGO_DB_NAME" in error_msg or "appdb" in error_msg
+        assert len(error_msg) > 20, "Error message should be descriptive"
 
 
 # ============================================================
@@ -245,13 +268,19 @@ class TestStartupValidatorIntegration:
 # ============================================================
 
 
-def test_guard_infrastructure_valid_before_other_tests():
+@pytest.mark.production
+def test_guard_infrastructure_valid_before_other_tests(monkeypatch):
     """
     This test runs first (alphabetically) and ensures infrastructure
     is valid before other tests run. It prevents silent failures where
     tests pass but with wrong database.
+
+    Ver `test_startup_validator_passes_with_appdb` para por qué se le presenta
+    'appdb' explícitamente al validador.
     """
     from src.shared.infrastructure.startup_validator import StartupValidator
+
+    monkeypatch.setenv("MONGO_DB_NAME", "appdb")
 
     # This will fail immediately and loudly if infrastructure is wrong
     try:

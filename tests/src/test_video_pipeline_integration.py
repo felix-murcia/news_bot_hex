@@ -79,11 +79,19 @@ class TestVideoPipelineWorkflow:
 
     def test_video_repository_access(self):
         """Test video data can be stored/retrieved from MongoDB."""
+        from config.settings import Settings
         from src.shared.adapters.mongo_db import get_database
 
         db = get_database()
         assert db is not None
-        assert db.name == "appdb"
+        # La suite no debe tocar la BD de producción (decisión Fase 3), salvo
+        # en el modo opt-in que afirma datos reales.
+        assert db.name == Settings.MONGO_DB_NAME
+        import os
+
+        prod_mode = os.getenv("NEWS_BOT_RUN_PRODUCTION_TESTS", "").lower() in {"1", "true", "yes"}
+        if not prod_mode:
+            assert db.name != "appdb", "Los tests no deben escribir en appdb"
 
 
 class TestVideoPipelinePorts:

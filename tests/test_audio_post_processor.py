@@ -1,82 +1,144 @@
-"""Tests for audio post-processor artifact removal."""
+"""Tests for audio post-processor artifact removal.
 
-import os
+These tests cover the CURRENT contract of AudioPostProcessor, which since the
+ffmpeg migration (commit a6b7d37) delegates every DSP stage to the ffmpeg-api
+microservice via a single HTTP POST to /audio/post-process. The former
+subprocess implementation (temp_dir, _normalize_loudness, _remove_breathing_artifacts,
+_stabilize_artifacts, _apply_compression, _cleanup_temp_files) no longer exists in
+the adapter: that logic now lives in the ffmpeg-api service.
+"""
+
 import pytest
-from pathlib import Path
+import requests
+from unittest.mock import Mock, patch
+
 from src.shared.adapters.audio_post_processor import AudioPostProcessor, post_process_audio
+
+FAKE_WAV = b"RIFF$\x00\x00\x00WAVEfmt "
+
+
+def _mock_response(status_code: int = 200, content: bytes = FAKE_WAV) -> Mock:
+    response = Mock()
+    response.status_code = status_code
+    response.content = content
+    response.text = "error"
+    return response
 
 
 class TestAudioPostProcessor:
     """Test cases for AudioPostProcessor."""
 
     def test_initialization(self):
-        """Test that post-processor initializes correctly."""
-        processor = AudioPostProcessor()
-        assert processor.temp_dir.exists()
+        """Post-processor must build the ffmpeg-api /audio/post-process endpoint."""
+        processor = AudioPostProcessor(base_url="http://ffmpeg.test:8082/")
+        assert processor.base_url == "http://ffmpeg.test:8082"
+        assert processor.post_process_endpoint == "http://ffmpeg.test:8082/audio/post-process"
 
-    def test_normalize_loudness_simple(self, tmp_path):
-        """Test loudness normalization with a simple sine wave."""
-        # Create a simple test WAV file (sine wave)
-        import subprocess
+    def test_initialization_default_url_comes_from_settings(self):
+        """Without an explicit base_url the adapter uses the configured ffmpeg-api URL."""
+        with patch(
+            "src.shared.adapters.audio_post_processor.get_audio_converter_url",
+            return_value="http://default.test:9999",
+        ):
+            processor = AudioPostProcessor()
+        assert processor.base_url == "http://default.test:9999"
+        assert processor.post_process_endpoint == "http://default.test:9999/audio/post-process"
 
-        test_wav = tmp_path / "test_sine.wav"
-        output_wav = tmp_path / "normalized.wav"
+    def test_process_sends_every_artifact_flag(self, tmp_path):
+        """All artifact-reduction stages must be forwarded to ffmpeg-api as flags."""
+        source = tmp_path / "in.wav"
+        source.write_bytes(FAKE_WAV)
 
-        # Generate a simple sine wave with ffmpeg
-        cmd = [
-            "ffmpeg", "-f", "lavfi", "-i", "sine=f=440:d=1",
-            "-q:a", "9", str(test_wav), "-y"
-        ]
-        try:
-            subprocess.run(cmd, check=True, capture_output=True, timeout=5)
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            pytest.skip("ffmpeg not available")
+        with patch("src.shared.adapters.audio_post_processor.requests.post") as mock_post:
+            mock_post.return_value = _mock_response()
+            AudioPostProcessor(base_url="http://ffmpeg.test").process(
+                str(source),
+                str(tmp_path / "out.wav"),
+                normalize=True,
+                remove_breathing=True,
+                stabilize_plosives=True,
+                noise_gate_threshold=-35.0,
+            )
 
-        if not test_wav.exists():
-            pytest.skip("Could not generate test WAV")
+        mock_post.assert_called_once()
+        url = mock_post.call_args[0][0]
+        payload = mock_post.call_args[1]["json"]
+        assert url == "http://ffmpeg.test/audio/post-process"
+        assert payload == {
+            "path": str(source),
+            "normalize": True,
+            "remove_breathing": True,
+            "stabilize_plosives": True,
+            "noise_gate_threshold": -35.0,
+        }
 
-        processor = AudioPostProcessor()
-        result = processor.process(
-            str(test_wav),
-            str(output_wav),
-            normalize=True,
-            remove_breathing=False,
-            stabilize_plosives=False,
-        )
+    def test_process_writes_binary_response_to_output(self, tmp_path):
+        """The binary WAV body returned by ffmpeg-api must land on disk."""
+        source = tmp_path / "in.wav"
+        source.write_bytes(FAKE_WAV)
+        target = tmp_path / "nested" / "out.wav"
 
-        # Should return the output path
-        assert result is not None
-        # Output file should exist
-        assert Path(result).exists() if result else True
+        with patch("src.shared.adapters.audio_post_processor.requests.post") as mock_post:
+            mock_post.return_value = _mock_response(content=b"PROCESSED-AUDIO")
+            result = AudioPostProcessor(base_url="http://ffmpeg.test").process(
+                str(source), str(target)
+            )
 
-    def test_breathing_removal_parameters(self):
-        """Test that breathing removal uses appropriate parameters."""
-        processor = AudioPostProcessor()
-        # Just verify the processor has the method
-        assert hasattr(processor, "_remove_breathing_artifacts")
-        assert callable(processor._remove_breathing_artifacts)
+        assert result == str(target)
+        assert target.read_bytes() == b"PROCESSED-AUDIO"
 
-    def test_artifact_stabilization_parameters(self):
-        """Test that artifact stabilization is configured."""
-        processor = AudioPostProcessor()
-        assert hasattr(processor, "_stabilize_artifacts")
-        assert callable(processor._stabilize_artifacts)
+    def test_process_overwrites_input_when_no_output_path(self, tmp_path):
+        """Omitting output_path must post-process the input file in place."""
+        source = tmp_path / "in.wav"
+        source.write_bytes(FAKE_WAV)
 
-    def test_compression_parameters(self):
-        """Test that compression is configured."""
-        processor = AudioPostProcessor()
-        assert hasattr(processor, "_apply_compression")
-        assert callable(processor._apply_compression)
+        with patch("src.shared.adapters.audio_post_processor.requests.post") as mock_post:
+            mock_post.return_value = _mock_response(content=b"IN-PLACE")
+            result = AudioPostProcessor(base_url="http://ffmpeg.test").process(str(source))
 
-    def test_temp_directory_cleanup(self, tmp_path):
-        """Test that cleanup method handles files gracefully."""
-        processor = AudioPostProcessor()
-        # Just verify cleanup doesn't crash with various counts
-        processor._cleanup_temp_files(0)
-        processor._cleanup_temp_files(1)
-        processor._cleanup_temp_files(5)
-        # If we get here without exception, cleanup is working
-        assert True
+        assert result == str(source)
+        assert source.read_bytes() == b"IN-PLACE"
+
+    def test_process_returns_none_when_input_missing(self, tmp_path):
+        """A missing input must short-circuit before any HTTP call."""
+        missing = tmp_path / "nope.wav"
+
+        with patch("src.shared.adapters.audio_post_processor.requests.post") as mock_post:
+            result = AudioPostProcessor(base_url="http://ffmpeg.test").process(str(missing))
+
+        assert result is None
+        mock_post.assert_not_called()
+
+    @pytest.mark.parametrize("status_code", [400, 404, 500, 503])
+    def test_process_returns_none_on_http_error(self, tmp_path, status_code):
+        """Any non-200 from ffmpeg-api must degrade to None, never raise."""
+        source = tmp_path / "in.wav"
+        source.write_bytes(FAKE_WAV)
+
+        with patch("src.shared.adapters.audio_post_processor.requests.post") as mock_post:
+            mock_post.return_value = _mock_response(status_code=status_code)
+            result = AudioPostProcessor(base_url="http://ffmpeg.test").process(str(source))
+
+        assert result is None
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            requests.exceptions.Timeout("boom"),
+            requests.exceptions.ConnectionError("boom"),
+            RuntimeError("boom"),
+        ],
+    )
+    def test_process_returns_none_on_transport_error(self, tmp_path, error):
+        """Network/transport failures must degrade to None, never raise."""
+        source = tmp_path / "in.wav"
+        source.write_bytes(FAKE_WAV)
+
+        with patch("src.shared.adapters.audio_post_processor.requests.post") as mock_post:
+            mock_post.side_effect = error
+            result = AudioPostProcessor(base_url="http://ffmpeg.test").process(str(source))
+
+        assert result is None
 
     def test_post_process_audio_convenience_function(self):
         """Test the convenience wrapper function."""
@@ -84,18 +146,50 @@ class TestAudioPostProcessor:
         assert callable(processor_func)
 
 
+class TestAudioPostProcessorAggressiveness:
+    """The convenience wrapper maps `aggressive` onto the noise-gate threshold."""
+
+    @pytest.mark.parametrize(
+        "aggressive,expected_threshold", [(True, -35.0), (False, -40.0)]
+    )
+    def test_noise_gate_threshold_per_aggressiveness(
+        self, tmp_path, aggressive, expected_threshold
+    ):
+        source = tmp_path / "in.wav"
+        source.write_bytes(FAKE_WAV)
+
+        with patch("src.shared.adapters.audio_post_processor.requests.post") as mock_post:
+            mock_post.return_value = _mock_response()
+            post_process_audio(
+                input_path=str(source),
+                output_path=str(tmp_path / "out.wav"),
+                aggressive=aggressive,
+            )
+
+        payload = mock_post.call_args[1]["json"]
+        assert payload["noise_gate_threshold"] == expected_threshold
+        assert payload["normalize"] is True
+        assert payload["remove_breathing"] is True
+        assert payload["stabilize_plosives"] is True
+
+
 class TestAudioPostProcessorIntegration:
     """Integration tests for audio post-processing."""
 
-    def test_full_pipeline_parameters(self):
-        """Test that all processing stages are configured."""
-        processor = AudioPostProcessor()
+    def test_full_pipeline_parameters(self, tmp_path):
+        """Every processing stage the adapter still owns must be enabled by default."""
+        source = tmp_path / "in.wav"
+        source.write_bytes(FAKE_WAV)
 
-        # Verify all methods exist
-        assert hasattr(processor, "_normalize_loudness")
-        assert hasattr(processor, "_remove_breathing_artifacts")
-        assert hasattr(processor, "_stabilize_artifacts")
-        assert hasattr(processor, "_apply_compression")
+        with patch("src.shared.adapters.audio_post_processor.requests.post") as mock_post:
+            mock_post.return_value = _mock_response()
+            AudioPostProcessor(base_url="http://ffmpeg.test").process(str(source))
+
+        payload = mock_post.call_args[1]["json"]
+        assert payload["normalize"] is True
+        assert payload["remove_breathing"] is True
+        assert payload["stabilize_plosives"] is True
+        assert payload["noise_gate_threshold"] == -40.0
 
     def test_aggressive_mode(self):
         """Test aggressive post-processing mode."""
@@ -122,6 +216,7 @@ class TestAudioPostProcessorDocumentation:
     def test_module_docstring(self):
         """Test that module has appropriate docstring."""
         from src.shared.adapters import audio_post_processor
+
         assert audio_post_processor.__doc__ is not None
         assert "artifact" in audio_post_processor.__doc__.lower()
 

@@ -162,19 +162,28 @@ class TestProcessNewsUrlFunction:
 
 
 class TestProvidersEndpoint:
-    """Test /news/providers endpoint."""
+    """Test /admin/providers endpoint.
+
+    The route lives in admin_router (remediation H5: admin endpoints moved out
+    of news_router), mounted with prefix /admin in server.py:71. The frontend
+    already calls /admin/providers (frontend/src/api/news.ts:30).
+    """
+
+    @staticmethod
+    def _client():
+        from fastapi.testclient import TestClient
+        from fastapi import FastAPI
+        from src.news.entrypoints.api.admin_router import router
+
+        app = FastAPI()
+        app.include_router(router, prefix="/admin")
+        return TestClient(app)
 
     def test_providers_endpoint_returns_list(self):
         """Endpoint should return list of supported providers."""
-        from fastapi.testclient import TestClient
-        from src.news.entrypoints.api.news_router import router
-        from fastapi import FastAPI
+        client = self._client()
 
-        app = FastAPI()
-        app.include_router(router, prefix="/news")
-        client = TestClient(app)
-
-        response = client.get("/news/providers")
+        response = client.get("/admin/providers")
 
         assert response.status_code == 200
         data = response.json()
@@ -184,15 +193,10 @@ class TestProvidersEndpoint:
 
     def test_providers_endpoint_has_valid_providers(self):
         """Endpoint should return at least one valid provider."""
-        from fastapi.testclient import TestClient
-        from src.news.entrypoints.api.news_router import router
-        from fastapi import FastAPI
+        client = self._client()
 
-        app = FastAPI()
-        app.include_router(router, prefix="/news")
-        client = TestClient(app)
-
-        response = client.get("/news/providers")
+        response = client.get("/admin/providers")
+        assert response.status_code == 200
         data = response.json()
         providers = data["data"]["providers"]
 
@@ -200,6 +204,18 @@ class TestProvidersEndpoint:
         assert len(providers) > 0
         # All should be strings
         assert all(isinstance(p, str) for p in providers)
+
+    def test_providers_endpoint_matches_ai_adapter_map(self):
+        """The endpoint must expose exactly the providers in Settings.AI_ADAPTER_MAP.
+
+        Guards against hardcoding a provider list in the frontend or the router.
+        """
+        from config.settings import Settings
+
+        client = self._client()
+        providers = client.get("/admin/providers").json()["data"]["providers"]
+
+        assert sorted(providers) == sorted(Settings.AI_ADAPTER_MAP.keys())
 
 
 class TestProcessUrlInputValidation:
@@ -242,13 +258,17 @@ class TestProcessUrlInputValidation:
 
     @patch("src.news.entrypoints.api.news_router.get_content_extractor")
     def test_accepts_valid_url_and_forces_fresh_extraction(self, mock_get_extractor):
-        """Endpoint should always force fresh extraction (no cache) for manual URL processing."""
-        from fastapi.testclient import TestClient
-        from src.news.entrypoints.api.news_router import router
-        from fastapi import FastAPI
+        """Endpoint composition must always force fresh extraction (no cache).
 
-        app = FastAPI()
-        app.include_router(router, prefix="/news")
+        The POST /news/process_url endpoint is asynchronous (it creates a job
+        and hands off to ProcessUrlJobCoordinator), so it never calls
+        process_news_url inline any more. The "always fresh" guarantee now lives
+        in the composition root: get_process_url_content_processor wires
+        force_extract=True (see docs/CACHE_EXTRACTION_FIX.md).
+        """
+        from src.news.entrypoints.api.dependencies import (
+            get_process_url_content_processor,
+        )
 
         mock_extractor = Mock()
         mock_get_extractor.return_value = mock_extractor
@@ -262,21 +282,51 @@ class TestProcessUrlInputValidation:
                 "mode": "local",
             }
 
-            client = TestClient(app)
-
-            response = client.post(
-                "/news/process_url",
-                json={
-                    "url": "https://example.com/article",
-                    "use_ai": True,
-                },
+            process_url = get_process_url_content_processor(
+                content_extractor=mock_extractor
             )
+            result = process_url("https://example.com/article")
 
-            # Should succeed
-            assert response.status_code == 200
-            # Verify process_news_url was called with force_extract=True (always)
-            call_kwargs = mock_process.call_args[1]
-            assert call_kwargs["force_extract"] is True
+        # process_news_url must have been invoked with force_extract=True (always)
+        call_kwargs = mock_process.call_args[1]
+        assert call_kwargs["force_extract"] is True
+        assert call_kwargs["url"] == "https://example.com/article"
+        assert call_kwargs["content_extractor"] is mock_extractor
+        assert result == mock_process.return_value
+
+    def test_process_url_endpoint_returns_job_id_for_polling(self):
+        """POST /news/process_url is async: it must return a job_id, not results."""
+        from fastapi.testclient import TestClient
+        from fastapi import FastAPI
+        from src.news.entrypoints.api.news_router import router
+
+        app = FastAPI()
+        app.include_router(router, prefix="/news")
+
+        mock_repo = Mock()
+        mock_repo.create.return_value = "job-123"
+        mock_coordinator = Mock()
+
+        app.dependency_overrides = {}
+        from src.news.entrypoints.api.news_router import (
+            get_process_url_job_coordinator,
+            get_process_url_job_repository,
+        )
+
+        app.dependency_overrides[get_process_url_job_repository] = lambda: mock_repo
+        app.dependency_overrides[get_process_url_job_coordinator] = lambda: mock_coordinator
+
+        client = TestClient(app)
+        response = client.post(
+            "/news/process_url", json={"url": "https://example.com/article"}
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["data"]["job_id"] == "job-123"
+        mock_coordinator.execute_async.assert_called_once_with(
+            job_id="job-123", url="https://example.com/article"
+        )
 
 
 class TestProcessUrlErrorHandling:

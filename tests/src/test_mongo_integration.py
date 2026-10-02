@@ -15,17 +15,58 @@ from datetime import datetime, timezone, timedelta
 class TestMongoDBClient:
     """Test MongoDB client connection."""
 
-    def test_get_client_singleton(self):
-        """Test that MongoDBClient returns a singleton instance."""
+    def test_mongo_db_client_is_not_a_singleton(self):
+        """MongoDBClient must NOT be a singleton (Hexagonal Architecture DIP).
+
+        The class docstring states the design explicitly: "Cliente MongoDB sin
+        Singleton pattern (Hexagonal Architecture DIP)". Every construction
+        yields an independent adapter, so callers own their own lifecycle and
+        tests can inject a client built from explicit credentials.
+        """
         from src.shared.adapters.mongo_db import MongoDBClient
 
-        # Test that the class-level singleton works
         instance1 = MongoDBClient()
         instance2 = MongoDBClient()
-        assert instance1 is instance2
 
-        client = instance1.get_client()
+        assert instance1 is not instance2
+
+    def test_mongo_db_client_memoizes_its_own_client(self):
+        """Each instance must create its pymongo client lazily and then reuse it."""
+        from src.shared.adapters.mongo_db import MongoDBClient
+
+        instance = MongoDBClient()
+
+        # Lazy: nothing built before the first call.
+        assert instance._client is None
+
+        client = instance.get_client()
         assert client is not None
+        # Memoized: subsequent calls reuse the same pymongo client.
+        assert instance.get_client() is client
+
+    def test_get_client_singleton_via_factory(self):
+        """The module-level factory is the caching layer that replaced the singleton.
+
+        get_database() keeps a module-level _default_client, so the composition
+        root reuses one MongoDBClient (and therefore one pymongo connection pool)
+        for the whole process. Note pymongo builds a fresh Database wrapper per
+        __getitem__, so identity is asserted on the client, not on the handle.
+        """
+        from src.shared.adapters import mongo_db
+
+        mongo_db._default_client = None
+
+        db1 = mongo_db.get_database()
+        cached = mongo_db._default_client
+        client = cached.get_client()
+        db2 = mongo_db.get_database()
+
+        # Same cached adapter => same pymongo client => one connection pool.
+        assert mongo_db._default_client is cached
+        assert cached.get_client() is client
+        assert db1.client is client
+        assert db2.client is client
+        assert db1.name == db2.name == cached.get_database().name
 
     def test_get_database(self):
         """Test get_database returns database reference."""

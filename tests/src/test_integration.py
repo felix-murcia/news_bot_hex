@@ -136,35 +136,47 @@ class TestAIFactory:
 
 
 class TestAIGeminiAdapter:
-    """Test Gemini AI adapter."""
+    """Test Gemini AI adapter.
 
-    @patch.dict(os.environ, {"GEMINI_API_KEY": "test_key"})
+    Settings is a plain class whose attributes are evaluated from os.getenv
+    ONCE at import time. Patching os.environ therefore does NOT reach the
+    adapters once config.settings has been imported: it only "worked" when this
+    test happened to be the first to import config.settings, which made the
+    result depend on collection order. The real seam is Settings.GEMINI_CONFIG.
+    """
+
     def test_gemini_adapter_initialization(self):
         """Test Gemini adapter initializes correctly."""
+        from config.settings import Settings
         from src.shared.adapters.ai.gemini_adapter import GeminiAdapter
 
-        adapter = GeminiAdapter(validate_on_init=False)
+        with patch.dict(Settings.GEMINI_CONFIG, {"api_key": "test_key"}):
+            adapter = GeminiAdapter(validate_on_init=False)
+
         assert adapter.provider == "gemini"
-        assert isinstance(adapter.api_key, str)
+        assert adapter.api_key == "test_key"
 
-    @patch.dict(os.environ, {"GEMINI_API_KEY": ""})
     def test_gemini_adapter_missing_key_warning(self):
-        """Test adapter handles empty/missing API key."""
+        """An empty key must warn and still construct (no raise)."""
+        from config.settings import Settings
         from src.shared.adapters.ai.gemini_adapter import GeminiAdapter
 
-        adapter = GeminiAdapter(validate_on_init=False)
-        # Key may come from .env or be empty
-        assert isinstance(adapter.api_key, str)
+        with patch.dict(Settings.GEMINI_CONFIG, {"api_key": ""}):
+            adapter = GeminiAdapter(validate_on_init=False)
 
-    @patch.dict(os.environ, {"GEMINI_API_KEY": "test_key"})
+        assert adapter.api_key == ""
+        assert adapter.validate_key() is False
+
     def test_gemini_validate_key(self):
-        """Test key validation."""
+        """validate_key reflects the configured key."""
+        from config.settings import Settings
         from src.shared.adapters.ai.gemini_adapter import GeminiAdapter
 
-        adapter = GeminiAdapter(validate_on_init=False)
-        assert adapter.validate_key() is True
+        with patch.dict(Settings.GEMINI_CONFIG, {"api_key": "test_key"}):
+            assert GeminiAdapter(validate_on_init=False).validate_key() is True
+        with patch.dict(Settings.GEMINI_CONFIG, {"api_key": ""}):
+            assert GeminiAdapter(validate_on_init=False).validate_key() is False
 
-    @patch.dict(os.environ, {"GEMINI_API_KEY": "test_key"})
     def test_gemini_transcribe_not_implemented(self):
         """Test that transcription raises NotImplementedError."""
         from src.shared.adapters.ai.gemini_adapter import GeminiAdapter
@@ -175,27 +187,33 @@ class TestAIGeminiAdapter:
 
 
 class TestAIOpenRouterAdapter:
-    """Test OpenRouter AI adapter."""
+    """Test OpenRouter AI adapter.
 
-    @patch.dict(os.environ, {"OPENROUTER_API_KEY": "test_key"})
+    OpenRouterAdapter reads Settings.API_KEYS["openrouter"], which is likewise
+    snapshotted at import time, so the real seam is that dict entry.
+    """
+
     def test_openrouter_adapter_initialization(self):
         """Test OpenRouter adapter initializes correctly."""
+        from config.settings import Settings
         from src.shared.adapters.ai.openrouter_adapter import OpenRouterAdapter
 
-        adapter = OpenRouterAdapter(validate_on_init=False)
+        with patch.dict(Settings.API_KEYS, {"openrouter": "test_key"}):
+            adapter = OpenRouterAdapter(validate_on_init=False)
+
         assert adapter.provider == "openrouter"
-        # API key may come from .env or mock
-        assert isinstance(adapter.api_key, str)
+        assert adapter.api_key == "test_key"
         assert len(adapter.api_key) > 0
 
-    @patch.dict(os.environ, {"OPENROUTER_API_KEY": ""})
     def test_openrouter_adapter_missing_key_warning(self):
-        """Test adapter handles empty/missing API key."""
+        """An empty key must warn and still construct (no raise)."""
+        from config.settings import Settings
         from src.shared.adapters.ai.openrouter_adapter import OpenRouterAdapter
 
-        adapter = OpenRouterAdapter(validate_on_init=False)
-        # Key may come from .env or be empty
-        assert isinstance(adapter.api_key, str)
+        with patch.dict(Settings.API_KEYS, {"openrouter": ""}):
+            adapter = OpenRouterAdapter(validate_on_init=False)
+
+        assert adapter.api_key == ""
 
 
 class TestBasePipeline:
@@ -455,13 +473,32 @@ class TestErrorHandling:
             pipeline.run("https://invalid.url/audio.mp3", "Test")
 
     def test_pipeline_handles_missing_video_file(self):
-        """Test pipeline handles missing video file gracefully."""
+        """Pipeline must surface step 1 failures as a RuntimeError.
+
+        Step 1 downloads the video's audio and transcribes it, so a video that
+        cannot be fetched surfaces as "Error in audio download/transcription".
+        The fetcher is patched so the test does not depend on real DNS.
+        """
         from src.video.application.usecases.video_pipeline import VideoPipelineUseCase
 
         pipeline = VideoPipelineUseCase(no_publish=True)
 
-        with pytest.raises(RuntimeError, match="Error in video download"):
-            pipeline.run("https://invalid.url/video.mp4", "Test")
+        mock_fetcher = Mock()
+        mock_fetcher.fetch.return_value = None
+        mock_transcriber = Mock()
+
+        with patch(
+            "src.shared.infrastructure.composition_root.create_video_fetcher",
+            return_value=mock_fetcher,
+        ), patch(
+            "src.shared.infrastructure.composition_root.create_video_transcriber",
+            return_value=mock_transcriber,
+        ):
+            with pytest.raises(RuntimeError, match="Error in audio download/transcription"):
+                pipeline.run("https://invalid.url/video.mp4", "Test")
+
+        mock_fetcher.fetch.assert_called_once_with("https://invalid.url/video.mp4")
+        mock_transcriber.transcribe.assert_not_called()
 
 
 class TestTypeHints:

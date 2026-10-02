@@ -204,12 +204,12 @@ class TestArticleGeminiUseCase:
 
         assert use_case is not None
 
-    def test_slugify(self):
-        """Test slugify function."""
-        from src.news.application.usecases.article import slugify
+    def test_seo_slugify(self):
+        """Test the SEO slugify consumed by article.py (seo_optimizer.slugify)."""
+        from src.news.application.usecases.article import seo_slugify
 
-        assert slugify("Test Title") == "test-title"
-        assert slugify("Test Multiple Spaces") == "test-multiple-spaces"
+        assert seo_slugify("Test Title") == "test-title"
+        assert seo_slugify("Test Multiple Spaces") == "test-multiple-spaces"
 
 
 class TestPublisherClasses:

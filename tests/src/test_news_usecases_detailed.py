@@ -7,15 +7,38 @@ from datetime import datetime, timezone
 class TestArticleUseCase:
     """Test ArticleUseCase (article.py) - large file."""
 
-    def test_slugify(self):
-        from src.news.application.usecases.article import slugify
-        assert slugify("Hello World!") == "hello-world"
-        assert slugify("  spaces  ") == "spaces"
-        assert slugify("Test--double") == "test-double"
+    def test_seo_slugify(self):
+        """article.py consumes seo_optimizer.slugify (aliased seo_slugify).
 
-    def test_slugify_empty(self):
-        from src.news.application.usecases.article import slugify
-        assert slugify("") == ""
+        Introduced by commit 159a627 "optimizar SEO Wordpress": slugs are built
+        from significant words only (stop-words dropped, max 6 words) and
+        accents are stripped so WordPress URLs stay ASCII.
+        """
+        from src.news.application.usecases.article import seo_slugify
+
+        assert seo_slugify("Hello World!") == "hello-world"
+        assert seo_slugify("  spaces  ") == "spaces"
+        # Accents are normalised away (NFD + drop combining marks)
+        assert seo_slugify("Cláusula fundacional del PLAN") == "clausula-fundacional-plan"
+        # Stop-words ("de", "la", ...) are dropped from the slug
+        assert seo_slugify("Crisis de la energía en la región") == "crisis-energia-region"
+
+    def test_seo_slugify_respects_max_words(self):
+        from src.news.application.usecases.article import seo_slugify
+
+        title = "alpha beta gamma delta epsilon zeta eta theta"
+        slug = seo_slugify(title, max_words=3)
+        assert slug == "alpha-beta-gamma"
+
+    def test_seo_slugify_falls_back_when_only_stop_words(self):
+        """If every word is a stop-word the raw words are used instead of ""."""
+        from src.news.application.usecases.article import seo_slugify
+
+        assert seo_slugify("de la el") == "de-la-el"
+
+    def test_seo_slugify_empty(self):
+        from src.news.application.usecases.article import seo_slugify
+        assert seo_slugify("") == ""
 
 
 class TestContentUseCaseDetailed:
@@ -238,12 +261,29 @@ class TestImageEnricherDetailed:
         urls = get_image_urls(post)
         assert "https://unsplash.com/1" in urls
 
-    def test_get_image_urls_excludes_nbes(self):
+    def test_get_image_urls_excludes_own_site(self):
+        """Images hosted on the configured WordPress site are not real content."""
+        from config.settings import Settings
         from src.shared.adapters.image_enricher import get_image_urls
 
-        post = {"image_url": "https://nbes.blog/img.jpg"}
-        urls = get_image_urls(post)
-        assert len(urls) == 0
+        post = {"image_url": f"{Settings.WP_SITE_URL}/img.jpg"}
+        assert get_image_urls(post) == []
+
+    def test_get_image_urls_excludes_default_logo(self):
+        """The NBES fallback logo must never be re-selected as a real image."""
+        from src.shared.adapters.image_enricher import DEF_LOGO_URL, get_image_urls
+
+        assert get_image_urls({"image_url": DEF_LOGO_URL}) == []
+
+    def test_get_image_urls_prefers_wikimedia_then_google(self):
+        from src.shared.adapters.image_enricher import get_image_urls
+
+        post = {
+            "wikimedia_image": "https://wikimedia.org/1",
+            "google_image": "https://google.com/1",
+            "unsplash_image": "https://unsplash.com/1",
+        }
+        assert get_image_urls(post)[0] == "https://wikimedia.org/1"
 
     def test_assign_fallback(self):
         from src.shared.adapters.image_enricher import assign_fallback
@@ -258,19 +298,16 @@ class TestGoogleImagesDetailed:
     """Test Google Images fetcher detailed."""
 
     def test_search_without_keys(self):
+        """Without GOOGLE keys the fetcher must degrade to [] and never hit the API."""
         from src.shared.adapters import google_images_fetcher as gif_mod
 
-        # When keys are missing, should return None
-        original_key = gif_mod.GOOGLE_API_KEY
-        original_cx = gif_mod.GOOGLE_CX
-        gif_mod.GOOGLE_API_KEY = None
-        gif_mod.GOOGLE_CX = None
+        with patch.object(gif_mod, "GOOGLE_API_KEY", None), \
+             patch.object(gif_mod, "GOOGLE_CX", None), \
+             patch.object(gif_mod.requests, "get") as mock_get:
+            result = gif_mod.GoogleImagesFetcher()._search_images("test", set())
 
-        result = gif_mod.search_google_images("test", set())
-        assert result is None
-
-        gif_mod.GOOGLE_API_KEY = original_key
-        gif_mod.GOOGLE_CX = original_cx
+        assert result == []
+        mock_get.assert_not_called()
 
     def test_get_used_ids_error_handling(self):
         from src.shared.adapters.google_images_fetcher import get_used_ids
@@ -290,15 +327,15 @@ class TestUnsplashDetailed:
     """Test Unsplash fetcher detailed."""
 
     def test_search_without_key(self):
+        """Without UNSPLASH_ACCESS_KEY the fetcher must degrade to [] and never hit the API."""
         from src.shared.adapters import unsplash_fetcher as uf_mod
 
-        original_key = uf_mod.UNSPLASH_ACCESS_KEY
-        uf_mod.UNSPLASH_ACCESS_KEY = None
+        with patch.object(uf_mod, "UNSPLASH_ACCESS_KEY", None), \
+             patch.object(uf_mod.requests, "get") as mock_get:
+            result = uf_mod.UnsplashFetcher()._search_images("test", set())
 
-        result = uf_mod.search_unsplash("test", set())
-        assert result is None
-
-        uf_mod.UNSPLASH_ACCESS_KEY = original_key
+        assert result == []
+        mock_get.assert_not_called()
 
     def test_get_used_ids_error_handling(self):
         from src.shared.adapters.unsplash_fetcher import get_used_ids

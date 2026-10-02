@@ -130,10 +130,11 @@ class TestArticleFromNewsUseCase:
         use_case = ArticleFromNewsUseCase(use_ai=False)
         assert use_case.use_ai is False
 
-    def test_slugify_from_article(self):
-        from src.news.application.usecases.article import slugify
+    def test_seo_slugify_from_article(self):
+        """article.py consumes seo_optimizer.slugify (aliased seo_slugify)."""
+        from src.news.application.usecases.article import seo_slugify
 
-        assert slugify("Test Article Title") == "test-article-title"
+        assert seo_slugify("Test Article Title") == "test-article-title"
 
 
 class TestAudioToNewsUseCase:
