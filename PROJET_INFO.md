@@ -1,3 +1,29 @@
+> # ⚠️ DOCUMENTO HISTÓRICO — NO ES LA ESPECIFICACIÓN VIGENTE
+>
+> Este fichero es un **volcado histórico del código** generado por Repomix. Es una
+> fotografía del árbol de ficheros en el momento de generarse, **no** una
+> especificación. Contradice al código actual en varios puntos.
+>
+> ## Doctrina de errores: FAIL-FAST (vigente desde 2026-10-02)
+>
+> Si anywhere este documento —o el texto que cita— dice que un fallo **"no bloquea"**,
+> que **"el pipeline continúa"**, o que un paso se marca como **"skipped"**, **eso ya no
+> describe el comportamiento real**. La doctrina vigente, decidida por Félix, es:
+>
+> - **Si hay error, el pipeline termina.**
+> - Un paso fallido se registra como `ProcessingStepStatus.ERROR` (métrica `"FAILED"`)
+>   y aborta la ejecución. Nunca como `SKIPPED`, que significa "no ejecutado
+>   intencionadamente" (p. ej. `video_gen.is_available()` es `False`).
+> - Un fallo publicando en WordPress, Bluesky, Facebook o Mastodon es **crítico**:
+>   lanza `RuntimeError` y termina el pipeline.
+>
+> Los fragmentos citados abajo que contienen `logger.warning(... "no bloquea pipeline" ...)`
+> corresponden a código **anterior** a esa decisión. Para el estado real del código y
+> los incumplimientos abiertos, la fuente canónica es
+> **`.opencode/agents/cine.md`** (§15 y §16) y **`docs/ARCHITECTURAL_REVIEW.md`** §6.5.
+>
+> **Cuando este documento y el código discrepen, el código manda.**
+
 This file is a merged representation of the entire codebase, combined into a single document by Repomix.
 The content has been processed where security check has been disabled.
 
