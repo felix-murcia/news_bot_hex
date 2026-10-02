@@ -101,6 +101,13 @@ package.json
 
 scripts/wp_cleanup_2025.py
 
+# Fixtures de depuración de imagen (commit 8f0ef66, "replace image to video
+# in facebook"): capturas PNG de ~2.5MB usadas solo para probar la subida a
+# Facebook. El publisher actual trabaja con video_path del post, nunca con
+# ficheros locales. El único asset del repo es logo__NBES.svg, que sí se sirve
+# como WP_DEFAULT_IMAGE_URL.
+src/shared/utils/statics/images/*.png
+
 # === Agentes de OpenCode ===
 # El agente se define en .opencode/agents/, pero OpenCode también genera
 # node_modules/ (~63M), package.json y package-lock.json dentro de esa carpeta.
