@@ -174,11 +174,23 @@ def upload_image_from_url(
     try:
         resp = requests.get(image_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
         resp.raise_for_status()
-        compressed, filename = _compress_image(resp.content, "image.jpg", max_width=max_width)
-        logger.info(f"[HOSTING] Subiendo imagen desde URL: {image_url}")
+        
+        url_path = image_url.split("?")[0]
+        ext = os.path.splitext(url_path)[1].lower()
+        
+        # Pillow no soporta SVG. Si es SVG, subimos el original tal cual.
+        if ext == ".svg":
+            compressed = resp.content
+            filename = f"image{ext}"
+            mime_type = "image/svg+xml"
+        else:
+            compressed, filename = _compress_image(resp.content, "image.jpg", max_width=max_width)
+            mime_type = "image/webp" if filename.endswith(".webp") else "image/jpeg"
+
+        logger.info(f"[HOSTING] Subiendo imagen desde URL: {image_url} como {filename}")
         headers = get_headers()
         headers.pop("Content-Type", None)
-        files = {"file": (filename, BytesIO(compressed), "image/webp")}
+        files = {"file": (filename, BytesIO(compressed), mime_type)}
         r = requests.post(rest_url("media"), headers=headers, files=files, timeout=30)
         if r.status_code in (200, 201):
             media_id = r.json().get("id")
@@ -371,16 +383,16 @@ def publish_post(
 
         if resp.status_code in (200, 201):
             post_url = resp.json().get("link")
-            if post_url and "api.nbes.blog" in post_url:
-                post_url = post_url.replace("api.nbes.blog", "nbes.blog")
+            if post_url and Settings.WP_HOSTING_API_BASE in post_url:
+                post_url = post_url.replace(Settings.WP_HOSTING_API_BASE, Settings.WP_SITE_URL)
             logger.info(f"[HOSTING] ✅Publicado: {post_url}")
             return post_url
         else:
             logger.error(f"[HOSTING] Error: {resp.status_code} {resp.text}")
-            return None
+            raise RuntimeError(f"Fallo crítico al publicar en WordPress (HTTP {resp.status_code}): {resp.text}")
     except Exception as e:
         logger.error(f"[HOSTING] Excepción: {e}")
-        return None
+        raise RuntimeError(f"Excepción al publicar en WordPress: {e}")
 
 
 class WordPressPublisher:

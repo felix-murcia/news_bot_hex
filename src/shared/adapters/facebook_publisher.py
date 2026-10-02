@@ -10,7 +10,7 @@ from config.logging_config import get_logger
 
 logger = get_logger("news_bot")
 
-load_dotenv(override=True)
+load_dotenv()
 
 # Use Settings for all configuration
 PAGE_ID = Settings.FACEBOOK_PAGE_ID
@@ -134,11 +134,9 @@ class FacebookPublisher:
                 resp = requests.post(endpoint, data=payload, files=files)
 
                 if resp.status_code != 200:
-                    logger.error(
-                        f"[FACEBOOK] Error subiendo video: {resp.status_code} {resp.text}"
-                    )
-                    errors += 1
-                    continue
+                    error_msg = f"Error subiendo video: {resp.status_code} {resp.text}"
+                    logger.error(f"[FACEBOOK] {error_msg}")
+                    raise RuntimeError(f"Fallo crítico al publicar en Facebook: {error_msg}")
 
                 fb_resp = resp.json()
                 post_id = fb_resp.get("id")
@@ -171,9 +169,9 @@ class FacebookPublisher:
             resp = requests.post(endpoint, data=payload)
 
             if resp.status_code != 200:
-                logger.error(f"[FACEBOOK] Error: {resp.status_code} {resp.text}")
-                errors += 1
-                continue
+                error_msg = f"Error publicando: {resp.status_code} {resp.text}"
+                logger.error(f"[FACEBOOK] {error_msg}")
+                raise RuntimeError(f"Fallo crítico al publicar en Facebook: {error_msg}")
 
             fb_resp = resp.json()
             post_id = fb_resp.get("id")

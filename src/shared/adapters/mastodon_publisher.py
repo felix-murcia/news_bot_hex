@@ -117,12 +117,13 @@ def publish_post(
             logger.info(f"[MASTODON] ✅Publicado: {post_url}")
             return post_url
         else:
-            logger.error(f"[MASTODON] Error: {resp.status_code} {resp.text}")
-            return None
+            error_msg = f"Error {resp.status_code}: {resp.text}"
+            logger.error(f"[MASTODON] {error_msg}")
+            raise RuntimeError(f"Fallo crítico al publicar en Mastodon: {error_msg}")
 
     except Exception as e:
         logger.error(f"[MASTODON] Excepción: {e}")
-        return None
+        raise RuntimeError(f"Fallo crítico al publicar en Mastodon: {e}")
 
 
 class MastodonPublisher:

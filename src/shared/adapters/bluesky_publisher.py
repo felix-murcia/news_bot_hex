@@ -12,7 +12,7 @@ from config.logging_config import get_logger
 
 logger = get_logger("news_bot")
 
-load_dotenv(override=True)
+load_dotenv()
 HANDLE = Settings.BLUESKY_HANDLE
 PASSWORD = Settings.BLUESKY_APP_PASSWORD
 
@@ -228,7 +228,7 @@ class BlueskyPublisher:
 
             except Exception as e:
                 logger.error(f"[BLUESKY] Error publicando: {e}")
-                errors += 1
+                raise RuntimeError(f"Fallo crítico al publicar en Bluesky: {e}")
 
         return {
             "status": "success",
