@@ -1,36 +1,98 @@
-__pycache__/
-.pytest_cache/
+# ============================================================
+# Contexto de build — docker build .
+# Reduce el contexto de 28 MB / 20.833 ficheros a ~3 MB / ~250.
+# Docker recibe TODO el directorio salvo estas reglas, y el
+# Dockerfile hace COPY . . — así que lo no listado aquí entra.
+# ============================================================
+
+# --- Sistema operativo y editores ---
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.bak
+*.tmp
 .vscode/
-.claude/
-.ruff_cache/
 .idea/
 *.py[cod]
 *$py.class
 *.so
 .Python
-.venv
-.venv/
-env/
-venv/
+
+# --- Control de versiones e historial ---
 .git/
-.github/
+.gitattributes
 .gitignore
-.md
-test/
-logs/
-*.log
-.DS_Store
-models/
+.github/
+# Worktrees de herramientas de agente: replican el repo entero con
+# dependencias propias. Es lo que arrastraba los PNG de 2.8 MB.
+.kilo/
+.codegraph/
+.claude/
+.opencode/
+
+# --- Entornos virtuales y dependencias ---
+.venv/
+venv/
+env/
 venv_news_bot/
 node_modules/
-tests/
-*.md
-docs/
-.codegraph/
-.env.example
-CLAUDE.md
-run_dev.sh
-run_prod.sh
-node_modules/
+**/node_modules/
 package-lock.json
 package.json
+bun.lock
+.yarn/
+
+# --- Frontend: la imagen es de Python, el frontend se sirve aparte ---
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# --- Secretos: NUNCA deben entrar en la imagen ---
+# docker-compose pasa .env vía env_file en tiempo de ejecución.
+# Un .env copiado aquí acabaría en una capa de la imagen.
+.env
+.env.*
+!.env.example
+
+# --- Datos, modelos y artefactos generados ---
+# Todos van montados como volúmenes en docker-compose.yml.
+logs/
+data/
+models/
+userdata/
+profile/
+debug/
+*.log
+*.jsonl
+*.pid
+
+# --- Fixtures y capturas de depuración ---
+# nt1-3.png y uh1-4.png fueron fixtures de una prueba de Facebook
+# (8f0ef66); el publisher actual usa video_path del post.
+# El único asset legítimo es logo__NBES.svg, que no coincide.
+src/shared/utils/statics/images/*.png
+
+# --- Tests: no se ejecutan en runtime ---
+tests/
+test/
+pytest.ini
+conftest.py
+.coverage
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# --- Documentación ---
+# El patrón original era "*.md", que además de docs/ y PROJET_INFO.md
+# (40k líneas) excluía cualquier README que el código necesitara.
+*.md
+
+# --- Configuración local de herramientas ---
+run_dev.sh
+run_prod.sh
+install_timer.sh
+scripts/wp_cleanup_2025.py
+.mcp.json
+.mcp.jsonc
