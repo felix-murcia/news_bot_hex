@@ -108,7 +108,13 @@ class Settings:
     }
 
     GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
-    OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openrouter/free")
+    # Gemma 4 31B: un modelo "it" (instruction-tuned) sin campo de razonamiento.
+    # Los modelos con reasoning lo consumen del mismo presupuesto que max_tokens, se
+    # agotan antes de emitir texto y devuelven content=None con finish_reason="length"
+    # — medido: apodex-1.1-mini gastaba 6.937 tokens solo razonando y nunca llegaba
+    # al texto, ni con 4096. Gemma resuelve el prompt de tweet (4.273 chars) con
+    # finish=stop y reasoning=0, 4/4 en las pruebas.
+    OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemma-4-31b-it:free")
     OPENROUTER_API_URL = os.getenv(
         "OPENROUTER_API_URL", "https://openrouter.ai/api/v1/chat/completions"
     )

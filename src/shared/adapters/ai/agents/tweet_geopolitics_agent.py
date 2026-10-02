@@ -60,13 +60,12 @@ class TweetGeopoliticsAgent:
         **kwargs,
     ) -> str:
         """
-        1024, not 256: con modelos de razonamiento (openrouter/free,
-        apodex/*) el campo `reasoning` se paga con el mismo presupuesto. Con
-        256 el modelo se agota antes de emitir el texto y devuelve
-        content=None con finish_reason="length" — el pipeline abortaba con
-        "Tweet generado vacío". Medido con apodex-1.1-mini:free (gasta ~690
-        tokens reales, ~2300 de razonamiento): 256 -> None, 512 -> None,
-        1024 -> tweet correcto.
+        1024, no 256: el default era 256 y devolvia content=None con
+        finish_reason="length" — el pipeline abortaba con "Tweet generado
+        vacío". Con Gemma 4 (sin reasoning) 1024 sobra de sobra; el margen
+        queda para el caso de que OPENROUTER_MODEL apunte a un modelo con
+        razonamiento, cuyo campo `reasoning` se paga con este mismo
+        presupuesto. Los agentes de articulo usan 4096 por el mismo motivo.
         Genera un tweet estilo geopolítico.
 
         Args:
