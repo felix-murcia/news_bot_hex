@@ -17,6 +17,10 @@ services:
       - MONGO_PASSWORD=${MONGO_PASSWORD}
       - MONGO_DB_NAME=${MONGO_DB_NAME}
       - USE_MONGODB=${USE_MONGODB}
+      # Sin esto el contenedor ignora OPENROUTER_MODEL del .env y usa el
+      # default de settings.py, de forma silenciosa.
+      - OPENROUTER_MODEL=${OPENROUTER_MODEL}
+      - OPENROUTER_REFERER=${OPENROUTER_REFERER}
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
       - LOG_DIR=/app/logs

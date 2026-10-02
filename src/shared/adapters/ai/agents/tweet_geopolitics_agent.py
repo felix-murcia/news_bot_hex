@@ -56,10 +56,17 @@ class TweetGeopoliticsAgent:
         tema: str = "Noticias",
         context: str = "",
         temperature: float = 0.2,
-        max_tokens: int = 256,
+        max_tokens: int = 1024,
         **kwargs,
     ) -> str:
         """
+        1024, not 256: con modelos de razonamiento (openrouter/free,
+        apodex/*) el campo `reasoning` se paga con el mismo presupuesto. Con
+        256 el modelo se agota antes de emitir el texto y devuelve
+        content=None con finish_reason="length" — el pipeline abortaba con
+        "Tweet generado vacío". Medido con apodex-1.1-mini:free (gasta ~690
+        tokens reales, ~2300 de razonamiento): 256 -> None, 512 -> None,
+        1024 -> tweet correcto.
         Genera un tweet estilo geopolítico.
 
         Args:
@@ -100,7 +107,7 @@ class TweetGeopoliticsAgent:
         self,
         items: list[dict],
         temperature: float = 0.2,
-        max_tokens: int = 256,
+        max_tokens: int = 1024,
         **kwargs,
     ) -> list[str]:
         """
