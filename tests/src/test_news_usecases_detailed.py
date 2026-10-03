@@ -60,6 +60,83 @@ class TestContentUseCaseDetailed:
             assert use_case.MAX_CHARS == limit
 
 
+class TestContentRefusalGuard:
+    """ContentUseCase must not publish an LLM refusal/apology as a tweet."""
+
+    def _uc(self):
+        from src.news.application.usecases.content import ContentUseCase
+        return ContentUseCase(
+            verified_repo=Mock(),
+            generated_posts_repo=Mock(),
+            network="mastodon",
+            use_ai=True,
+            ai_model=Mock(),
+        )
+
+    @patch("src.news.application.usecases.content.TweetGeopoliticsAgent")
+    def test_refusal_tweet_raises(self, mock_agent_cls):
+        """The refusal actually seen in the log must be rejected, not published."""
+        mock_agent = Mock()
+        mock_agent.generate.return_value = (
+            "El contenido proporcionado no contiene información suficiente "
+            "para generar un reporte de #geopolítica sobre un hecho concreto en #español."
+        )
+        mock_agent_cls.return_value = mock_agent
+
+        with pytest.raises(RuntimeError):
+            self._uc()._generate_tweet_ai(
+                {"title": "Published Time: Fri, 04 Sep 2026", "tema": "geopolítica", "desc": "..."}
+            )
+
+    @patch("src.news.application.usecases.content.TweetGeopoliticsAgent")
+    def test_apology_opening_raises(self, mock_agent_cls):
+        mock_agent = Mock()
+        mock_agent.generate.return_value = "Lo siento, no es posible generar un tweet sobre ese contenido."
+        mock_agent_cls.return_value = mock_agent
+
+        with pytest.raises(RuntimeError):
+            self._uc()._generate_tweet_ai({"title": "T", "tema": "x", "desc": "y"})
+
+    @patch("src.news.application.usecases.content.TweetGeopoliticsAgent")
+    def test_valid_tweet_passes(self, mock_agent_cls):
+        mock_agent = Mock()
+        mock_agent.generate.return_value = "El #BCE subió los #TiposDeInteres 25 puntos básicos hasta el 4,25%."
+        mock_agent_cls.return_value = mock_agent
+
+        tweet = self._uc()._generate_tweet_ai({"title": "BCE sube tipos", "tema": "Economía", "desc": "..."})
+        assert "#BCE" in tweet
+
+    def test_execute_skips_item_on_generation_error(self):
+        """One item that fails generation is skipped; the others still publish."""
+        from src.news.application.usecases.content import ContentUseCase
+
+        good = Mock()
+        good.to_dict.return_value = {"title": "Good", "tema": "Economía", "url": "https://good", "desc": "BCE"}
+        bad = Mock()
+        bad.to_dict.return_value = {"title": "Video", "tema": "geopolítica", "url": "https://bad", "desc": "..."}
+        verified_repo = Mock()
+        verified_repo.get_all_news.return_value = [good, bad]
+
+        use_case = ContentUseCase(
+            verified_repo=verified_repo,
+            generated_posts_repo=Mock(),
+            network="mastodon",
+            use_ai=True,
+            ai_model=Mock(),
+        )
+
+        def fake_gen(news_item):
+            if news_item.get("url") == "https://bad":
+                raise RuntimeError("La IA se negó a generar un tweet")
+            return "El #BCE subió los #TiposDeInteres."
+
+        use_case._generate_tweet_ai = fake_gen
+
+        posts = use_case.execute(limit=2)
+        assert len(posts) == 1
+        assert posts[0]["url"] == "https://good"
+
+
 class TestTweetTruncationHelper:
     def test_removes_extra_hashtags_before_truncating(self):
         from src.shared.adapters.social_post_adapter import truncate_social_post

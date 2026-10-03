@@ -15,6 +15,27 @@ POST_LIMITS = {
     "facebook": 63206,
 }
 
+REFUSAL_PATTERNS = [
+    "no contiene información",
+    "no contiene suficiente",
+    "no es posible generar",
+    "no es posible crear",
+    "no es posible redactar",
+    "no es posible elaborar",
+    "no es posible escribir",
+    "no puedo generar",
+    "no puedo crear",
+    "no puedo redactar",
+    "no puedo elaborar",
+    "no puedo escribir",
+    "no hay información suficiente",
+    "no hay material suficiente",
+    "no es un hecho concreto",
+    "el contenido proporcionado",
+    "el contenido no contiene",
+    "lo siento",
+]
+
 
 class ContentUseCase:
     """Caso de uso para generar contenido (tweets/posts) para redes sociales (DIP: inyección de repositorio)."""
@@ -105,6 +126,18 @@ class ContentUseCase:
             if pattern.lower() in tweet.lower() or pattern.lower() in title.lower():
                 raise RuntimeError(f"Contenido generado inválido, posible página de error devuelta por IA o Traductor: {pattern}")
 
+        tweet_lower = tweet.lower()
+        for pattern in REFUSAL_PATTERNS:
+            if pattern.lower() in tweet_lower:
+                logger.error(
+                    f"[CONTENT] La IA devolvió una negación/apología en vez de un tweet para: "
+                    f"{title[:80]}... (tema: {tema}). No se publica: {tweet[:80]}..."
+                )
+                raise RuntimeError(
+                    f"La IA se negó a generar un tweet (contenido insuficiente o inválido) para "
+                    f"'{title[:80]}...'. No se publica contenido de baja calidad."
+                )
+
         return tweet
 
     def _load_content_from_cache(self, url: str) -> Optional[str]:
@@ -131,11 +164,19 @@ class ContentUseCase:
         posts = []
         for news_item in news_list[:limit]:
             url = news_item.get("url", "")
+            item_title = news_item.get("title", "")
 
-            if self.use_ai:
-                tweet = self._generate_tweet_ai(news_item)
-            else:
-                tweet = self._generate_tweet_fallback(news_item)
+            try:
+                if self.use_ai:
+                    tweet = self._generate_tweet_ai(news_item)
+                else:
+                    tweet = self._generate_tweet_fallback(news_item)
+            except Exception as e:
+                logger.warning(
+                    f"[CONTENT] ⏭️ Se omite la noticia '{item_title[:80]}...' ({url}) "
+                    f"por error en la generación del tweet: {e}"
+                )
+                continue
 
             post = {
                 "tweet": tweet,
