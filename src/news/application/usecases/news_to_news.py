@@ -213,7 +213,8 @@ class NewsToNewsUseCase:
                 tts_audio_path = article.get("tts_audio_path")
                 if tts_audio_path and os.path.exists(tts_audio_path):
                     video_path = self.video_generator.create_video_from_audio(
-                        audio_path=tts_audio_path
+                        audio_path=tts_audio_path,
+                        image=article.get("image_url"),
                     )
                     if video_path:
                         article["generated_video_path"] = video_path

@@ -72,6 +72,92 @@ class TestImageProvider:
 
         assert result is None
 
+    def test_download_image_saves_to_images_dir(self):
+        """Descarga una URL y guarda el archivo en el directorio compartido."""
+        from src.shared.adapters.video_generator import ImageProvider
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            provider = ImageProvider(images_dir=tmpdir)
+            with patch("src.shared.adapters.video_generator.requests.get") as mock_get:
+                mock_resp = Mock()
+                mock_resp.status_code = 200
+                mock_resp.headers = {"Content-Type": "image/jpeg"}
+                mock_resp.content = b"fake jpeg bytes"
+                mock_get.return_value = mock_resp
+                result = provider.download_image("https://x.example/foto.jpg")
+
+            assert result is not None
+            assert os.path.exists(result)
+            assert result.startswith(tmpdir)
+            assert result.endswith(".jpg")
+
+    def test_download_image_uses_cache_when_file_exists(self):
+        """Si el archivo ya existe (mismo hash de URL), no vuelve a descargar."""
+        from hashlib import md5
+        from src.shared.adapters.video_generator import ImageProvider
+
+        url = "https://x.example/foto.jpg"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            provider = ImageProvider(images_dir=tmpdir)
+            expected = os.path.join(tmpdir, md5(url.encode("utf-8")).hexdigest() + ".jpg")
+            with open(expected, "wb") as f:
+                f.write(b"cached bytes")
+
+            with patch("src.shared.adapters.video_generator.requests.get") as mock_get:
+                result = provider.download_image(url)
+
+            assert result == expected
+            mock_get.assert_not_called()
+
+    def test_download_image_defaults_extension_to_jpg(self):
+        """URL sin extensión (o con query) usa .jpg."""
+        from src.shared.adapters.video_generator import ImageProvider
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            provider = ImageProvider(images_dir=tmpdir)
+            with patch("src.shared.adapters.video_generator.requests.get") as mock_get:
+                mock_resp = Mock()
+                mock_resp.status_code = 200
+                mock_resp.headers = {"Content-Type": "image/jpeg"}
+                mock_resp.content = b"x"
+                mock_get.return_value = mock_resp
+                result = provider.download_image("https://x.example/foto?w=100")
+
+            assert result is not None
+            assert result.endswith(".jpg")
+
+    def test_download_image_returns_none_on_http_error(self):
+        """Un error HTTP (404) devuelve None sin crear archivo."""
+        from src.shared.adapters.video_generator import ImageProvider
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            provider = ImageProvider(images_dir=tmpdir)
+            with patch("src.shared.adapters.video_generator.requests.get") as mock_get:
+                mock_resp = Mock()
+                mock_resp.status_code = 404
+                mock_get.return_value = mock_resp
+                result = provider.download_image("https://x.example/missing.jpg")
+
+            assert result is None
+
+    def test_download_image_rejects_svg(self):
+        """Un SVG (p. ej. el logo de fallback) no sirve para ffmpeg → None."""
+        from src.shared.adapters.video_generator import ImageProvider
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            provider = ImageProvider(images_dir=tmpdir)
+            with patch("src.shared.adapters.video_generator.requests.get") as mock_get:
+                mock_resp = Mock()
+                mock_resp.status_code = 200
+                mock_resp.headers = {"Content-Type": "image/svg+xml"}
+                mock_resp.content = b"<?xml version='1.0'?><svg xmlns='...'></svg>"
+                mock_get.return_value = mock_resp
+                result = provider.download_image("https://x.example/logo.svg")
+
+            assert result is None
+            # No debe dejar archivo en el directorio
+            assert list(Path(tmpdir).iterdir()) == []
+
 
 class TestVideoGeneratorAdapter:
     """Tests del adaptador principal."""
@@ -135,6 +221,114 @@ class TestVideoGeneratorAdapter:
                 },
                 timeout=300,
             )
+
+    def _make_audio_and_output(self, tmp_path):
+        """Crea el audio de entrada y el MP4 de salida en disco."""
+        output_path = tmp_path / "video.mp4"
+        output_path.write_bytes(b"fake mp4")
+        audio_path = tmp_path / "a.mp3"
+        audio_path.write_bytes(b"fake mp3")
+        return audio_path, output_path
+
+    def test_create_video_uses_provided_image_url(self, tmp_path):
+        """Con image=URL usa la imagen descargada, no la aleatoria."""
+        from src.shared.adapters.video_generator import VideoGeneratorAdapter
+
+        mock_provider = Mock()
+        local_img = str(tmp_path / "news.jpg")
+        (tmp_path / "news.jpg").write_bytes(b"fake img")
+        mock_provider.download_image.return_value = local_img
+        mock_provider.get_random_image.return_value = str(tmp_path / "random.jpg")
+
+        audio_path, output_path = self._make_audio_and_output(tmp_path)
+        with patch("src.shared.adapters.video_generator.requests.post") as mock_post:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"output_path": str(output_path)}
+            mock_post.return_value = mock_response
+
+            adapter = VideoGeneratorAdapter(
+                base_url="http://ffmpeg-service:8082",
+                image_provider=mock_provider,
+            )
+            result = adapter.create_video_from_audio(
+                str(audio_path), image="https://x.example/img.jpg"
+            )
+
+        assert result == str(output_path)
+        mock_provider.download_image.assert_called_once_with("https://x.example/img.jpg")
+        mock_provider.get_random_image.assert_not_called()
+        mock_post.assert_called_once_with(
+            "http://ffmpeg-service:8082/create-from-audio",
+            json={"audio_path": str(audio_path), "image_path": local_img},
+            timeout=300,
+        )
+
+    def test_create_video_falls_back_to_random_when_image_download_fails(self, tmp_path):
+        """Si la imagen solicitada no se puede resolver, usa la aleatoria."""
+        from src.shared.adapters.video_generator import VideoGeneratorAdapter
+
+        mock_provider = Mock()
+        mock_provider.download_image.return_value = None
+        random_img = str(tmp_path / "random.jpg")
+        (tmp_path / "random.jpg").write_bytes(b"fake")
+        mock_provider.get_random_image.return_value = random_img
+
+        audio_path, output_path = self._make_audio_and_output(tmp_path)
+        with patch("src.shared.adapters.video_generator.requests.post") as mock_post:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"output_path": str(output_path)}
+            mock_post.return_value = mock_response
+
+            adapter = VideoGeneratorAdapter(
+                base_url="http://ffmpeg-service:8082",
+                image_provider=mock_provider,
+            )
+            result = adapter.create_video_from_audio(
+                str(audio_path), image="https://x.example/bad.jpg"
+            )
+
+        assert result == str(output_path)
+        mock_provider.get_random_image.assert_called_once()
+        mock_post.assert_called_once_with(
+            "http://ffmpeg-service:8082/create-from-audio",
+            json={"audio_path": str(audio_path), "image_path": random_img},
+            timeout=300,
+        )
+
+    def test_create_video_uses_local_image_path(self, tmp_path):
+        """Con image=ruta local existente la usa tal cual (sin descargar ni aleatoria)."""
+        from src.shared.adapters.video_generator import VideoGeneratorAdapter
+
+        mock_provider = Mock()
+        mock_provider.get_random_image.return_value = str(tmp_path / "random.jpg")
+        local_img = tmp_path / "local.png"
+        local_img.write_bytes(b"fake png")
+
+        audio_path, output_path = self._make_audio_and_output(tmp_path)
+        with patch("src.shared.adapters.video_generator.requests.post") as mock_post:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"output_path": str(output_path)}
+            mock_post.return_value = mock_response
+
+            adapter = VideoGeneratorAdapter(
+                base_url="http://ffmpeg-service:8082",
+                image_provider=mock_provider,
+            )
+            result = adapter.create_video_from_audio(
+                str(audio_path), image=str(local_img)
+            )
+
+        assert result == str(output_path)
+        mock_provider.download_image.assert_not_called()
+        mock_provider.get_random_image.assert_not_called()
+        mock_post.assert_called_once_with(
+            "http://ffmpeg-service:8082/create-from-audio",
+            json={"audio_path": str(audio_path), "image_path": str(local_img)},
+            timeout=300,
+        )
 
     def test_create_video_from_audio_rejects_missing_output(self, tmp_path):
         """Si el servicio responde 200 pero no dejó el MP4 en disco, debe fallar."""

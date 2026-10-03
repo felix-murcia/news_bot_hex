@@ -15,7 +15,10 @@ class VideoGeneratorPort(ABC):
 
     @abstractmethod
     def create_video_from_audio(
-        self, audio_path: str, output_path: Optional[str] = None
+        self,
+        audio_path: str,
+        output_path: Optional[str] = None,
+        image: Optional[str] = None,
     ) -> Optional[str]:
         """
         Genera un video combinando un audio con una imagen.
@@ -23,6 +26,10 @@ class VideoGeneratorPort(ABC):
         Args:
             audio_path: Ruta al archivo de audio.
             output_path: Ruta de salida opcional para el video.
+            image: Imagen a usar. Puede ser una URL remota (se descarga al
+                directorio compartido del servicio) o una ruta local. Si es
+                None o no se puede resolver, se usa una imagen aleatoria del
+                proveedor.
 
         Returns:
             Ruta del video generado, o None si falla.

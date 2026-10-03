@@ -7,6 +7,7 @@ La selección de imágenes está delegada en un proveedor de imágenes inyectado
 
 import os
 import random
+from hashlib import md5
 from pathlib import Path
 from typing import Optional
 
@@ -68,6 +69,68 @@ class ImageProvider:
         )
         return selected
 
+    def download_image(self, url: str) -> Optional[str]:
+        """
+        Descarga una imagen remota al directorio compartido y devuelve la ruta local.
+
+        El archivo se guarda en self.images_dir (montado también por el servicio
+        ffmpeg, por lo que este puede leerlo). El nombre se deriva del hash de la
+        URL para servir de caché: si ya existe y no está vacío, se reutiliza.
+
+        Args:
+            url: URL remota de la imagen (http/https).
+
+        Returns:
+            Ruta local a la imagen descargada, o None si falla.
+        """
+        if not url:
+            return None
+        try:
+            ext = os.path.splitext(url.split("?")[0])[1].lower() or ".jpg"
+            if ext not in {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp"}:
+                ext = ".jpg"
+            filename = md5(url.encode("utf-8")).hexdigest() + ext
+            dest_path = os.path.join(self.images_dir, filename)
+
+            if os.path.isfile(dest_path) and os.path.getsize(dest_path) > 0:
+                logger.info(f"[IMAGE PROVIDER] Imagen ya descargada: {dest_path}")
+                return dest_path
+
+            os.makedirs(self.images_dir, exist_ok=True)
+            headers = {
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/122.0.0.0 Safari/537.36"
+                ),
+                "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+            }
+            resp = requests.get(url, headers=headers, timeout=30)
+            if resp.status_code != 200:
+                logger.warning(
+                    f"[IMAGE PROVIDER] No se pudo descargar {url} (status {resp.status_code})"
+                )
+                return None
+
+            content_type = (resp.headers.get("Content-Type") or "").lower()
+            body = resp.content
+            head = body.lstrip()[:16].lower()
+            # ffmpeg no decodifica formatos vectoriales (SVG). El fallback del
+            # enricher usa un logo SVG, que hay que rechazar para no romper el video.
+            if "svg" in content_type or head.startswith(b"<?xml") or head.startswith(b"<svg"):
+                logger.warning(
+                    f"[IMAGE PROVIDER] Imagen no-raster (probablemente SVG), se omite: {url}"
+                )
+                return None
+
+            with open(dest_path, "wb") as f:
+                f.write(body)
+            logger.info(f"[IMAGE PROVIDER] Imagen descargada: {dest_path}")
+            return dest_path
+        except Exception as e:
+            logger.warning(f"[IMAGE PROVIDER] Error descargando {url}: {e}")
+            return None
+
 
 class VideoGeneratorAdapter(VideoGeneratorPort):
     """Adaptador que genera videos combinando audio e imagen.
@@ -101,16 +164,44 @@ class VideoGeneratorAdapter(VideoGeneratorPort):
             f"[VIDEO GENERATOR] Inicializado → endpoint: {self.create_from_audio_endpoint}"
         )
 
+    def _resolve_image(self, image: Optional[str]) -> Optional[str]:
+        """
+        Resuelve la imagen solicitada (URL o ruta local) a una ruta local legible
+        por el servicio ffmpeg.
+
+        - URL remota: se descarga al directorio compartido (el servicio ffmpeg
+          lo tiene montado) y se devuelve la ruta local.
+        - Ruta local existente: se devuelve tal cual.
+        - En caso contrario: None (el llamador decidirá el fallback).
+        """
+        if not image:
+            return None
+        image = image.strip()
+        if not image:
+            return None
+        if image.lower().startswith(("http://", "https://")):
+            return self.image_provider.download_image(image)
+        return image if os.path.exists(image) else None
+
     def create_video_from_audio(
-        self, audio_path: str, output_path: Optional[str] = None
+        self,
+        audio_path: str,
+        output_path: Optional[str] = None,
+        image: Optional[str] = None,
     ) -> Optional[str]:
         """
-        Genera un video combinando un audio con una imagen aleatoria.
+        Genera un video combinando un audio con una imagen.
+
+        La imagen se toma del argumento `image` (URL o ruta local) si se
+        proporciona y se puede resolver; en caso contrario, se elige una
+        aleatoria del proveedor de imágenes.
 
         Args:
             audio_path: Ruta al archivo de audio (MP3, WAV, etc.).
             output_path: Ruta de salida opcional para el video (ignorada,
-                        el servicio genera nombre único).
+                         el servicio genera nombre único).
+            image: Imagen a usar (URL remota o ruta local). Si es None o no se
+                   puede resolver, se usa una imagen aleatoria del proveedor.
 
         Returns:
             Ruta del video generado, o None si falla.
@@ -120,8 +211,9 @@ class VideoGeneratorAdapter(VideoGeneratorPort):
             logger.error(f"[VIDEO GENERATOR] Audio no encontrado: {audio_path}")
             return None
 
-        # Obtener imagen (delegado al proveedor inyectado)
-        image_path = self.image_provider.get_random_image()
+        # Obtener imagen: la solicitada (descargada/resuelta) o, como fallback,
+        # una aleatoria del proveedor inyectado.
+        image_path = self._resolve_image(image) or self.image_provider.get_random_image()
         if not image_path:
             logger.error("[VIDEO GENERATOR] No se pudo obtener una imagen, abortando")
             return None
@@ -222,7 +314,9 @@ def get_video_generator() -> VideoGeneratorAdapter:
 
 
 def create_video_from_audio(
-    audio_path: str, output_path: Optional[str] = None
+    audio_path: str,
+    output_path: Optional[str] = None,
+    image: Optional[str] = None,
 ) -> Optional[str]:
     """
     Función de conveniencia para generar un video a partir de un archivo de audio.
@@ -231,10 +325,13 @@ def create_video_from_audio(
     global del adaptador (DIP - SOLID: dependencia de abstracción).
 
     Args:
-        audio_path: Ruta al archivo de audio (MP3, WAV, etc.).
+        audio_path: Ruta al archivo de audio.
         output_path: Ruta de salida opcional para el video.
+        image: Imagen a usar (URL o ruta local). Si es None, se usa una aleatoria.
 
     Returns:
         Ruta del video generado, o None si falla.
     """
-    return get_video_generator().create_video_from_audio(audio_path, output_path)
+    return get_video_generator().create_video_from_audio(
+        audio_path, output_path, image
+    )

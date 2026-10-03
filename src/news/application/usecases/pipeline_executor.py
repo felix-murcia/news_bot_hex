@@ -243,7 +243,8 @@ def execute_pipeline_async(job_id: str) -> bool:
                         audio_path = article.get("tts_audio_path")
                         if audio_path and os.path.exists(audio_path):
                             video_path = video_gen.create_video_from_audio(
-                                audio_path=audio_path
+                                audio_path=audio_path,
+                                image=article.get("image_url"),
                             )
                             if video_path:
                                 articles_coll.update_one(

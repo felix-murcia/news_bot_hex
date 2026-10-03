@@ -94,7 +94,7 @@ def _video_fails():
         def is_available(self):
             return True
 
-        def create_video_from_audio(self, audio_path):
+        def create_video_from_audio(self, audio_path, output_path=None, image=None):
             raise _Boom("ffmpeg died")
 
     with contextlib.ExitStack() as stack:
