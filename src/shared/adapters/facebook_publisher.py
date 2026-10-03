@@ -86,7 +86,6 @@ class FacebookPublisher:
         logger.info(f"[FACEBOOK] Publicando {len(posts)} posts")
 
         published = 0
-        errors = 0
 
         for post in posts:
             if post.get("facebook_url"):
@@ -183,7 +182,6 @@ class FacebookPublisher:
         return {
             "status": "success",
             "published": published,
-            "errors": errors,
             "total": len(posts),
         }
 

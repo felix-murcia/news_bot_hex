@@ -152,7 +152,6 @@ class BlueskyPublisher:
         logger.info(f"[BLUESKY] Publicando {len(posts)} posts")
 
         published = 0
-        errors = 0
 
         for idx, post in enumerate(posts):
             text_base = (post.get("tweet") or "").strip()
@@ -230,7 +229,6 @@ class BlueskyPublisher:
         return {
             "status": "success",
             "published": published,
-            "errors": errors,
             "total": len(posts),
         }
 
