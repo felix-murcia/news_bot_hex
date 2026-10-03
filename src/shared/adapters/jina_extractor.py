@@ -7,31 +7,42 @@ from config.settings import Settings
 
 logger = get_logger("news_bot")
 
-# Jina antepone su propia cabecera al cuerpo: "Title: <titulo>\n\nURL Source: <url>\n\n".
-# Sin limpiarla, el prefijo "Title:" acaba en el título del artículo, en el slug
-# (title-video-...), en las keywords SEO y en el texto que ve el modelo de IA.
-_JINA_HEADER = re.compile(r"\A\s*(Title|Published Time|URL Source|Warning|Markdown Content):.*?(?=\n\s*\n|\Z)", re.DOTALL)
+# Jina antepone su propia cabecera al cuerpo y la separa en campos propios
+# (Title, URL Source, Published Time, Warning) que ademas separa con lineas en
+# blanco. Sin limpiarla, esos prefijos ("Title:", "Published Time:", ...) acaba
+# en el titulo del articulo, en el slug, en las keywords SEO y en el texto que
+# ve el modelo de IA.
+_JINA_MARKDOWN_MARKER = re.compile(r"(?m)^\s*Markdown Content:\s*$")
+_JINA_HEADER_LINE = re.compile(r"\s*(Title|Published Time|URL Source|Warning|Markdown Content):")
 
 
 def limpiar_cabecera_jina(contenido: str) -> str:
     """Elimina la cabecera de Jina del principio del contenido.
 
-    Devuelve el cuerpo limpio. Si no hay cabecera reconocible, devuelve la
-    entrada sin tocar: es preferible no normalizar antes que truncar contenido.
+    Devuelve el cuerpo limpio. Jina separa sus campos de metadata con lineas en
+    blanco, asi que no basta con quitar el primer bloque: si hay el marcador
+    "Markdown Content:", el cuerpo es todo lo que va despues; en caso contrario
+    se quitan las lineas de cabecera iniciales tolerando lineas en blanco entre
+    ellas. Si no hay cabecera reconocible, devuelve la entrada sin tocar.
     """
     if not contenido:
         return contenido
 
-    limpio = _JINA_HEADER.sub("", contenido, count=1).lstrip()
+    marker = _JINA_MARKDOWN_MARKER.search(contenido)
+    if marker:
+        return contenido[marker.end():].lstrip()
 
-    # Jina puede no poner línea en blanco tras "Title:"; en ese caso quitamos
-    # las líneas de cabecera sueltas que queden al principio.
-    lineas = limpio.split("\n")
-    while lineas and re.match(
-        r"\s*(Title|Published Time|URL Source|Warning|Markdown Content):", lineas[0]
-    ):
-        lineas.pop(0)
-    return "\n".join(lineas).lstrip()
+    lineas = contenido.split("\n")
+    i = 0
+    while i < len(lineas):
+        if lineas[i].strip() == "":
+            i += 1
+            continue
+        if _JINA_HEADER_LINE.match(lineas[i]):
+            i += 1
+            continue
+        break
+    return "\n".join(lineas[i:]).lstrip()
 
 class JinaExtractor:
     def __init__(self):

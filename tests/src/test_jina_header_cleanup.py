@@ -59,3 +59,41 @@ class TestLimpiarCabeceraJina:
     def test_entrada_vacia_o_nula(self):
         assert limpiar_cabecera_jina("") == ""
         assert limpiar_cabecera_jina(None) is None
+
+    def test_no_fuga_published_time_cuando_hay_marcador_markdown(self):
+        # Formato real de Jina: campos separados por lineas en blanco y cuerpo
+        # tras "Markdown Content:". El bug dejaba "Published Time:" como 1ª
+        # linea no vacia, que acababa en el titulo del articulo.
+        crudo = (
+            "Title: Protestas en España\n"
+            "\n"
+            "URL Source: https://www.bbc.co.uk/news/videos/x\n"
+            "\n"
+            "Published Time: Fri, 04 Sep 2026 09:35:49 GMT\n"
+            "\n"
+            "Markdown Content:\n"
+            "Protesters gather in Madrid to demand legal protections.\n"
+            "More body text here."
+        )
+        limpio = limpiar_cabecera_jina(crudo)
+        primera = next((l for l in limpio.splitlines() if l.strip()), "")
+        assert not primera.startswith(
+            ("Published Time:", "URL Source:", "Title:", "Markdown Content:")
+        )
+        assert "Protesters gather" in limpio
+        assert "Published Time:" not in limpio
+        assert "Markdown Content:" not in limpio
+        assert "www.bbc.co.uk" not in limpio
+
+    def test_fallback_sin_marcador_tolera_lineas_en_blanco(self):
+        crudo = (
+            "URL Source: https://x.com/a\n"
+            "\n"
+            "Published Time: 2026-10-02\n"
+            "\n"
+            "Cuerpo real del articulo."
+        )
+        limpio = limpiar_cabecera_jina(crudo)
+        primera = next((l for l in limpio.splitlines() if l.strip()), "")
+        assert primera.startswith("Cuerpo real del articulo")
+        assert "Published Time:" not in limpio
