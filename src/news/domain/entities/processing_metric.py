@@ -48,12 +48,15 @@ class ProcessingMetric:
         if not self.steps:
             raise ValueError("ProcessingMetric requires at least one step")
 
-        # Validate total duration >= sum of step durations
-        steps_total = sum(step.duration_ms for step in self.steps)
-        if self.total_duration_ms < steps_total:
+        # Un paso no puede durar mas que el pipeline completo. Con pasos en
+        # paralelo la suma de duraciones PUEDE superar el total (se solapan en
+        # el tiempo real), asi que el limite valido es la duracion del paso
+        # individual mas largo, no la suma de todos los pasos.
+        longest_step = max(step.duration_ms for step in self.steps)
+        if self.total_duration_ms < longest_step:
             raise ValueError(
                 f"total_duration_ms ({self.total_duration_ms}) cannot be less than "
-                f"sum of step durations ({steps_total})"
+                f"the longest step duration ({longest_step})"
             )
 
         # Validate success flag consistency

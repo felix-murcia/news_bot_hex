@@ -2,7 +2,7 @@
 
 Tests ProcessingMetric and StepMetric value objects:
 - Immutability
-- Validation (total_duration >= sum of steps)
+- Validation (total_duration >= longest step duration)
 - Helper methods (error_count, success_count, step_count)
 """
 
@@ -109,7 +109,7 @@ class TestProcessingMetric:
         assert metric.error_count() == 1
 
     def test_total_duration_validation_exact_match(self, sample_steps):
-        """Total duration must be >= sum of step durations."""
+        """Total duration equal to the sum is valid (sequential worst case)."""
         total = sum(s.duration_ms for s in sample_steps)
         metric = ProcessingMetric(
             execution_id="exec-exact",
@@ -134,16 +134,34 @@ class TestProcessingMetric:
         assert metric.total_duration_ms == 7000
 
     def test_total_duration_validation_fails_if_less(self, sample_steps):
-        """Total duration must not be less than sum of steps."""
+        """Total duration must not be less than the longest step."""
         with pytest.raises(ValueError):
             ProcessingMetric(
                 execution_id="exec-invalid",
                 pipeline_type=PipelineType.NEWS,
                 steps=sample_steps,
-                total_duration_ms=5000,  # Less than sum (6000)
+                total_duration_ms=2500,  # Less than longest step (3000)
                 success=True,
                 created_at=datetime.now(),
             )
+
+    def test_total_duration_parallel_overlap_allowed(self, sample_steps):
+        """Parallel steps may overlap in wall-clock time.
+
+        The sum of step durations (6000) can exceed the pipeline total when
+        steps run concurrently (e.g. fetch-images ‖ articles). Only the
+        longest step (3000) is a hard lower bound, so total=3500 is valid
+        even though it is less than the sum.
+        """
+        metric = ProcessingMetric(
+            execution_id="exec-parallel",
+            pipeline_type=PipelineType.NEWS,
+            steps=sample_steps,
+            total_duration_ms=3500,  # < sum (6000) but >= longest step (3000)
+            success=True,
+            created_at=datetime.now(),
+        )
+        assert metric.total_duration_ms == 3500
 
     def test_success_count_all_ok(self, sample_steps):
         """Count successful steps."""
