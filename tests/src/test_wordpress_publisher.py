@@ -151,7 +151,7 @@ class TestPublishArticles:
                         with patch("src.shared.adapters.wordpress_publisher.ensure_tag", return_value=None):
                             with patch("src.shared.adapters.wordpress_publisher.publish_post", return_value="https://site.com/x"):
                                 with patch("src.shared.adapters.wordpress_publisher.get_headers", return_value={"Authorization": "Bearer fake"}):
-                                    with patch("src.shared.adapters.wordpress_publisher.requests.get") as mock_get:
+                                    with patch("src.shared.adapters.wordpress_publisher._wp_session.get") as mock_get:
                                         media = Mock()
                                         media.status_code = 200
                                         media.json.return_value = {"source_url": "https://site.com/wp-media/foto.webp"}
@@ -173,7 +173,7 @@ class TestPublishArticles:
                         with patch("src.shared.adapters.wordpress_publisher.ensure_tag", return_value=None):
                             with patch("src.shared.adapters.wordpress_publisher.publish_post", return_value="https://site.com/x"):
                                 with patch("src.shared.adapters.wordpress_publisher.get_headers", return_value={"Authorization": "Bearer fake"}):
-                                    with patch("src.shared.adapters.wordpress_publisher.requests.get") as mock_get:
+                                    with patch("src.shared.adapters.wordpress_publisher._wp_session.get") as mock_get:
                                         media = Mock()
                                         media.status_code = 200
                                         media.json.return_value = {"source_url": "https://site.com/wp-media/foto.webp"}
@@ -196,7 +196,7 @@ class TestPublishArticles:
                     with patch("src.shared.adapters.wordpress_publisher.ensure_category", return_value=1):
                         with patch("src.shared.adapters.wordpress_publisher.ensure_tag", return_value=None):
                             with patch("src.shared.adapters.wordpress_publisher.publish_post", return_value="https://site.com/x") as mock_post:
-                                with patch("src.shared.adapters.wordpress_publisher.requests.get") as mock_get:
+                                with patch("src.shared.adapters.wordpress_publisher._wp_session.get") as mock_get:
                                     mock_resp = Mock()
                                     mock_resp.status_code = 200
                                     mock_resp.json.return_value = {"source_url": "https://audio.example.com/file.mp3"}
@@ -319,7 +319,7 @@ class TestPublishArticles:
         with patch.object(pub, "_load_articles_from_mongo", return_value=arts):
             with patch.object(pub, "_load_posts_from_mongo", return_value=posts):
                 with patch("src.shared.adapters.wordpress_publisher.upload_image", return_value=123):
-                    with patch("src.shared.adapters.wordpress_publisher.requests.get", return_value=mock_media):
+                    with patch("src.shared.adapters.wordpress_publisher._wp_session.get", return_value=mock_media):
                         with patch("src.shared.adapters.wordpress_publisher.ensure_category", return_value=1):
                             with patch("src.shared.adapters.wordpress_publisher.ensure_tag", return_value=None):
                                 with patch("src.shared.adapters.wordpress_publisher.publish_post") as mock_post:

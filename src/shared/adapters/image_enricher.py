@@ -11,6 +11,9 @@ DEF_LOGO_URL = Settings.WP_DEFAULT_IMAGE_URL
 IMG_DIR = Settings.IMAGES_DIR
 IMG_DIR.mkdir(parents=True, exist_ok=True)
 
+# F13: Session compartida por servicio (image enricher) para reutilizar conexiones.
+_images_session = requests.Session()
+
 
 def extract_image(url: str) -> str | None:
     try:
@@ -24,7 +27,7 @@ def extract_image(url: str) -> str | None:
             "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
             "Referer": url,
         }
-        resp = requests.get(url, headers=headers, timeout=15)
+        resp = _images_session.get(url, headers=headers, timeout=15)
         resp.raise_for_status()
 
         from bs4 import BeautifulSoup
@@ -61,7 +64,7 @@ def download_image(url: str) -> str | None:
             logger.info(f"[IMAGES] Imagen ya descargada: {dest_path}")
             return str(dest_path)
 
-        resp = requests.get(url, timeout=20)
+        resp = _images_session.get(url, timeout=20)
         if resp.status_code == 200:
             with open(dest_path, "wb") as f:
                 f.write(resp.content)
@@ -191,7 +194,7 @@ class ImageEnricher:
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
                 "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
             }
-            resp = requests.get(url, headers=headers, timeout=timeout, stream=True)
+            resp = _images_session.get(url, headers=headers, timeout=timeout, stream=True)
             # 206 = Partial Content (éxito), 200 = OK completo
             if resp.status_code in (200, 206):
                 # Verificar que es realmente una imagen

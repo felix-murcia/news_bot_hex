@@ -14,6 +14,11 @@ from config.logging_config import get_logger
 
 logger = get_logger("news_bot.adapters.coqui_tts")
 
+# F13: Session compartida por servicio (Coqui + ffmpeg-api atempo) para
+# reutilizar conexiones HTTP. Transporte puro: no cambia parámetros de TTS,
+# fragmentación ni secuencia ffmpeg (restricción dura).
+_coqui_session = requests.Session()
+
 
 class CoquiTTSAdapter(TTSPort):
     """
@@ -86,7 +91,7 @@ class CoquiTTSAdapter(TTSPort):
             }
 
             atempo_endpoint = f"{self.converter.base_url}/audio/apply-atempo"
-            resp = requests.post(atempo_endpoint, json=payload, timeout=300)
+            resp = _coqui_session.post(atempo_endpoint, json=payload, timeout=300)
 
             if resp.status_code != 200:
                 logger.error(
@@ -122,7 +127,7 @@ class CoquiTTSAdapter(TTSPort):
         TtsFromArticleUseCase, que consulta is_available() antes de sintetizar).
         """
         try:
-            response = requests.get(f"{self.api_url}/health", timeout=5)
+            response = _coqui_session.get(f"{self.api_url}/health", timeout=5)
             return response.status_code == 200
         except OSError as e:
             # requests.RequestException hereda de OSError, de modo que esto
@@ -187,7 +192,7 @@ class CoquiTTSAdapter(TTSPort):
         logger.debug(f"[COQUI TTS] Texto original: {text[:80]}...")
 
         try:
-            resp = requests.get(
+            resp = _coqui_session.get(
                 request_url, params=params, timeout=self.timeout, stream=True
             )
 

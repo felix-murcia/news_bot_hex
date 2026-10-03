@@ -15,6 +15,9 @@ if not UNSPLASH_ACCESS_KEY:
 
 UNSPLASH_API = Settings.UNSPLASH_API_URL
 
+# F13: Session compartida por servicio (Unsplash) para reutilizar conexiones.
+_unsplash_session = requests.Session()
+
 
 def filter_by_relevance(
     images: list[dict], query_keywords: list[str], min_score: float = 0.25
@@ -88,7 +91,7 @@ class UnsplashFetcher:
         try:
             headers = {"Authorization": f"Client-ID {UNSPLASH_ACCESS_KEY}"}
             params = {"query": query, "per_page": limit, "orientation": "landscape"}
-            resp = requests.get(UNSPLASH_API, headers=headers, params=params, timeout=15)
+            resp = _unsplash_session.get(UNSPLASH_API, headers=headers, params=params, timeout=15)
             if resp.status_code != 200:
                 logger.warning(f"[UNSPLASH] API error: {resp.status_code}")
                 return []

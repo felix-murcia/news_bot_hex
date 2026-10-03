@@ -19,11 +19,14 @@ APP_SECRET = Settings.FACEBOOK_APP_SECRET
 if not PAGE_ID or not PAGE_TOKEN:
     raise ValueError("Facebook credentials not found in .env")
 
+# F13: Session compartida por servicio (Facebook Graph API) para reutilizar conexiones.
+_facebook_session = requests.Session()
+
 
 def validate_image_url(url: str, max_size_mb: int = 10) -> bool:
     """Valida imagen antes de subir."""
     try:
-        resp = requests.get(url, stream=True, timeout=15)
+        resp = _facebook_session.get(url, stream=True, timeout=15)
         if resp.status_code != 200:
             return False
         content_type = resp.headers.get("Content-Type", "")
@@ -128,7 +131,7 @@ class FacebookPublisher:
                 files = {"source": open(video_path, "rb")}
                 payload = {"description": message_text, "access_token": PAGE_TOKEN}
 
-                resp = requests.post(endpoint, data=payload, files=files)
+                resp = _facebook_session.post(endpoint, data=payload, files=files)
 
                 if resp.status_code != 200:
                     error_msg = f"Error subiendo video: {resp.status_code} {resp.text}"
@@ -163,7 +166,7 @@ class FacebookPublisher:
                 payload = {"message": message_text, "access_token": PAGE_TOKEN}
 
             logger.info(f"[FACEBOOK] Publicando en {endpoint}")
-            resp = requests.post(endpoint, data=payload)
+            resp = _facebook_session.post(endpoint, data=payload)
 
             if resp.status_code != 200:
                 error_msg = f"Error publicando: {resp.status_code} {resp.text}"

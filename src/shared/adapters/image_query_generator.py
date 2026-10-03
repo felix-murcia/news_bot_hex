@@ -5,11 +5,17 @@ Genera las keywords en inglés para que la comparación de relevancia
 funcione correctamente contra las descripciones de Unsplash (también en inglés).
 """
 
-from typing import Optional
+import hashlib
+from typing import Dict, Optional
 from config.settings import Settings
 from config.logging_config import get_logger
 
 logger = get_logger("news_bot.image_query_generator")
+
+# F6: caché de proceso (title+content → keywords). Unsplash y Google Images
+# llaman a generar_keywords_visuales_con_llm con el mismo texto; la 2ª llamada
+# es hit y no repite la llamada LLM.
+_KEYWORDS_CACHE: Dict[str, Optional[list]] = {}
 
 _PROMPT = """\
 You are an expert in image search for news articles. Extract the most representative \
@@ -54,6 +60,15 @@ def generar_keywords_visuales_con_llm(
         return None
 
     contenido_truncado = content[:1500] if content else ""
+
+    # F6: caché por hash(title+content) — la 2ª llamada (Unsplash/Google) es hit
+    cache_key = hashlib.sha256(f"{title}\n{contenido_truncado}".encode("utf-8")).hexdigest()
+    if cache_key in _KEYWORDS_CACHE:
+        cached = _KEYWORDS_CACHE[cache_key]
+        if cached:
+            logger.debug(f"[IMAGE_QUERY] Caché hit para '{title[:40]}'")
+        return cached
+
     prompt = _PROMPT.format(titulo=title, contenido=contenido_truncado)
 
     try:
@@ -77,6 +92,9 @@ def generar_keywords_visuales_con_llm(
             return None
 
         logger.info(f"[IMAGE_QUERY] Keywords (en): {keywords} for '{title[:40]}'")
+        # F6: solo se cachea el éxito; un fallo no se cachea para que la
+        # siguiente llamada reintente.
+        _KEYWORDS_CACHE[cache_key] = keywords
         return keywords
 
     except Exception as e:

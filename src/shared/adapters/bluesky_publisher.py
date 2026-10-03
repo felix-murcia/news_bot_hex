@@ -22,21 +22,33 @@ POST_LIMITS = {
     "facebook": 63206,
 }
 
+# F13: Session compartida por servicio (descargas de imagen para miniaturas).
+_bluesky_session = requests.Session()
+
+
+# F8: caché de módulo del cliente autenticado. Antes cada run() hacía
+# client.login() completo; ahora el login se hace una vez por proceso.
+_client_cache: Optional[Client] = None
+
 
 def get_client() -> Client:
-    """Obtiene cliente Bluesky autenticado."""
+    """Obtiene cliente Bluesky autenticado (cacheado a nivel de módulo)."""
+    global _client_cache
+    if _client_cache is not None:
+        return _client_cache
     if not HANDLE or not PASSWORD:
         raise ValueError("Credenciales Bluesky no encontradas en .env")
     client = Client()
     client.login(HANDLE, PASSWORD)
     logger.info("Cliente Bluesky inicializado y autenticado")
+    _client_cache = client
     return client
 
 
 def compress_image_from_url(url: str, max_kb: int = 950) -> BytesIO:
     """Descarga y comprime imagen desde URL. Bluesky impone 1 MB (1 000 000 bytes)."""
     max_bytes = max_kb * 1024
-    resp = requests.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
+    resp = _bluesky_session.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
     resp.raise_for_status()
     img = Image.open(BytesIO(resp.content)).convert("RGB")
 

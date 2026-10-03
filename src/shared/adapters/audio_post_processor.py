@@ -15,6 +15,10 @@ from src.shared.domain.ports.audio_post_processor_port import AudioPostProcessor
 
 logger = get_logger("news_bot.adapters.audio_post_processor")
 
+# F13: Session compartida por servicio (ffmpeg-api) para reutilizar conexiones.
+# Transporte puro: no cambia parámetros de post-proceso ni secuencia ffmpeg.
+_ffmpeg_session = requests.Session()
+
 
 class AudioPostProcessor(AudioPostProcessorPort):
     """Post-process TTS audio using ffmpeg-api service."""
@@ -70,7 +74,7 @@ class AudioPostProcessor(AudioPostProcessorPort):
                 "noise_gate_threshold": noise_gate_threshold,
             }
 
-            resp = requests.post(self.post_process_endpoint, json=payload, timeout=300)
+            resp = _ffmpeg_session.post(self.post_process_endpoint, json=payload, timeout=300)
 
             if resp.status_code != 200:
                 logger.error(

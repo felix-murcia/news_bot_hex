@@ -228,7 +228,7 @@ class TestGoogleImagesFetcher:
 
         with patch.object(mod, "GOOGLE_API_KEY", "key"), patch.object(mod, "GOOGLE_CX", "cx"), \
              patch.object(mod, "get_used_ids", return_value=set()), \
-             patch.object(mod.requests, "get", return_value=mock_response):
+             patch.object(mod._google_session, "get", return_value=mock_response):
             result = mod.GoogleImagesFetcher()._search_images("protest", limit=5)
 
         assert len(result) == 1
@@ -250,7 +250,7 @@ class TestGoogleImagesFetcher:
 
         with patch.object(mod, "GOOGLE_API_KEY", "key"), patch.object(mod, "GOOGLE_CX", "cx"), \
              patch.object(mod, "get_used_ids", return_value={"https://example.com/used.jpg"}), \
-             patch.object(mod.requests, "get", return_value=mock_response):
+             patch.object(mod._google_session, "get", return_value=mock_response):
             result = mod.GoogleImagesFetcher()._search_images("protest", limit=5)
 
         assert result == []
@@ -263,7 +263,7 @@ class TestGoogleImagesFetcher:
 
         with patch.object(mod, "GOOGLE_API_KEY", "key"), patch.object(mod, "GOOGLE_CX", "cx"), \
              patch.object(mod, "get_used_ids", return_value=set()), \
-             patch.object(mod.requests, "get", return_value=mock_response):
+             patch.object(mod._google_session, "get", return_value=mock_response):
             assert mod.GoogleImagesFetcher()._search_images("protest") == []
 
     @patch("src.shared.adapters.image_query_generator.generar_keywords_visuales_con_llm")
@@ -373,7 +373,7 @@ class TestUnsplashFetcher:
 
         with patch.object(mod, "UNSPLASH_ACCESS_KEY", "key"), \
              patch.object(mod, "get_used_ids", return_value={"used1"}), \
-             patch.object(mod.requests, "get", return_value=mock_response):
+             patch.object(mod._unsplash_session, "get", return_value=mock_response):
             result = mod.UnsplashFetcher()._search_images("protest", limit=5)
 
         assert [img["id"] for img in result] == ["new1"]
@@ -388,7 +388,7 @@ class TestUnsplashFetcher:
 
         with patch.object(mod, "UNSPLASH_ACCESS_KEY", "key"), \
              patch.object(mod, "get_used_ids", return_value=set()), \
-             patch.object(mod.requests, "get", return_value=mock_response):
+             patch.object(mod._unsplash_session, "get", return_value=mock_response):
             assert mod.UnsplashFetcher()._search_images("protest") == []
 
     @patch("src.shared.adapters.image_query_generator.generar_keywords_visuales_con_llm")
@@ -671,7 +671,7 @@ class TestCoquiTTSAdapter:
         adapter.atempo = 1.0
         return adapter
 
-    @patch("src.shared.adapters.coqui_tts_adapter.requests.get")
+    @patch("src.shared.adapters.coqui_tts_adapter._coqui_session.get")
     def test_text_to_speech_returns_mp3(self, mock_get, tmp_path):
         from src.shared.adapters.coqui_tts_adapter import CoquiTTSAdapter
 
@@ -703,7 +703,7 @@ class TestCoquiTTSAdapter:
 
         assert result == str(expected_mp3)
 
-    @patch("src.shared.adapters.coqui_tts_adapter.requests.get")
+    @patch("src.shared.adapters.coqui_tts_adapter._coqui_session.get")
     def test_conversion_fallback_to_wav_on_error(self, mock_get, tmp_path):
         from src.shared.adapters.coqui_tts_adapter import CoquiTTSAdapter
 
@@ -720,8 +720,8 @@ class TestCoquiTTSAdapter:
         assert result.endswith(".wav")
         assert str(tmp_path) in result
 
-    @patch("src.shared.adapters.coqui_tts_adapter.requests.post")
-    @patch("src.shared.adapters.coqui_tts_adapter.requests.get")
+    @patch("src.shared.adapters.coqui_tts_adapter._coqui_session.post")
+    @patch("src.shared.adapters.coqui_tts_adapter._coqui_session.get")
     def test_text_to_speech_applies_atempo_when_configured(
         self, mock_get, mock_post, tmp_path
     ):
@@ -758,7 +758,7 @@ class TestCoquiTTSAdapter:
         assert mock_post.call_args[1]["json"]["tempo_factor"] == 1.25
         assert result == str(expected_mp3)
 
-    @patch("src.shared.adapters.coqui_tts_adapter.requests.get")
+    @patch("src.shared.adapters.coqui_tts_adapter._coqui_session.get")
     def test_text_to_speech_raises_on_http_error(self, mock_get, tmp_path):
         from src.shared.adapters.coqui_tts_adapter import CoquiTTSAdapter
 
@@ -771,7 +771,7 @@ class TestCoquiTTSAdapter:
         with pytest.raises(RuntimeError):
             adapter.text_to_speech("texto")
 
-    @patch("src.shared.adapters.coqui_tts_adapter.requests.get")
+    @patch("src.shared.adapters.coqui_tts_adapter._coqui_session.get")
     def test_text_to_speech_empty_text_returns_empty_string(self, mock_get, tmp_path):
         from src.shared.adapters.coqui_tts_adapter import CoquiTTSAdapter
 
@@ -779,7 +779,7 @@ class TestCoquiTTSAdapter:
         assert adapter.text_to_speech("   ") == ""
         mock_get.assert_not_called()
 
-    @patch("src.shared.adapters.coqui_tts_adapter.requests.get")
+    @patch("src.shared.adapters.coqui_tts_adapter._coqui_session.get")
     def test_is_available_success(self, mock_get):
         from src.shared.adapters.coqui_tts_adapter import CoquiTTSAdapter
 
@@ -792,7 +792,7 @@ class TestCoquiTTSAdapter:
             assert adapter.is_available() is True
             assert mock_get.call_args[0][0] == "http://localhost:5002/health"
 
-    @patch("src.shared.adapters.coqui_tts_adapter.requests.get")
+    @patch("src.shared.adapters.coqui_tts_adapter._coqui_session.get")
     def test_is_available_failure(self, mock_get):
         from src.shared.adapters.coqui_tts_adapter import CoquiTTSAdapter
 
@@ -802,7 +802,7 @@ class TestCoquiTTSAdapter:
             adapter = CoquiTTSAdapter()
             assert adapter.is_available() is False
 
-    @patch("src.shared.adapters.coqui_tts_adapter.requests.get")
+    @patch("src.shared.adapters.coqui_tts_adapter._coqui_session.get")
     def test_is_available_false_on_non_200(self, mock_get):
         """A reachable-but-broken service must also report unavailable."""
         from src.shared.adapters.coqui_tts_adapter import CoquiTTSAdapter

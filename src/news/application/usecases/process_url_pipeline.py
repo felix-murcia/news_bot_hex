@@ -7,6 +7,7 @@ images → audio → video → WordPress → social). No duplicate prompts or lo
 
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Optional
 
@@ -93,36 +94,55 @@ class ProcessUrlPipeline:
 
         run_step("Save Verified Article", save_verified, critical=True)
 
-        # ── Steps 3-4: Same generation as automatic pipeline ───────────────
+        # ── Step 3: Generate Posts (same as automatic pipeline) ─────────────
         def generate_posts():
             from src.news.application.usecases.content import run_content
             run_content(use_gemini=True, mode="news")
 
+        run_step("Generate Posts", generate_posts, critical=True)
+
+        # ── Steps 4-5: Generate Articles ‖ Fetch Images (parallel) ─────────
+        # F4: Generate Articles (writes generated_articles) and Fetch Images
+        # (reads/writes generated_posts) are independent: Fetch Images does NOT
+        # read generated_articles. Run them in parallel and join before
+        # Enrich Images. Both are critical: exceptions propagate via .result().
         def generate_articles():
             from src.news.application.usecases.article import run as run_article
             run_article(use_gemini=True)
 
-        run_step("Generate Posts", generate_posts, critical=True)
-        run_step("Generate Articles", generate_articles, critical=True)
-
-        # ── Steps 5-10: Same publishing as automatic pipeline ──────────────
         def fetch_images():
             from src.shared.infrastructure.composition_root import run_image_unsplash, run_image_google
             run_image_unsplash()
             run_image_google()
 
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            fut_articles = executor.submit(run_step, "Generate Articles", generate_articles, True)
+            fut_images = executor.submit(run_step, "Fetch Images", fetch_images, True)
+            # Join: wait for both. Articles first to preserve the original
+            # priority (if both fail, the articles error is the one raised).
+            fut_articles.result()
+            fut_images.result()
+
+        # ── Step 6: Enrich Images ───────────────────────────────────────────
         def enrich_images():
             from src.shared.infrastructure.composition_root import run_image_enricher
             run_image_enricher()
 
+        run_step("Enrich Images", enrich_images, critical=True)
+
+        # ── F12: read generated_articles ONCE (stable after enrich) ────────
+        # Reused by Generate Audio, Generate Video and the final read, instead
+        # of re-querying MongoDB at each step.
+        from src.shared.adapters.mongo_db import get_database
+        db = get_database()
+        articles_list = list(db["generated_articles"].find({}))
+
+        # ── Step 7: Generate Audio ──────────────────────────────────────────
         def generate_audio():
             from src.shared.application.usecases.tts_from_article import run_tts_from_articles
-            from src.shared.adapters.mongo_db import get_database
-            db = get_database()
             coll = db["generated_articles"]
-            articles = list(coll.find({}))
-            if articles:
-                updated = run_tts_from_articles(articles)
+            if articles_list:
+                updated = run_tts_from_articles(articles_list)
                 for article in updated:
                     if article.get("tts_audio_path"):
                         coll.update_one(
@@ -130,14 +150,16 @@ class ProcessUrlPipeline:
                             {"$set": {"tts_audio_path": article["tts_audio_path"]}},
                         )
 
+        run_step("Generate Audio", generate_audio, critical=True)
+
+        # ── Step 8: Generate Video ──────────────────────────────────────────
         def generate_video():
             from src.shared.infrastructure.composition_root import create_video_generator
-            from src.shared.adapters.mongo_db import get_database
-            db = get_database()
             coll = db["generated_articles"]
+            posts_coll = db["generated_posts"]
             video_gen = create_video_generator()
             if video_gen.is_available():
-                for article in list(coll.find({})):
+                for article in articles_list:
                     audio_path = article.get("tts_audio_path")
                     if audio_path and os.path.exists(audio_path):
                         video_path = video_gen.create_video_from_audio(audio_path=audio_path)
@@ -146,11 +168,26 @@ class ProcessUrlPipeline:
                                 {"_id": article["_id"]},
                                 {"$set": {"generated_video_path": video_path}},
                             )
+                            # F3: propagate video_path to generated_posts so
+                            # Facebook (which reads post["video_path"]) can
+                            # publish the video in the URL/API flow.
+                            original_url = article.get("original_url")
+                            if original_url:
+                                posts_coll.update_one(
+                                    {"url": original_url},
+                                    {"$set": {"video_path": video_path}},
+                                )
 
+        run_step("Generate Video", generate_video, critical=True)
+
+        # ── Step 9: Publish WordPress ───────────────────────────────────────
         def publish_wordpress():
             from src.shared.infrastructure.composition_root import run_wordpress
             run_wordpress()
 
+        run_step("Publish WordPress", publish_wordpress, critical=True)
+
+        # ── Step 10: Publish Social ─────────────────────────────────────────
         def publish_social():
             from src.shared.infrastructure.composition_root import run_bluesky, run_mastodon, run_facebook
             for fn in (run_bluesky, run_mastodon, run_facebook):
@@ -160,11 +197,6 @@ class ProcessUrlPipeline:
                     logger.error(f"[PROCESS_URL] Social publisher error: {e}")
                     raise RuntimeError(f"Social publisher crítico falló: {e}")
 
-        run_step("Fetch Images", fetch_images, critical=True)
-        run_step("Enrich Images", enrich_images, critical=True)
-        run_step("Generate Audio", generate_audio, critical=True)
-        run_step("Generate Video", generate_video, critical=True)
-        run_step("Publish WordPress", publish_wordpress, critical=True)
         run_step("Publish Social", publish_social, critical=True)
 
         if metrics:
@@ -174,9 +206,10 @@ class ProcessUrlPipeline:
                 logger.warning(f"[PROCESS_URL] Could not flush metrics: {e}")
 
         # Return compatible dict for ProcessUrlJobCoordinator
-        from src.shared.adapters.mongo_db import get_database
-        db = get_database()
-        article = db["generated_articles"].find_one({}, {"_id": 0}) or {}
+        # F12: reuse articles_list (already enriched with tts_audio_path and
+        # generated_video_path by the steps above) instead of re-reading.
+        article = dict(articles_list[0]) if articles_list else {}
+        article.pop("_id", None)
         post = db["generated_posts"].find_one({}, {"_id": 0}) or {}
 
         logger.info("[PROCESS_URL] ✅ Pipeline completed")

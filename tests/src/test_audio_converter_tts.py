@@ -167,7 +167,7 @@ class TestTTSFactory:
 class TestCoquiTTSAdapter:
     """Test Coqui TTS Adapter con conversion a MP3."""
 
-    @patch("src.shared.adapters.coqui_tts_adapter.requests.get")
+    @patch("src.shared.adapters.coqui_tts_adapter._coqui_session.get")
     def test_text_to_speech_returns_mp3(self, mock_get, tmp_path):
         from src.shared.adapters.coqui_tts_adapter import CoquiTTSAdapter
 
@@ -203,7 +203,7 @@ class TestCoquiTTSAdapter:
         assert call_kwargs["input_path"].endswith(".wav")
         assert str(tmp_path) in call_kwargs["input_path"]
 
-    @patch("src.shared.adapters.coqui_tts_adapter.requests.get")
+    @patch("src.shared.adapters.coqui_tts_adapter._coqui_session.get")
     def test_is_available_success(self, mock_get):
         from src.shared.adapters.coqui_tts_adapter import CoquiTTSAdapter
 
@@ -215,7 +215,7 @@ class TestCoquiTTSAdapter:
             adapter = CoquiTTSAdapter()
             assert adapter.is_available() is True
 
-    @patch("src.shared.adapters.coqui_tts_adapter.requests.get")
+    @patch("src.shared.adapters.coqui_tts_adapter._coqui_session.get")
     def test_is_available_connection_error(self, mock_get):
         from src.shared.adapters.coqui_tts_adapter import CoquiTTSAdapter
 

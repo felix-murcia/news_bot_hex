@@ -10,6 +10,10 @@ from src.shared.adapters.seo_optimizer import extract_focus_keyphrase
 
 logger = get_logger("news_bot")
 
+# F13: Session compartida por servicio (WP) para reutilizar conexiones HTTP.
+# Transporte puro: timeouts/headers/retries idénticos a los requests sueltos.
+_wp_session = requests.Session()
+
 
 def validate_wp_token() -> bool:
     """
@@ -32,7 +36,7 @@ def validate_wp_token() -> bool:
         }
 
         # Test with a simple GET request to verify token
-        resp = requests.get(
+        resp = _wp_session.get(
             f"{Settings.WP_API_URL}/posts?per_page=1",
             headers=headers,
             timeout=10,
@@ -88,6 +92,12 @@ def rest_url(endpoint: str) -> str:
     return f"{Settings.WP_API_URL}/{endpoint}"
 
 
+# F9: caché in-memory (name → id) a nivel de proceso para categorías y tags.
+# Evita el REST GET de búsqueda en cada llamada a ensure_category/ensure_tag.
+_CATEGORY_CACHE: Dict[str, Optional[int]] = {}
+_TAG_CACHE: Dict[str, Optional[int]] = {}
+
+
 def _compress_image(data: bytes, filename: str, max_width: int = 1200, quality: int = 82) -> tuple[bytes, str]:
     """Compress image with Pillow: resize to max_width, convert to WebP.
 
@@ -131,7 +141,7 @@ def _set_media_meta(media_id: int, alt_text: Optional[str], credit: Optional[str
             meta_payload["caption"] = credit
             meta_payload["description"] = credit
         if meta_payload:
-            requests.post(
+            _wp_session.post(
                 rest_url(f"media/{media_id}"),
                 headers=get_headers(),
                 json=meta_payload,
@@ -152,7 +162,7 @@ def upload_image(
         headers.pop("Content-Type", None)
         files = {"file": (filename, BytesIO(compressed), "image/webp")}
         logger.info(f"[HOSTING] Subiendo imagen: {image_path}")
-        resp = requests.post(rest_url("media"), headers=headers, files=files, timeout=30)
+        resp = _wp_session.post(rest_url("media"), headers=headers, files=files, timeout=30)
         if resp.status_code in (200, 201):
             media_id = resp.json().get("id")
             logger.info(f"[HOSTING] Imagen subida, ID={media_id}")
@@ -172,7 +182,7 @@ def upload_image_from_url(
     max_width: int = 1200,
 ) -> Optional[int]:
     try:
-        resp = requests.get(image_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
+        resp = _wp_session.get(image_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
         resp.raise_for_status()
         
         url_path = image_url.split("?")[0]
@@ -191,7 +201,7 @@ def upload_image_from_url(
         headers = get_headers()
         headers.pop("Content-Type", None)
         files = {"file": (filename, BytesIO(compressed), mime_type)}
-        r = requests.post(rest_url("media"), headers=headers, files=files, timeout=30)
+        r = _wp_session.post(rest_url("media"), headers=headers, files=files, timeout=30)
         if r.status_code in (200, 201):
             media_id = r.json().get("id")
             if media_id:
@@ -248,7 +258,7 @@ def upload_audio(audio_path: str) -> Optional[int]:
         )
         with open(audio_path, "rb") as f:
             files = {"file": (os.path.basename(audio_path), f, "audio/mpeg")}
-            resp = requests.post(
+            resp = _wp_session.post(
                 rest_url("media"), headers=headers, files=files, timeout=30
             )
         if resp.status_code in (200, 201):
@@ -266,8 +276,12 @@ def upload_audio(audio_path: str) -> Optional[int]:
 
 
 def ensure_category(name: str) -> Optional[int]:
+    # F9: caché de proceso — si ya se resolvió, no hay REST GET
+    if name in _CATEGORY_CACHE:
+        return _CATEGORY_CACHE[name]
+    result: Optional[int] = None
     try:
-        r = requests.get(
+        r = _wp_session.get(
             rest_url("categories"),
             headers=get_headers(),
             params={"search": name},
@@ -276,45 +290,55 @@ def ensure_category(name: str) -> Optional[int]:
         if r.status_code == 200:
             data = r.json()
             if isinstance(data, list) and data:
-                return data[0]["id"]
-        r = requests.post(
-            rest_url("categories"),
-            headers=get_headers(),
-            json={"name": name},
-            timeout=30,
-        )
-        if r.status_code in (200, 201):
-            return r.json().get("id")
-        else:
-            logger.warning(f"[HOSTING] No se pudo crear categoría: {r.status_code}")
+                result = data[0]["id"]
+        if result is None:
+            r = _wp_session.post(
+                rest_url("categories"),
+                headers=get_headers(),
+                json={"name": name},
+                timeout=30,
+            )
+            if r.status_code in (200, 201):
+                result = r.json().get("id")
+            else:
+                logger.warning(f"[HOSTING] No se pudo crear categoría: {r.status_code}")
     except Exception as e:
         logger.warning(f"[HOSTING] Error con categoría: {e}")
-    return None
+    # Solo se cachea el éxito: un fallo no se cachea para reintentar después
+    if result is not None:
+        _CATEGORY_CACHE[name] = result
+    return result
 
 
 def ensure_tag(name: str) -> Optional[int]:
+    # F9: caché de proceso — si ya se resolvió, no hay REST GET
+    if name in _TAG_CACHE:
+        return _TAG_CACHE[name]
+    result: Optional[int] = None
     try:
-        r = requests.get(
+        r = _wp_session.get(
             rest_url("tags"), headers=get_headers(), params={"search": name}, timeout=30
         )
         if r.status_code == 200:
             data = r.json()
             if isinstance(data, list) and data:
-                tag_id = data[0]["id"]
-                logger.info(f"[HOSTING] Tag reutilizado: '{name}' → ID={tag_id}")
-                return tag_id
-        r = requests.post(
-            rest_url("tags"), headers=get_headers(), json={"name": name}, timeout=30
-        )
-        if r.status_code in (200, 201):
-            tag_id = r.json().get("id")
-            logger.info(f"[HOSTING] Tag creado: '{name}' → ID={tag_id}")
-            return tag_id
-        else:
-            logger.warning(f"[HOSTING] No se pudo crear tag: {r.status_code}")
+                result = data[0]["id"]
+                logger.info(f"[HOSTING] Tag reutilizado: '{name}' → ID={result}")
+        if result is None:
+            r = _wp_session.post(
+                rest_url("tags"), headers=get_headers(), json={"name": name}, timeout=30
+            )
+            if r.status_code in (200, 201):
+                result = r.json().get("id")
+                logger.info(f"[HOSTING] Tag creado: '{name}' → ID={result}")
+            else:
+                logger.warning(f"[HOSTING] No se pudo crear tag: {r.status_code}")
     except Exception as e:
         logger.warning(f"[HOSTING] Error con tag: {e}")
-    return None
+    # Solo se cachea el éxito: un fallo no se cachea para reintentar después
+    if result is not None:
+        _TAG_CACHE[name] = result
+    return result
 
 
 def publish_post(
@@ -377,7 +401,7 @@ def publish_post(
             payload["featured_media"] = int(featured_image)
 
         logger.info(f"[HOSTING] Publicando: {title}")
-        resp = requests.post(
+        resp = _wp_session.post(
             rest_url("posts"), headers=headers, json=payload, timeout=30
         )
 
@@ -477,7 +501,7 @@ class WordPressPublisher:
 
         if featured_image:
             try:
-                media_resp = requests.get(
+                media_resp = _wp_session.get(
                     rest_url(f"media/{featured_image}"),
                     headers=get_headers(),
                     timeout=10,
@@ -502,7 +526,7 @@ class WordPressPublisher:
             audio_id = upload_audio(audio_path)
             if audio_id:
                 try:
-                    media_resp = requests.get(
+                    media_resp = _wp_session.get(
                         rest_url(f"media/{audio_id}"),
                         headers=get_headers(),
                         timeout=15,

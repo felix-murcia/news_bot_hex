@@ -17,6 +17,9 @@ if not GOOGLE_API_KEY or not GOOGLE_CX:
 
 GOOGLE_API = Settings.GOOGLE_API_URL
 
+# F13: Session compartida por servicio (Google Images) para reutilizar conexiones.
+_google_session = requests.Session()
+
 
 def filter_by_relevance(
     images: list[dict], query_keywords: list[str], min_score: float = 0.25
@@ -95,7 +98,7 @@ class GoogleImagesFetcher:
                 "searchType": "image",
                 "num": limit,
             }
-            resp = requests.get(GOOGLE_API, params=params, timeout=15)
+            resp = _google_session.get(GOOGLE_API, params=params, timeout=15)
             if resp.status_code != 200:
                 logger.warning(f"[GOOGLE] API error: {resp.status_code}")
                 return []

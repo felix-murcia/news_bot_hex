@@ -14,6 +14,10 @@ logger = get_logger("shared.usecases.tts")
 
 COQUI_TTS_CHAR_LIMIT = 239
 
+# F13: Session compartida por servicio (ffmpeg-api concatenate) para reutilizar
+# conexiones HTTP. Transporte puro: no cambia fragmentación ni parámetros TTS.
+_ffmpeg_session = requests.Session()
+
 
 def split_text_by_sentences(text: str, char_limit: int = COQUI_TTS_CHAR_LIMIT) -> List[str]:
     """Divide el texto en fragmentos respetando el límite de caracteres y oraciones."""
@@ -76,7 +80,7 @@ def concatenate_audio_files(audio_paths: List[str], output_path: str, ffmpeg_bas
         }
 
         logger.info(f"[TTS] Llamando a ffmpeg-api para concatenar {len(audio_paths)} archivos...")
-        resp = requests.post(concat_endpoint, json=payload, timeout=300)
+        resp = _ffmpeg_session.post(concat_endpoint, json=payload, timeout=300)
 
         if resp.status_code != 200:
             logger.error(f"[TTS] Error HTTP en concatenación ({resp.status_code}): {resp.text[:200]}")

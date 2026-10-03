@@ -49,7 +49,7 @@ class TestAudioPostProcessor:
         source = tmp_path / "in.wav"
         source.write_bytes(FAKE_WAV)
 
-        with patch("src.shared.adapters.audio_post_processor.requests.post") as mock_post:
+        with patch("src.shared.adapters.audio_post_processor._ffmpeg_session.post") as mock_post:
             mock_post.return_value = _mock_response()
             AudioPostProcessor(base_url="http://ffmpeg.test").process(
                 str(source),
@@ -78,7 +78,7 @@ class TestAudioPostProcessor:
         source.write_bytes(FAKE_WAV)
         target = tmp_path / "nested" / "out.wav"
 
-        with patch("src.shared.adapters.audio_post_processor.requests.post") as mock_post:
+        with patch("src.shared.adapters.audio_post_processor._ffmpeg_session.post") as mock_post:
             mock_post.return_value = _mock_response(content=b"PROCESSED-AUDIO")
             result = AudioPostProcessor(base_url="http://ffmpeg.test").process(
                 str(source), str(target)
@@ -92,7 +92,7 @@ class TestAudioPostProcessor:
         source = tmp_path / "in.wav"
         source.write_bytes(FAKE_WAV)
 
-        with patch("src.shared.adapters.audio_post_processor.requests.post") as mock_post:
+        with patch("src.shared.adapters.audio_post_processor._ffmpeg_session.post") as mock_post:
             mock_post.return_value = _mock_response(content=b"IN-PLACE")
             result = AudioPostProcessor(base_url="http://ffmpeg.test").process(str(source))
 
@@ -103,7 +103,7 @@ class TestAudioPostProcessor:
         """A missing input must short-circuit before any HTTP call."""
         missing = tmp_path / "nope.wav"
 
-        with patch("src.shared.adapters.audio_post_processor.requests.post") as mock_post:
+        with patch("src.shared.adapters.audio_post_processor._ffmpeg_session.post") as mock_post:
             result = AudioPostProcessor(base_url="http://ffmpeg.test").process(str(missing))
 
         assert result is None
@@ -115,7 +115,7 @@ class TestAudioPostProcessor:
         source = tmp_path / "in.wav"
         source.write_bytes(FAKE_WAV)
 
-        with patch("src.shared.adapters.audio_post_processor.requests.post") as mock_post:
+        with patch("src.shared.adapters.audio_post_processor._ffmpeg_session.post") as mock_post:
             mock_post.return_value = _mock_response(status_code=status_code)
             result = AudioPostProcessor(base_url="http://ffmpeg.test").process(str(source))
 
@@ -134,7 +134,7 @@ class TestAudioPostProcessor:
         source = tmp_path / "in.wav"
         source.write_bytes(FAKE_WAV)
 
-        with patch("src.shared.adapters.audio_post_processor.requests.post") as mock_post:
+        with patch("src.shared.adapters.audio_post_processor._ffmpeg_session.post") as mock_post:
             mock_post.side_effect = error
             result = AudioPostProcessor(base_url="http://ffmpeg.test").process(str(source))
 
@@ -158,7 +158,7 @@ class TestAudioPostProcessorAggressiveness:
         source = tmp_path / "in.wav"
         source.write_bytes(FAKE_WAV)
 
-        with patch("src.shared.adapters.audio_post_processor.requests.post") as mock_post:
+        with patch("src.shared.adapters.audio_post_processor._ffmpeg_session.post") as mock_post:
             mock_post.return_value = _mock_response()
             post_process_audio(
                 input_path=str(source),
@@ -181,7 +181,7 @@ class TestAudioPostProcessorIntegration:
         source = tmp_path / "in.wav"
         source.write_bytes(FAKE_WAV)
 
-        with patch("src.shared.adapters.audio_post_processor.requests.post") as mock_post:
+        with patch("src.shared.adapters.audio_post_processor._ffmpeg_session.post") as mock_post:
             mock_post.return_value = _mock_response()
             AudioPostProcessor(base_url="http://ffmpeg.test").process(str(source))
 
