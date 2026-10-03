@@ -12,8 +12,27 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 class EndpointFilter(logging.Filter):
+    """Silence recurring probes from external monitors.
+
+    uvicorn passes access records as args=(client_addr, method, full_path,
+    http_version, status_code) — see uvicorn/logging.py:formatMessage.
+
+    Both paths below are healthchecks issued by tooling outside Docker: they
+    arrive from the network gateway rather than a container. /api/v1/account/info
+    is a Mastodon user probe, /v1/models the default health path that OpenAI and
+    Google AI Platform tooling scan for. Neither endpoint has ever existed in this
+    API, so require_api_key answers 401 by design; logging it on every probe is
+    noise that hides real errors in the TOC.
+    """
+
+    SILENCED_PATHS = frozenset({"/api/v1/account/info", "/v1/models"})
+
     def filter(self, record: logging.LogRecord) -> bool:
-        return not (record.args and len(record.args) >= 3 and record.args[2] == "/api/v1/account/info")
+        args = record.args
+        # Bail out rather than guess if some other formatter emits a different shape.
+        if not isinstance(args, tuple) or len(args) < 3:
+            return True
+        return args[2] not in self.SILENCED_PATHS
 
 logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
 
