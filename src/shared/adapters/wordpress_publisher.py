@@ -440,6 +440,118 @@ class WordPressPublisher:
             logger.error(f"[HOSTING] Error guardando post: {e}")
             return False
 
+    @staticmethod
+    def _resolve_title(art: Dict, matched_post: Dict) -> Optional[str]:
+        """Título del post, con cadena de recadas entre artículo y post."""
+        return (
+            art.get("title")
+            or matched_post.get("title_es")
+            or art.get("title_es")
+            or matched_post.get("tweet")
+        )
+
+    @staticmethod
+    def _resolve_featured_media(art: Dict) -> tuple[Optional[int], Optional[str]]:
+        """Sube la imagen destacada y resuelve su URL real para og:image.
+
+        Devuelve (media_id, url). La resolución de la URL real es fail-fast:
+        si WordPress no responde, el error se propaga.
+        """
+        image_path = art.get("image_path")
+        image_url = art.get("image_url")
+        alt_text = art.get("alt_text")
+        image_credit = art.get("image_credit")
+
+        featured_image = None
+        featured_image_url = None
+        if image_path and Path(image_path).exists():
+            featured_image = upload_image(
+                image_path, credit=image_credit, alt_text=alt_text
+            )
+            featured_image_url = image_url  # fallback; upload returns ID not URL
+        elif image_url:
+            featured_image = upload_image_from_url(
+                image_url, alt_text=alt_text, credit=image_credit
+            )
+            featured_image_url = image_url
+
+        if featured_image:
+            try:
+                media_resp = requests.get(
+                    rest_url(f"media/{featured_image}"),
+                    headers=get_headers(),
+                    timeout=10,
+                )
+                if media_resp.status_code == 200:
+                    featured_image_url = media_resp.json().get("source_url", featured_image_url)
+            except Exception as e:
+                logger.error(f"[HOSTING] No se pudo resolver featured_image_url: {e}")
+                raise
+        return featured_image, featured_image_url
+
+    @staticmethod
+    def _build_audio_block(art: Dict) -> str:
+        """Sube el audio TTS y devuelve el bloque Gutenberg ("" si no hay audio).
+
+        El fallo de subida o la lectura de la URL son degradados (se loguea y
+        se continúa sin audio); solo se elimina el archivo local con warning.
+        """
+        audio_path = art.get("tts_audio_path")
+        audio_block = ""
+        if audio_path and Path(audio_path).exists():
+            audio_id = upload_audio(audio_path)
+            if audio_id:
+                try:
+                    media_resp = requests.get(
+                        rest_url(f"media/{audio_id}"),
+                        headers=get_headers(),
+                        timeout=15,
+                    )
+                    if media_resp.status_code == 200:
+                        audio_url = media_resp.json().get("source_url", "")
+                        # Bloque Gutenberg con atributos de accesibilidad
+                        audio_block = f"""
+<!-- wp:audio {{"id": {audio_id}}} -->
+<figure class="wp-block-audio"><audio controls src="{audio_url}" controlsList="nodownload" aria-label="Audio del artículo" title="Escuchar artículo en audio"></audio></figure>
+<!-- /wp:audio -->
+"""
+                        logger.info(f"[HOSTING] Audio bloque preparado (ID={audio_id})")
+                except Exception as e:
+                    logger.warning(f"[HOSTING] No se pudo obtener URL del audio: {e}")
+            try:
+                Path(audio_path).unlink(missing_ok=True)
+                logger.debug(f"[HOSTING] Audio local eliminado: {audio_path}")
+            except Exception as e:
+                logger.warning(f"[HOSTING] No se pudo eliminar audio local: {e}")
+        return audio_block
+
+    @staticmethod
+    def _build_final_content(
+        art: Dict, audio_block: str, featured_image_url: Optional[str], title: str
+    ) -> str:
+        """Monta el contenido final: bloque de audio + cuerpo + schema JSON-LD.
+
+        El schema es degradado: si falla se loguea y se publica sin él.
+        """
+        article_content = art.get("content", "")
+        if audio_block:
+            article_content = audio_block + "\n\n" + article_content
+
+        try:
+            from src.shared.adapters.seo_optimizer import build_news_article_schema
+            from datetime import datetime, timezone
+            schema_block = build_news_article_schema(
+                title=title,
+                description=art.get("meta_description") or art.get("excerpt") or "",
+                url=art.get("canonical_url") or art.get("url") or "",
+                image_url=featured_image_url or art.get("image_url") or "",
+                date_published=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            )
+            article_content = article_content + schema_block
+        except Exception as e:
+            logger.warning(f"[HOSTING] No se pudo añadir schema JSON-LD: {e}")
+        return article_content
+
     def publish_articles(
         self, articles: Optional[List[Dict]] = None, posts: Optional[List[Dict]] = None
     ) -> Dict:
@@ -472,13 +584,7 @@ class WordPressPublisher:
             art_url = art.get("original_url") or art.get("url", "")
             matched_post = posts_by_url.get(art_url, {})
 
-            title = (
-                art.get("title")
-                or matched_post.get("title_es")
-                or art.get("title_es")
-                or matched_post.get("tweet")
-            )
-
+            title = self._resolve_title(art, matched_post)
             if not title or not art.get("content"):
                 logger.warning(f"[HOSTING] Artículo inválido url={art_url}")
                 continue
@@ -489,10 +595,8 @@ class WordPressPublisher:
 
             labels = art.get("labels", [])
             categoria = labels[0] if labels else "Noticias"
-
             if categoria in ["Video", "Política", "Política internacional"]:
                 categoria = "Noticias"
-
             categoria_id = ensure_category(categoria)
 
             precomputed_tags = matched_post.get("hashtags", [])
@@ -500,102 +604,19 @@ class WordPressPublisher:
             tag_ids = [ensure_tag(t) for t in all_tags if isinstance(t, str)]
             tag_ids = [tid for tid in tag_ids if tid is not None]
 
-            is_draft = art.get("is_draft", False)
-            excerpt = art.get("excerpt")
-
-            image_path = art.get("image_path")
-            image_url = art.get("image_url")
-            alt_text = art.get("alt_text")
-            image_credit = art.get("image_credit")
-
-            featured_image = None
-            featured_image_url = None
-            if image_path and Path(image_path).exists():
-                featured_image = upload_image(
-                    image_path, credit=image_credit, alt_text=alt_text
-                )
-                featured_image_url = image_url  # fallback; upload returns ID not URL
-            elif image_url:
-                featured_image = upload_image_from_url(
-                    image_url, alt_text=alt_text, credit=image_credit
-                )
-                featured_image_url = image_url
-
-            # Resolve the actual uploaded media URL from WordPress for og:image
-            if featured_image:
-                try:
-                    media_resp = requests.get(
-                        rest_url(f"media/{featured_image}"),
-                        headers=get_headers(),
-                        timeout=10,
-                    )
-                    if media_resp.status_code == 200:
-                        featured_image_url = media_resp.json().get("source_url", featured_image_url)
-                except Exception:
-                    pass
-
-            # === TTS Audio Upload ===
-            audio_path = art.get("tts_audio_path")
-            audio_block = ""
-            if audio_path and Path(audio_path).exists():
-                audio_id = upload_audio(audio_path)
-                if audio_id:
-                    # Obtener URL del audio desde WordPress
-                    try:
-                        media_resp = requests.get(
-                            rest_url(f"media/{audio_id}"),
-                            headers=get_headers(),
-                            timeout=15,
-                        )
-                        if media_resp.status_code == 200:
-                            audio_url = media_resp.json().get("source_url", "")
-                            # Crear bloque Gutenberg para audio con atributos de accesibilidad
-                            audio_block = f"""
-<!-- wp:audio {{"id": {audio_id}}} -->
-<figure class="wp-block-audio"><audio controls src="{audio_url}" controlsList="nodownload" aria-label="Audio del artículo" title="Escuchar artículo en audio"></audio></figure>
-<!-- /wp:audio -->
-"""
-                            logger.info(
-                                f"[HOSTING] Audio bloque preparado (ID={audio_id})"
-                            )
-                    except Exception as e:
-                        logger.warning(
-                            f"[HOSTING] No se pudo obtener URL del audio: {e}"
-                        )
-                # Eliminar archivo local tras subida (con o sin éxito)
-                try:
-                    Path(audio_path).unlink(missing_ok=True)
-                    logger.debug(f"[HOSTING] Audio local eliminado: {audio_path}")
-                except Exception as e:
-                    logger.warning(f"[HOSTING] No se pudo eliminar audio local: {e}")
-
-            # === Prepare content with audio block and schema ===
-            article_content = art.get("content", "")
-            if audio_block:
-                article_content = audio_block + "\n\n" + article_content
-
-            # Inject NewsArticle JSON-LD schema at the end of the post
-            try:
-                from src.shared.adapters.seo_optimizer import build_news_article_schema
-                from datetime import datetime, timezone
-                schema_block = build_news_article_schema(
-                    title=title,
-                    description=art.get("meta_description") or art.get("excerpt") or "",
-                    url=art.get("canonical_url") or art.get("url") or "",
-                    image_url=featured_image_url or art.get("image_url") or "",
-                    date_published=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                )
-                article_content = article_content + schema_block
-            except Exception as e:
-                logger.warning(f"[HOSTING] No se pudo añadir schema JSON-LD: {e}")
+            featured_image, featured_image_url = self._resolve_featured_media(art)
+            audio_block = self._build_audio_block(art)
+            article_content = self._build_final_content(
+                art, audio_block, featured_image_url, title
+            )
 
             post_url = publish_post(
                 title=title,
                 content=article_content,
                 categories=[categoria_id] if categoria_id else None,
                 tags=tag_ids,
-                is_draft=is_draft,
-                excerpt=excerpt,
+                is_draft=art.get("is_draft", False),
+                excerpt=art.get("excerpt"),
                 meta_description=art.get("meta_description"),
                 featured_image=featured_image,
                 featured_image_url=featured_image_url,
