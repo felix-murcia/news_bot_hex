@@ -130,8 +130,9 @@ def translate_text(text: str, target_lang: str = "es") -> str:
         try:
             with open(cache_file, "w", encoding="utf-8") as f:
                 f.write(full_translation)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"[TRANSLATOR] Error escribiendo caché de traducción: {e}")
+            raise
 
         return full_translation
 

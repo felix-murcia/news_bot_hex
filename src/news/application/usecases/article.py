@@ -35,11 +35,8 @@ def get_domain(url: str) -> str:
 
 def _load_template_content() -> Optional[str]:
     """Load template from disk. Returns None if not found."""
-    try:
-        if _TEMPLATE_PATH.exists():
-            return _TEMPLATE_PATH.read_text(encoding="utf-8")
-    except Exception:
-        pass
+    if _TEMPLATE_PATH.exists():
+        return _TEMPLATE_PATH.read_text(encoding="utf-8")
     return None
 
 

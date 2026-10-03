@@ -73,12 +73,9 @@ class NewsToNewsUseCase:
             return None
 
     def _save_to_cache(self, url: str, content: str):
-        try:
-            from src.shared.adapters.cache_manager import save_content_to_cache
+        from src.shared.adapters.cache_manager import save_content_to_cache
 
-            save_content_to_cache(url, content, "news_to_news")
-        except Exception:
-            pass
+        save_content_to_cache(url, content, "news_to_news")
 
     def _extract_content(self, url: str) -> tuple[str, Path]:
         """Extrae contenido de la URL."""
@@ -110,6 +107,7 @@ class NewsToNewsUseCase:
 
     def _generate_tweet(self, article_data: Dict) -> str:
         """Genera tweet a partir del artículo."""
+        from config.settings import Settings
         from src.shared.adapters.ai.agents import TweetGeopoliticsAgent
         from src.shared.adapters.social_post_adapter import truncate_social_post
 
@@ -165,8 +163,9 @@ class NewsToNewsUseCase:
         article_file = content_path.with_suffix(".md")
         try:
             article_file.write_text(article.get("content", ""), encoding="utf-8")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"[NEWS_TO_NEWS] Error escribiendo artículo .md: {e}")
+            raise
 
         return {}
 

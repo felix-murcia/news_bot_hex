@@ -74,8 +74,9 @@ def add_used_id(img_id: str):
         from src.shared.adapters.mongo_db import get_database
         db = get_database()
         db["used_google_ids"].update_one({"id": img_id}, {"$set": {"id": img_id}}, upsert=True)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"[GOOGLE IMAGES] Error tracking used image ID: {e}")
+        raise
 
 
 class GoogleImagesFetcher:

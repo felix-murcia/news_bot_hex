@@ -108,11 +108,7 @@ class VerifyNewsUseCase:
             # Translate title to Spanish
             from src.shared.adapters.translator import translate_text
 
-            title_es = title
-            try:
-                title_es = translate_text(title[:200], target_lang="es")
-            except Exception:
-                pass
+            title_es = translate_text(title[:200], target_lang="es")
 
             verified_article = VerifiedArticle(
                 title=title,
@@ -282,19 +278,16 @@ class FullVerifyNewsUseCase:
             self._verified_repo.delete_all_news()
             return {"status": "warning", "message": "Ninguna noticia pasó el filtro."}
 
-        try:
-            url = top.get("url")
-            if url and self._content_extractor:
-                contenido, _ = self._content_extractor.extract(url)
-                if len(contenido) >= weights.get("min_chars", 1000):
-                    published_urls.add(url)
-                    self._published_urls_repo.save_urls(
-                        published_urls,
-                        limits.get("ttl_days", 30),
-                        limits.get("max_urls", 1000),
-                    )
-        except Exception:
-            pass
+        url = top.get("url")
+        if url and self._content_extractor:
+            contenido, _ = self._content_extractor.extract(url)
+            if len(contenido) >= weights.get("min_chars", 1000):
+                published_urls.add(url)
+                self._published_urls_repo.save_urls(
+                    published_urls,
+                    limits.get("ttl_days", 30),
+                    limits.get("max_urls", 1000),
+                )
 
         url = top.get("url")
         if url and url not in published_urls:

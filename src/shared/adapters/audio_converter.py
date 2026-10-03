@@ -101,10 +101,7 @@ class AudioConverter(AudioConverterPort):
 
             # Eliminar archivo original si se solicita
             if delete_original and os.path.exists(input_path):
-                try:
-                    os.remove(input_path)
-                except Exception:
-                    pass
+                Path(input_path).unlink(missing_ok=True)
 
             return converted_path
 

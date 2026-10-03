@@ -210,10 +210,7 @@ class CoquiTTSAdapter(TTSPort):
                 atempo_wav_path = self._apply_atempo_filter(wav_path)
                 if atempo_wav_path:
                     # Eliminar el WAV original
-                    try:
-                        os.remove(wav_path)
-                    except Exception:
-                        pass
+                    Path(wav_path).unlink(missing_ok=True)
                     wav_path = atempo_wav_path
                     logger.info(f"[COQUI TTS] ✅ Filtro atempo aplicado: {self.atempo}x")
                 else:

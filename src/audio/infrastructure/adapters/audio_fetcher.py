@@ -2,6 +2,7 @@ import os
 import re
 import uuid
 import time
+from pathlib import Path
 from typing import Optional, Dict, Any
 
 from config.logging_config import get_logger
@@ -217,19 +218,13 @@ def _download_with_ytdlp(
 
         if converted and os.path.exists(converted):
             # Eliminar archivo original descargado
-            try:
-                os.remove(downloaded_path)
-            except Exception:
-                pass
+            Path(downloaded_path).unlink(missing_ok=True)
             logger.info(f"[AUDIO] ✅ Conversión a MP3 exitosa: {converted}")
             return converted
         else:
             logger.error("[AUDIO] Falló la conversión a MP3")
             # Eliminar archivo original por limpieza
-            try:
-                os.remove(downloaded_path)
-            except Exception:
-                pass
+            Path(downloaded_path).unlink(missing_ok=True)
             return None
 
     except Exception as e:

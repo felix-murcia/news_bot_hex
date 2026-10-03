@@ -1,5 +1,5 @@
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List
 
 from config.logging_config import get_logger
@@ -179,12 +179,16 @@ def compute_score(
     if pub:
         try:
             dt = datetime.fromisoformat(pub.replace("Z", "+00:00"))
-            if dt > datetime.utcnow() - timedelta(hours=24):
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            now = datetime.now(timezone.utc)
+            if dt > now - timedelta(hours=24):
                 score += 2
-            elif dt > datetime.utcnow() - timedelta(days=3):
+            elif dt > now - timedelta(days=3):
                 score += 1
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"[SCORING] publishedAt inválido: {pub!r}: {e}")
+            raise
     source = article.get("source")
     source_name = (
         source.get("name", "") if isinstance(source, dict) else str(source or "")
