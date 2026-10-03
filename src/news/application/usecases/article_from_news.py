@@ -1,6 +1,4 @@
 import os
-import re
-from pathlib import Path
 from typing import Dict, Any, Optional
 
 from src.shared.adapters.translator import translate_text
@@ -205,7 +203,6 @@ Requisitos:
 
         title = news_item.get("title", "Nueva noticia")
         url = news_item.get("url", Settings.WP_SITE_URL)
-        tema = news_item.get("tema", "Noticias")
         tweet = f"📰 {title[:200]}\n\nLeer más: {url}"
 
         from src.shared.adapters.social_post_adapter import truncate_social_post

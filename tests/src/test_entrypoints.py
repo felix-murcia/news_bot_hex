@@ -194,22 +194,6 @@ class TestJinaExtractor:
         assert jina_extractor is not None
 
 
-class TestGeminiClient:
-    """Test Gemini client."""
-
-    def test_gemini_client_module(self):
-        from src.shared.adapters import gemini_client
-        assert gemini_client is not None
-
-
-class TestOpenRouterClient:
-    """Test OpenRouter client."""
-
-    def test_openrouter_client_module(self):
-        from src.shared.adapters import openrouter_client
-        assert openrouter_client is not None
-
-
 class TestAIModelPort:
     """Test AI model port interface."""
 

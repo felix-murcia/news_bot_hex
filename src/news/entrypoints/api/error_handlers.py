@@ -7,12 +7,17 @@ from src.news.domain.exceptions import RepositoryError
 
 logger = get_logger("news_bot.api.error_handlers")
 
+# Starlette invoca los handlers como `await handler(conn, exc)`
+# (starlette/_exception_handler.py), de forma posicional. El parametro
+# `request` forma parte del contrato aunque estos handlers no lo usen,
+# por eso se nombra `_request` en vez de eliminarse.
+
 
 def register_error_handlers(app: FastAPI) -> None:
     """Register global error handlers with FastAPI app."""
 
     @app.exception_handler(RepositoryError)
-    async def repository_error_handler(request: Request, exc: RepositoryError):
+    async def repository_error_handler(_request: Request, exc: RepositoryError):
         """Handle repository errors with 503 Service Unavailable."""
         logger.error(f"[REPOSITORY_ERROR] {str(exc)}", exc_info=True)
         return JSONResponse(
@@ -26,7 +31,7 @@ def register_error_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(ValueError)
-    async def value_error_handler(request: Request, exc: ValueError):
+    async def value_error_handler(_request: Request, exc: ValueError):
         """Handle validation errors with 400 Bad Request."""
         logger.warning(f"[VALIDATION_ERROR] {str(exc)}")
         return JSONResponse(
@@ -40,7 +45,7 @@ def register_error_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(Exception)
-    async def generic_error_handler(request: Request, exc: Exception):
+    async def generic_error_handler(_request: Request, exc: Exception):
         """Handle unexpected errors with 500 Internal Server Error."""
         error_id = id(exc)
         logger.error(

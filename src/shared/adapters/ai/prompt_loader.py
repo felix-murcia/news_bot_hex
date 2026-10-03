@@ -4,7 +4,6 @@ Prompt Loader Utility.
 Carga prompts desde archivos Markdown para los agentes de IA.
 """
 
-import os
 import logging
 from pathlib import Path
 from typing import Dict

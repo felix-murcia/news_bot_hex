@@ -9,7 +9,7 @@ import re
 import unicodedata
 from collections import defaultdict
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict
 
 
 class TemplateRenderer:

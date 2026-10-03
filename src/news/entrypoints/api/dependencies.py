@@ -8,9 +8,7 @@ este contenedor de DI via el sistema `Depends()`.
 Arquitectura Hexagonal: DIP (Dependency Inversion Principle)
 """
 
-from functools import lru_cache
 from fastapi import Depends
-from config.settings import Settings
 from config.logging_config import get_logger
 from src.news.domain.ports import VerifiedNewsRepository
 
@@ -32,70 +30,60 @@ def get_db():
 def get_rss_source_repo(db=Depends(get_db)):
     """Repositorio de fuentes RSS."""
     from src.news.infrastructure.adapters import MongoRSSSourceRepository
-    from src.news.domain.ports import RSSSourceRepository
     return MongoRSSSourceRepository(db)
 
 
 def get_article_repo(db=Depends(get_db)):
     """Repositorio de artículos raw."""
     from src.news.infrastructure.adapters import MongoArticleRepository
-    from src.news.domain.ports import ArticleRepository
     return MongoArticleRepository(db)
 
 
 def get_verified_news_repo(db=Depends(get_db)):
     """Repositorio de noticias verificadas."""
     from src.news.infrastructure.adapters import MongoVerifiedNewsRepository
-    from src.news.domain.ports import VerifiedNewsRepository
     return MongoVerifiedNewsRepository(db)
 
 
 def get_published_urls_repo(db=Depends(get_db)):
     """Repositorio de URLs publicadas."""
     from src.news.infrastructure.adapters import MongoPublishedUrlsRepository
-    from src.news.domain.ports import PublishedUrlsRepository
     return MongoPublishedUrlsRepository(db)
 
 
 def get_keywords_repo(db=Depends(get_db)):
     """Repositorio de keywords."""
     from src.news.infrastructure.adapters import MongoKeywordsRepository
-    from src.news.domain.ports import KeywordsRepository
     return MongoKeywordsRepository(db)
 
 
 def get_generated_posts_repo(db=Depends(get_db)):
     """Repositorio de posts generados."""
     from src.news.infrastructure.adapters import MongoGeneratedPostsRepository
-    from src.news.domain.ports import GeneratedPostsRepository
     return MongoGeneratedPostsRepository(db)
 
 
 def get_generated_articles_repo(db=Depends(get_db)):
     """Repositorio de artículos generados."""
     from src.news.infrastructure.adapters import MongoGeneratedArticlesRepository
-    from src.news.domain.ports import GeneratedArticlesRepository
     return MongoGeneratedArticlesRepository(db)
 
 
 def get_scoring_config_repo(db=Depends(get_db)):
     """Repositorio de configuración de scoring."""
     from src.news.infrastructure.adapters import MongoScoringConfigRepository
-    from src.news.domain.ports import ScoringConfigRepository
     return MongoScoringConfigRepository(db)
 
 
 def get_metrics_repository(db=Depends(get_db)):
     """Repositorio de métricas de pipeline."""
     from src.news.infrastructure.adapters.mongo_metrics_repository import MongoMetricsRepository
-    from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
     return MongoMetricsRepository(db)
 
 
 def get_timer_config_repository(db=Depends(get_db)):
     """Repositorio de configuración del timer."""
     from src.news.infrastructure.adapters.mongo_timer_config_repository import MongoTimerConfigRepository
-    from src.news.domain.ports.timer_config_repository_port import TimerConfigRepositoryPort
     return MongoTimerConfigRepository(db)
 
 
@@ -105,14 +93,12 @@ def get_timer_config_repository(db=Depends(get_db)):
 def get_content_extractor():
     """Extractor de contenido desde URLs."""
     from src.news.infrastructure.adapters import JinaContentExtractor
-    from src.news.domain.ports import ContentExtractor
     return JinaContentExtractor()
 
 
 def get_rss_fetcher():
     """Fetcher de feeds RSS."""
     from src.news.infrastructure.adapters import FeedparserRSSFetcher
-    from src.news.domain.ports import RSSFetcher
     return FeedparserRSSFetcher()
 
 
@@ -224,15 +210,6 @@ def get_article_usecase(
     """Use case para generar artículos."""
     from src.news.application.usecases.article import ArticleUseCase
     return ArticleUseCase(verified_repo=verified_repo, generated_articles_repo=generated_articles_repo)
-
-
-def get_content_usecase(
-    verified_repo: VerifiedNewsRepository = Depends(get_verified_news_repo),
-    generated_posts_repo=Depends(get_generated_posts_repo),
-):
-    """Use case para generar contenido (posts sociales)."""
-    from src.news.application.usecases.content import ContentUseCase
-    return ContentUseCase(verified_repo=verified_repo, generated_posts_repo=generated_posts_repo)
 
 
 def get_soft_verify_usecase(

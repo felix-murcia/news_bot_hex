@@ -1,6 +1,4 @@
-import logging
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from datetime import datetime, timedelta
 from typing import List, Set
 
 from src.news.domain.entities.article import Article

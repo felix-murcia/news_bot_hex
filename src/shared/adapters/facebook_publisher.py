@@ -1,9 +1,7 @@
 import os
-import re
 import requests
 from dotenv import load_dotenv
-from datetime import datetime
-from typing import List, Dict, Optional
+from typing import List, Dict
 
 from config.settings import Settings
 from config.logging_config import get_logger
@@ -90,7 +88,7 @@ class FacebookPublisher:
         published = 0
         errors = 0
 
-        for idx, post in enumerate(posts):
+        for post in posts:
             if post.get("facebook_url"):
                 logger.warning(
                     f"[FACEBOOK] Post ya publicado: {post.get('title', '')[:60]}..."

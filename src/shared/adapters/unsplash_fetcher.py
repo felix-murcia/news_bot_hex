@@ -129,8 +129,6 @@ class UnsplashFetcher:
                 continue
 
             content = post.get("content") or post.get("article") or ""
-            category = post.get("tema") or post.get("theme") or post.get("category") or ""
-
             keywords = generar_keywords_visuales_con_llm(title, content)
             if not keywords:
                 logger.warning(f"[UNSPLASH] No keywords for '{title[:40]}'")

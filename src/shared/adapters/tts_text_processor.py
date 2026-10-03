@@ -6,7 +6,6 @@ punctuation normalization, and number conversion.
 """
 
 import re
-from typing import Optional
 
 from src.shared.adapters.abbreviation_dict import ABBREVIATION_MAP
 

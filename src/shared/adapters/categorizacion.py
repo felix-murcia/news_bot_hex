@@ -1,5 +1,4 @@
 import re
-from typing import Dict
 from config.logging_config import get_logger
 
 logger = get_logger("news_bot")

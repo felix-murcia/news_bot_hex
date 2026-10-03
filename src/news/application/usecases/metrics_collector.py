@@ -1,5 +1,4 @@
 import time
-import logging
 from datetime import datetime
 from typing import Optional, List
 from src.news.domain.entities.processing_metric import (

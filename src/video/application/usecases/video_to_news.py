@@ -1,9 +1,8 @@
-import os
 import uuid
 import json
 import re
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 from config.logging_config import setup_logging, get_logger
 

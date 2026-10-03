@@ -93,13 +93,9 @@ class ArticleFromTranscriptUseCase:
         """Core article generation logic."""
         from config.settings import Settings
         from src.shared.adapters.ai.agents import ArticleFromContentAgent
-        from src.shared.adapters.translator import translate_text
         from src.shared.adapters.web_search import enriquecer_con_contexto
 
-        # 1. Translate transcript to Spanish if needed
-        transcerpt_es = translate_text(transcript[:10000], target_lang="es")
-
-        # 2. Enrich with web context
+        # Enrich with web context
         web_context = enriquecer_con_contexto(transcript, tema)
         if web_context:
             logger.info(
@@ -260,7 +256,6 @@ class ArticleFromTranscriptUseCase:
         tweet = post_edit_content(tweet)
 
         if not tweet:
-            source_label = SOURCE_LABEL.get(self.source_type, "Contenido")
             logger.error(
                 f"[ARTICLE_TRANSCRIPT] Tweet vacío para: {title[:80]}... "
                 f"(tema: {tema}). Se aborta la publicación."

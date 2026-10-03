@@ -1,4 +1,3 @@
-import logging
 import email.utils
 import dateutil.parser
 from datetime import datetime, timedelta, timezone

@@ -7,7 +7,6 @@ Uso del servicio HTTP ffmpeg para conversión a MP3 comprimido.
 
 import os
 from pathlib import Path
-from typing import Optional
 
 import requests
 from dotenv import load_dotenv

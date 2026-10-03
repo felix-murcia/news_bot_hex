@@ -5,7 +5,6 @@ This file contains the default validation rules that can be seeded into MongoDB.
 These rules replace the hardcoded values in classic_news_validator.py.
 """
 
-from collections import Counter
 import re
 from typing import Optional
 

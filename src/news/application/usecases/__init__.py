@@ -1,8 +1,5 @@
-from pathlib import Path
-from typing import List, Optional
 from datetime import datetime
 
-from src.news.domain.entities.article import Article
 from src.news.domain.entities.verified_article import VerifiedArticle
 from src.news.domain.ports import (
     RSSSourceRepository,

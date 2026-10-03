@@ -126,9 +126,9 @@ class AudioConverter(AudioConverterPort):
         """
         Convierte un archivo de audio a WAV 16kHz mono usando el servicio ffmpeg.
 
-        El endpoint espera:
-        - Opción A (recomendada): JSON {"path": "/ruta/input"} → binario WAV en respuesta
-        - Opción B (legacy): multipart/form-data con campo 'file' (límite 25 MB)
+        El endpoint espera JSON {"path": "/ruta/input"} y devuelve el WAV en
+        binario. Se envía la ruta en vez del archivo para evitar el límite de
+        25 MB del multipart: el servidor debe tener acceso al fichero.
 
         Args:
             input_path: Ruta al archivo de audio de entrada (cualquier formato).
@@ -160,60 +160,6 @@ class AudioConverter(AudioConverterPort):
                 json=payload,
                 timeout=300,
             )
-
-            if resp.status_code != 200:
-                logger.error(
-                    f"[AUDIO CONVERTER] Error HTTP {resp.status_code}: {resp.text[:200]}"
-                )
-                return None
-
-            # Respuesta es binaria (audio/wav), no JSON
-            output_dir = os.path.dirname(output_path)
-            os.makedirs(output_dir, exist_ok=True)
-            with open(output_path, "wb") as out_f:
-                out_f.write(resp.content)
-
-            file_size = os.path.getsize(output_path)
-            logger.info(
-                f"[AUDIO CONVERTER] ✅ Conversión a WAV16k exitosa: {output_path} ({file_size / 1024 / 1024:.2f} MB)"
-            )
-
-            return output_path
-
-        except requests.exceptions.Timeout:
-            logger.error("[AUDIO CONVERTER] Timeout después de 300s")
-            return None
-        except requests.exceptions.ConnectionError as e:
-            logger.error(f"[AUDIO CONVERTER] No se pudo conectar al servicio: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"[AUDIO CONVERTER] Error inesperado: {e}")
-            return None
-
-        # Generar nombre de salida si no se proporciona
-        if not output_path:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-            output_path = str(Path(tempfile.gettempdir()) / f"wav16k_{timestamp}.wav")
-
-        logger.info(
-            f"[AUDIO CONVERTER] Convirtiendo a WAV16k: {os.path.basename(input_path)} → {os.path.basename(output_path)}"
-        )
-
-        try:
-            # Enviar archivo como multipart/form-data ( Campo 'file' )
-            with open(input_path, "rb") as f:
-                files = {
-                    "file": (
-                        os.path.basename(input_path),
-                        f,
-                        "application/octet-stream",
-                    )
-                }
-                resp = requests.post(
-                    self.convert_wav16k_endpoint,
-                    files=files,
-                    timeout=300,
-                )
 
             if resp.status_code != 200:
                 logger.error(

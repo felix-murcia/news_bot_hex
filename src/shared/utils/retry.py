@@ -117,9 +117,13 @@ class RetryContext:
     def __enter__(self) -> "RetryContext":
         return self
     
-    def __exit__(self, exc_type: Optional[Type[Exception]], exc_val: Optional[Exception], exc_tb: Any) -> bool:
+    def __exit__(self, exc_type: Optional[Type[Exception]], exc_val: Optional[Exception], _exc_tb: Any) -> bool:
         """Handle retry logic.
-        
+
+        `_exc_tb` es el traceback que Python pasa siempre a `__exit__` de forma
+        posicional; este context manager no lo necesita, pero la firma del
+        protocolo lo exige.
+
         Returns True to suppress the exception (we'll retry), False to propagate.
         """
         if exc_type is None:

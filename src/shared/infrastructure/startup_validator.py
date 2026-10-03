@@ -11,7 +11,6 @@ If any validation fails, the application MUST NOT start. This is a hard stop.
 
 import os
 import sys
-from typing import Tuple
 
 from config.logging_config import get_logger
 from src.shared.adapters.mongo_db import get_database

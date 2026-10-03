@@ -1,4 +1,3 @@
-import os
 import re
 import requests
 from io import BytesIO
@@ -180,8 +179,6 @@ class BlueskyPublisher:
             )
             cleaned_text = re.sub(r"^\s*#\w+\s*$", "", cleaned_text, flags=re.MULTILINE)
             cleaned_text = cleaned_text.strip()
-
-            has_hashtags = bool(re.search(r"#\w+", cleaned_text))
 
             safe_content = summarize_for_bluesky(cleaned_text, max_len)
 

@@ -13,7 +13,6 @@ Usage example::
 """
 
 import argparse
-import logging
 import sys
 import time
 

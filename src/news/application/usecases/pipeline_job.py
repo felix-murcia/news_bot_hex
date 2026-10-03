@@ -1,9 +1,8 @@
 """Pipeline job tracking for async execution."""
 
 import uuid
-import time
 import threading
-from typing import Dict, Optional, Protocol
+from typing import Dict, Optional
 from datetime import datetime
 from enum import Enum
 from abc import ABC, abstractmethod

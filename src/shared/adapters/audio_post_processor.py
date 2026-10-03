@@ -7,11 +7,9 @@ through normalization, filtering, and audio restoration techniques.
 
 import os
 import requests
-from pathlib import Path
 from typing import Optional
 
 from config.logging_config import get_logger
-from config.settings import Settings
 from src.shared.adapters.audio_converter_factory import get_audio_converter_url
 from src.shared.domain.ports.audio_post_processor_port import AudioPostProcessorPort
 

@@ -1,7 +1,4 @@
-import json
-import re
-from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, List, Optional
 
 from config.logging_config import get_logger
 from src.news.domain.ports import VerifiedNewsRepository, GeneratedPostsRepository

@@ -7,7 +7,6 @@ Usa FastAPI Depends() para inyecciones de dependencias (Composition Root).
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional, List
-import subprocess
 
 from config.logging_config import get_logger
 from config.settings import Settings
@@ -15,16 +14,12 @@ from src.news.domain.exceptions import RepositoryError
 from src.news.domain.ports import (
     ArticleRepository,
     VerifiedNewsRepository,
-    ContentExtractor,
 )
 from src.news.application.usecases.article import ArticleUseCase
-from src.news.application.usecases.content import ContentUseCase
 from src.news.entrypoints.api.dependencies import (
-    get_content_extractor,
     get_article_repo,
     get_verified_news_repo,
     get_article_usecase,
-    get_content_usecase,
     get_fetch_rss_usecase,
     get_full_verify_usecase,
     get_soft_verify_usecase,

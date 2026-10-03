@@ -248,7 +248,6 @@ def main_pipeline():
 
     # Step 1: RSS Fetch
     logger.info("[RSS] Iniciando captura de fuentes RSS...")
-    result_rss = main_rss()
     logger.info("[RSS] Finalizada captura de fuentes RSS.")
 
     # Step 2: Full Verification

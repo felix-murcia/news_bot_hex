@@ -1,4 +1,3 @@
-import logging
 from typing import Tuple
 
 from src.news.domain.ports import ContentExtractor

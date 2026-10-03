@@ -4,7 +4,6 @@ Google Gemini Adapter (Hexagonal Architecture - Adapter).
 Implementation of AIModelPort for Google Gemini.
 """
 
-import os
 import logging
 from typing import Dict, Optional
 from dotenv import load_dotenv

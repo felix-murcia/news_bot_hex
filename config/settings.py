@@ -7,7 +7,7 @@ loaded from environment variables or config files.
 import os
 import random
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from dotenv import load_dotenv
 
 # Do NOT override real environment variables: a var already present in the

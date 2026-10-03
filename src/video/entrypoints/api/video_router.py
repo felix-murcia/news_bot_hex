@@ -7,7 +7,6 @@ from pydantic import BaseModel
 from typing import Optional
 
 from config.logging_config import get_logger
-from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
 
 logger = get_logger("video_bot.api.router")
 

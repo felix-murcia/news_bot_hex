@@ -1,6 +1,5 @@
 import os
 import requests
-from pathlib import Path
 from hashlib import md5
 
 from config.settings import Settings

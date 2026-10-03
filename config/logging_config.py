@@ -8,7 +8,6 @@ import logging
 import logging.handlers
 import os
 import sys
-import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from config.settings import Settings

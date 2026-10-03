@@ -1,7 +1,7 @@
 import re
 import hashlib
 import os
-from typing import List, Optional
+from typing import List
 from deep_translator import GoogleTranslator
 from config.logging_config import get_logger
 from config.settings import Settings

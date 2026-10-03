@@ -221,8 +221,7 @@ class TestProvidersEndpoint:
 class TestProcessUrlInputValidation:
     """Test /process_url endpoint input validation."""
 
-    @patch("src.news.entrypoints.api.news_router.get_content_extractor")
-    def test_rejects_empty_url(self, mock_get_extractor):
+    def test_rejects_empty_url(self):
         """Endpoint should reject empty URLs."""
         from fastapi.testclient import TestClient
         from src.news.entrypoints.api.news_router import router
@@ -239,8 +238,7 @@ class TestProcessUrlInputValidation:
         assert "detail" in data
         assert data["detail"]["error_code"] == "INVALID_URL"
 
-    @patch("src.news.entrypoints.api.news_router.get_content_extractor")
-    def test_rejects_none_url(self, mock_get_extractor):
+    def test_rejects_none_url(self):
         """Endpoint should reject None URLs."""
         from fastapi.testclient import TestClient
         from src.news.entrypoints.api.news_router import router
@@ -256,8 +254,7 @@ class TestProcessUrlInputValidation:
         # Should return validation error
         assert response.status_code in [422, 400]
 
-    @patch("src.news.entrypoints.api.news_router.get_content_extractor")
-    def test_accepts_valid_url_and_forces_fresh_extraction(self, mock_get_extractor):
+    def test_accepts_valid_url_and_forces_fresh_extraction(self):
         """Endpoint composition must always force fresh extraction (no cache).
 
         The POST /news/process_url endpoint is asynchronous (it creates a job
@@ -271,7 +268,6 @@ class TestProcessUrlInputValidation:
         )
 
         mock_extractor = Mock()
-        mock_get_extractor.return_value = mock_extractor
 
         with patch(
             "src.news.application.usecases.news_to_news.process_news_url"
@@ -332,8 +328,7 @@ class TestProcessUrlInputValidation:
 class TestProcessUrlErrorHandling:
     """Test error handling in /process_url endpoint."""
 
-    @patch("src.news.entrypoints.api.news_router.get_content_extractor")
-    def test_unsupported_provider_returns_400(self, mock_get_extractor):
+    def test_unsupported_provider_returns_400(self):
         """Unsupported provider should return 400 error."""
         from fastapi.testclient import TestClient
         from src.news.entrypoints.api.news_router import router
@@ -341,9 +336,6 @@ class TestProcessUrlErrorHandling:
 
         app = FastAPI()
         app.include_router(router, prefix="/news")
-
-        mock_extractor = Mock()
-        mock_get_extractor.return_value = mock_extractor
 
         client = TestClient(app)
 

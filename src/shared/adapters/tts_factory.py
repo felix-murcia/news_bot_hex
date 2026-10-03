@@ -1,6 +1,5 @@
 """Fábrica para crear adaptadores TTS (Hexagonal Architecture - Factory)."""
 
-from typing import Optional
 
 from src.shared.domain.ports.tts_port import TTSPort
 from src.shared.adapters.tts_adapter import TTSAdapter

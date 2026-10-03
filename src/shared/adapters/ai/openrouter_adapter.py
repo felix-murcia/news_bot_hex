@@ -4,7 +4,6 @@ OpenRouter Adapter (Hexagonal Architecture - Adapter).
 Implementation of AIModelPort for OpenRouter.
 """
 
-import os
 import logging
 from typing import Dict, Optional
 

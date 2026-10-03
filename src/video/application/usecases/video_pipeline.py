@@ -5,11 +5,9 @@ by coordinating download, transcription, article generation, image enrichment,
 and publishing to WordPress and social media.
 """
 
-import asyncio
 import os
 import re
 import time
-import random
 from typing import Dict, Any, List, Optional
 
 from config.logging_config import get_logger

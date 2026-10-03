@@ -1,6 +1,5 @@
-import logging
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Dict, List
 
 from config.logging_config import get_logger

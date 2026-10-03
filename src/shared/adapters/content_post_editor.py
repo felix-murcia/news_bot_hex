@@ -4,7 +4,7 @@ Aplica correcciones automáticas a posts y artículos para mantener consistencia
 """
 
 import re
-from typing import Dict, List
+from typing import Dict
 
 
 class ContentPostEditor:

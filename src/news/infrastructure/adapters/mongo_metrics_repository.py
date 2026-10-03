@@ -1,4 +1,3 @@
-import logging
 from datetime import datetime, timedelta
 from typing import Optional, List, Literal
 from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort

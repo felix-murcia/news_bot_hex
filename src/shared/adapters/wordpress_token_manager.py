@@ -6,7 +6,6 @@ to avoid expiration issues. Uses WP_USER and WP_PASSWORD credentials.
 """
 
 import requests
-from typing import Optional
 
 from config.settings import Settings
 from config.logging_config import get_logger

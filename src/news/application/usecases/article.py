@@ -1,8 +1,6 @@
-import os
-import json
 import re
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, List, Optional
 from urllib.parse import urlparse
 
 from config.logging_config import get_logger

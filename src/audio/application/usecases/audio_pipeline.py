@@ -3,11 +3,9 @@
 This use-case orchestrates the complete audio-to-article processing pipeline.
 """
 
-import asyncio
 import os
 import re
 import time
-import random
 from typing import Dict, Any, List, Optional
 from config.logging_config import get_logger
 

@@ -1,12 +1,9 @@
 import os
 import re
 import uuid
-import json
 import time
 from typing import Optional, Dict, Any
 
-import yt_dlp
-import requests
 from config.logging_config import get_logger
 from config.settings import Settings
 from src.shared.adapters.audio_converter_factory import get_audio_converter

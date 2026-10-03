@@ -1,6 +1,5 @@
 import os
 import requests
-from dotenv import load_dotenv
 from pathlib import Path
 from typing import List, Dict, Optional
 from requests.adapters import HTTPAdapter, Retry

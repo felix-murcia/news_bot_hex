@@ -6,9 +6,7 @@ before generating articles from transcripts (video/audio).
 Supports Serper.dev and Tavily AI as search providers.
 """
 
-import os
 import re
-import json
 import requests
 from collections import Counter
 from typing import Optional

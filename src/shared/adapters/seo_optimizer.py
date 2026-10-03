@@ -4,7 +4,6 @@ import re
 import json
 import unicodedata
 from typing import Optional
-from config.settings import Settings
 
 
 _STOP_WORDS_ES = {
