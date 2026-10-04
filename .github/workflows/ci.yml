@@ -45,6 +45,12 @@ jobs:
       # environment variables take precedence over any .env file. Sourcing
       # .env.test (a minimal, secret-free fixture) therefore yields a
       # deterministic environment instead of the runner's empty one.
+      #
+      # GitHub Actions runs every `run:` in its OWN shell: variables exported
+      # by sourcing do NOT survive into the next step (that is exactly what
+      # broke this job with KeyError: 'MONGO_HOST'). Appending the resolved
+      # values to $GITHUB_ENV propagates them to every later step. The key
+      # list is explicit so runner variables are never leaked into the file.
       - name: Load test environment
         run: |
           set -a
@@ -53,6 +59,7 @@ jobs:
           echo "MONGO_HOST=$MONGO_HOST"
           echo "MONGO_DB_NAME=$MONGO_DB_NAME"
           echo "AI_PROVIDER=$AI_PROVIDER"
+          env | grep -E '^(BASE_DIR|DATA_DIR|CACHE_DIR|MODELS_DIR|IMAGES_DIR|LOG_DIR|MONGO_HOST|MONGO_PORT|MONGO_USER|MONGO_PASSWORD|MONGO_DB_NAME|AI_PROVIDER|GEMINI_API_KEY|OPENROUTER_API_KEY|GROQ_API_KEY|FFMPEG_API_URL|FACEBOOK_PAGE_ID|FACEBOOK_PAGE_ACCESS_TOKEN|MASTODON_INSTANCE_URL|MASTODON_ACCESS_TOKEN|BLUESKY_HANDLE|BLUESKY_APP_PASSWORD)=' >> "$GITHUB_ENV"
 
       - name: Verify MongoDB is reachable
         run: |
@@ -116,6 +123,8 @@ jobs:
           pip install -r requirements.txt
           pip install pytest
 
+      # Mismo mecanismo que el job `test`: $GITHUB_ENV para que las variables
+      # sobrevivan entre pasos (cada `run:` es un shell independiente).
       - name: Load test environment
         run: |
           set -a
@@ -124,6 +133,7 @@ jobs:
           echo "MONGO_HOST=$MONGO_HOST"
           echo "MONGO_DB_NAME=$MONGO_DB_NAME (conftest.py lo sustituye por el clon)"
           echo "AI_PROVIDER=$AI_PROVIDER"
+          env | grep -E '^(BASE_DIR|DATA_DIR|CACHE_DIR|MODELS_DIR|IMAGES_DIR|LOG_DIR|MONGO_HOST|MONGO_PORT|MONGO_USER|MONGO_PASSWORD|MONGO_DB_NAME|AI_PROVIDER|GEMINI_API_KEY|OPENROUTER_API_KEY|GROQ_API_KEY|FFMPEG_API_URL|FACEBOOK_PAGE_ID|FACEBOOK_PAGE_ACCESS_TOKEN|MASTODON_INSTANCE_URL|MASTODON_ACCESS_TOKEN|BLUESKY_HANDLE|BLUESKY_APP_PASSWORD)=' >> "$GITHUB_ENV"
 
       - name: Verify MongoDB is reachable
         run: |
