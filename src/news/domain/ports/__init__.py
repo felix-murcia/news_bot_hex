@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List
+from typing import Any, Dict, List
 from src.news.domain.entities.article import Article
 from src.news.domain.entities.verified_article import VerifiedArticle
 from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
@@ -146,6 +146,11 @@ class GeneratedPostsRepository(ABC):
 
     @abstractmethod
     def delete_all(self) -> bool:
+        pass
+
+    @abstractmethod
+    def update_post(self, url: str, updates: Dict[str, Any]) -> bool:
+        """Actualiza campos de un post existente identificado por su URL."""
         pass
 
 

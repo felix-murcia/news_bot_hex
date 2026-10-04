@@ -6,7 +6,6 @@ from urllib.parse import urlparse
 from config.logging_config import get_logger
 from src.news.domain.ports import VerifiedNewsRepository, GeneratedPostsRepository, GeneratedArticlesRepository
 from src.shared.adapters.ai.agents import ArticleAgent
-from src.shared.adapters.translator import translate_text
 from src.news.domain.services.template_renderer import TemplateRenderer
 from src.shared.adapters.seo_optimizer import (
     slugify as seo_slugify,
@@ -95,6 +94,25 @@ def _validar_titulo(titulo: str) -> str:
     return seo_clean_title(titulo)
 
 
+def _extract_title_es(raw_html: str) -> str:
+    """Extrae el título en español del <h1> que el LLM escribe al inicio.
+
+    El prompt (prompts/article.md) obliga a empezar el artículo con un <h1>
+    con la traducción fiel del título original. Devuelve "" si no hay <h1>
+    válido: el caller cae entonces al title_es existente o al título original.
+    """
+    if not raw_html:
+        return ""
+    match = re.search(r"<h1[^>]*>(.*?)</h1>", raw_html, re.IGNORECASE | re.DOTALL)
+    if not match:
+        return ""
+    titulo = re.sub(r"<[^>]+>", "", match.group(1)).strip()
+    titulo = re.sub(r"(?i)^T[íi]tulo:\s*", "", titulo).strip()
+    if len(titulo) < 10 or "un momento" in titulo.lower():
+        return ""
+    return titulo
+
+
 class ArticleTooShortError(ValueError):
     """El artículo no alcanzó el mínimo de palabras ni regenerando.
 
@@ -165,10 +183,11 @@ class ArticleUseCase:
                 self._template_renderer = None
         return self._template_renderer
 
-    def _generate_article_body(self, news_item: Dict, mode: str = "news") -> str:
+    def _generate_article_body(self, news_item: Dict, mode: str = "news") -> tuple[str, str]:
+        """Devuelve (html, title_es). El fallback (sin IA) no genera título."""
         if self.use_ai:
             return self._generate_with_ai(news_item, mode)
-        return self._generate_fallback(news_item)
+        return self._generate_fallback(news_item), ""
 
     def _get_full_content(self, news_item: Dict) -> str:
         """Get full content from verified_news based on URL matching (DIP: usa repositorio inyectado)."""
@@ -183,17 +202,15 @@ class ArticleUseCase:
             logger.warning(f"[ARTICLE] Error getting full content: {e}")
         return ""
 
-    def _generate_with_ai(self, news_item: Dict, mode: str) -> str:
+    def _generate_with_ai(self, news_item: Dict, mode: str) -> tuple[str, str]:
+        """Devuelve (html, title_es): el LLM traduce el contenido a español por
+        cuenta (regla 1 del prompt) y abre el artículo con un <h1> con el
+        título en español, que se extrae aquí. No se traduce nada por API:
+        el contenido original va tal cual al prompt.
+        """
         try:
             model = self._get_ai_model()
             raw_title = news_item.get("title", "")
-
-            try:
-                title = news_item.get("title_es") or translate_text(
-                    raw_title[:200], target_lang="es"
-                )
-            except Exception:
-                title = raw_title
 
             tema = news_item.get("tema", "Noticias")
 
@@ -204,23 +221,20 @@ class ArticleUseCase:
             # Allow up to 10000 chars of source content so the AI has enough material
             # for a professional 800+ word article
             content_limitado = raw_content[:10000] if raw_content else ""
-            try:
-                content_es = translate_text(content_limitado, target_lang="es")
-            except Exception as e:
-                logger.warning(f"[ARTICLE] Error translating: {e}, using original")
-                content_es = content_limitado
 
-            keyphrase = extract_focus_keyphrase(title)
+            keyphrase = extract_focus_keyphrase(raw_title)
 
             agent = ArticleAgent(model)
             peticion = (
-                f"Título: {title}\n"
+                f"Título original de la noticia: {raw_title}\n"
                 f"Tema: {tema}\n"
                 f"Palabra clave SEO (incluir 3-5 veces de forma natural): {keyphrase}\n\n"
-                f"Contenido informativo:\n{content_es}"
+                f"Contenido informativo:\n{content_limitado}"
             )
 
-            html = _limpiar_html(agent.generate(topic_or_news=peticion))
+            raw_html = agent.generate(topic_or_news=peticion)
+            title_es = _extract_title_es(raw_html)
+            html = _limpiar_html(raw_html)
             palabras = _contar_palabras(html)
             intentos = 0
 
@@ -240,7 +254,9 @@ class ArticleUseCase:
                     f"con 5-6 secciones <h2>. No resumas, no repitas y no añadas etiquetas "
                     f"de estructura."
                 )
-                html = _limpiar_html(agent.generate(topic_or_news=peticion + refuerzo))
+                raw_html = agent.generate(topic_or_news=peticion + refuerzo)
+                title_es = _extract_title_es(raw_html)
+                html = _limpiar_html(raw_html)
                 nuevas = _contar_palabras(html)
                 logger.info(f"[ARTICLE] Regeneración {intentos}: {palabras} → {nuevas} palabras")
                 palabras = nuevas
@@ -254,14 +270,16 @@ class ArticleUseCase:
                 )
 
             logger.info(f"[ARTICLE] Generado: {palabras} palabras ({intentos} regeneraciones)")
-            return html
+            if title_es:
+                logger.info(f"[ARTICLE] Título en español del LLM: {title_es[:80]}")
+            return html, title_es
         except ArticleTooShortError:
             # No se degrada a fallback: publicar el artículo truncado del
             # extractor sería justo lo que la comprobación evita.
             raise
         except Exception as e:
             logger.error(f"[ARTICLE] Error generando con IA: {e}")
-            return self._generate_fallback(news_item)
+            return self._generate_fallback(news_item), ""
 
     def _generate_fallback(self, news_item: Dict) -> str:
         title = news_item.get("title", "Noticia")
@@ -278,16 +296,16 @@ class ArticleUseCase:
 
         return body
 
-    def make_payload(self, news_item: Dict, article_body: str) -> Dict:
+    def make_payload(
+        self, news_item: Dict, article_body: str, title_es_llm: str = ""
+    ) -> Dict:
         from config.settings import Settings
 
         raw_title = news_item.get("title", "Noticia de Última Hora")
-        try:
-            titulo = news_item.get("title_es") or translate_text(
-                raw_title[:200], target_lang="es"
-            )
-        except Exception:
-            titulo = raw_title
+        # Prioridad: título en español generado por el LLM (mismo contexto del
+        # artículo) > title_es ya guardado en el post > título original.
+        # No se traduce por API de Google.
+        titulo = title_es_llm or news_item.get("title_es") or raw_title
 
         titulo_limpio = re.sub(r"<[^>]+>", "", titulo).strip()
         titulo_limpio = _validar_titulo(titulo_limpio)
@@ -365,7 +383,7 @@ class ArticleUseCase:
         for item in to_process:
             logger.info(f"[ARTICLE] Procesando: {item.get('title', 'Sin título')}")
 
-            body_html = self._generate_article_body(item, mode)
+            body_html, title_es_llm = self._generate_article_body(item, mode)
 
             if not body_html or len(body_html) < 100:
                 logger.warning(f"[ARTICLE] Artículo inválido para: {item.get('title')}")
@@ -377,7 +395,18 @@ class ArticleUseCase:
                 if pattern.lower() in body_html.lower() or pattern.lower() in str(item.get('title', '')).lower():
                     raise RuntimeError(f"Contenido generado inválido, posible página de error devuelta por IA o Traductor: {pattern}")
 
-            payload = self.make_payload(item, body_html)
+            payload = self.make_payload(item, body_html, title_es_llm)
+
+            # Escribir el título en español que generó el LLM en el post, para
+            # que los publicadores (Facebook/WordPress) lo usen. Solo si el LLM
+            # devolvió uno válido.
+            if title_es_llm and item.get("url"):
+                try:
+                    self.generated_posts_repo.update_post(
+                        item.get("url"), {"title_es": title_es_llm}
+                    )
+                except Exception as e:
+                    logger.warning(f"[ARTICLE] No se pudo actualizar title_es del post: {e}")
 
             # Render with newspaper template
             try:

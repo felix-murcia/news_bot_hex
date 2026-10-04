@@ -437,6 +437,14 @@ class MongoGeneratedPostsRepository(GeneratedPostsRepository):
             logger.error(f"Error deleting generated posts: {e}")
             return False
 
+    def update_post(self, url: str, updates: dict) -> bool:
+        try:
+            self._collection.update_one({"url": url}, {"$set": updates})
+            return True
+        except Exception as e:
+            logger.error(f"Error updating generated post {url}: {e}")
+            return False
+
 
 class MongoGeneratedArticlesRepository(GeneratedArticlesRepository):
     """Repositorio de artículos generados."""

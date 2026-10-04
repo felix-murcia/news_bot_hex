@@ -105,10 +105,11 @@ class VerifyNewsUseCase:
             content = art.get("content", "")
             slug = art.get("slug", "")
 
-            # Translate title to Spanish
-            from src.shared.adapters.translator import translate_text
-
-            title_es = translate_text(title[:200], target_lang="es")
+            # title_es vacío a propósito: el LLM genera el título en español
+            # como <h1> del artículo (paso "Generate Articles") y article.py lo
+            # extrae y lo escribe de vuelta en el post. No se traduce por API
+            # de Google (ver src/shared/adapters/translator.py).
+            title_es = ""
 
             verified_article = VerifiedArticle(
                 title=title,

@@ -325,12 +325,10 @@ class TestProcessUrlInputValidation:
         )
 
 
-class TestProcessUrlPipelineTitleTranslation:
-    """El pipeline URL debe guardar title_es en español.
-
-    Antes del fix, save_verified hacía title_es=title (inglés), y article.py lo
-    usaba tal cual (title_es or translate), por lo que el título del artículo/wp
-    salía en inglés. Ahora se traduce como en el pipeline automático.
+class TestProcessUrlPipelineTitleEs:
+    """save_verified ya no traduce el título por API de Google: deja title_es
+    vacío. El LLM genera el título en español al escribir el artículo
+    (article.py lo extrae del <h1> del LLM y lo escribe de vuelta en el post).
     """
 
     def _run_pipeline(self):
@@ -347,6 +345,7 @@ class TestProcessUrlPipelineTitleTranslation:
         extractor = Mock()
         extractor.extract.return_value = (content, "jina")
 
+        mock_translate = None
         with contextlib.ExitStack() as stack:
             p = lambda *a, **k: stack.enter_context(patch(*a, **k))  # noqa: E731
             p("src.news.application.usecases.content.run_content")
@@ -363,8 +362,7 @@ class TestProcessUrlPipelineTitleTranslation:
             p("src.shared.infrastructure.composition_root.run_mastodon")
             p("src.shared.infrastructure.composition_root.run_facebook")
             p("src.shared.adapters.mongo_db.get_database", return_value=fake_db)
-            p("src.shared.adapters.translator.translate_text",
-              return_value="Título en español")
+            mock_translate = p("src.shared.adapters.translator.translate_text")
 
             mock_repo_cls = stack.enter_context(
                 patch("src.news.infrastructure.adapters.MongoVerifiedNewsRepository")
@@ -376,59 +374,16 @@ class TestProcessUrlPipelineTitleTranslation:
             pipeline = ProcessUrlPipeline(content_extractor=extractor, metrics_repo=None)
             pipeline.execute("https://example.com/en/article")
 
-        return inserted
+        return inserted, mock_translate
 
-    def test_title_es_is_translated_to_spanish(self):
-        inserted = self._run_pipeline()
+    def test_title_es_is_left_empty_and_no_google_call(self):
+        inserted, mock_translate = self._run_pipeline()
         assert inserted, "save_verified debe insertar un VerifiedArticle"
         article = inserted[0]
         assert article.title == "English Headline Here"
-        assert article.title_es == "Título en español"
-
-    def test_title_es_falls_back_to_original_on_translation_error(self):
-        import contextlib
-        from unittest.mock import patch, Mock
-        from src.news.application.usecases.process_url_pipeline import ProcessUrlPipeline
-
-        inserted = []
-        fake_db = MagicMock()
-        fake_db.__getitem__.return_value.find.return_value = []
-        content = "English Headline Here\n\n" + "Body text about the story. " * 20
-        extractor = Mock()
-        extractor.extract.return_value = (content, "jina")
-
-        with contextlib.ExitStack() as stack:
-            p = lambda *a, **k: stack.enter_context(patch(*a, **k))  # noqa: E731
-            p("src.news.application.usecases.content.run_content")
-            p("src.news.application.usecases.article.run")
-            p("src.shared.infrastructure.composition_root.run_image_unsplash")
-            p("src.shared.infrastructure.composition_root.run_image_google")
-            p("src.shared.infrastructure.composition_root.run_image_enricher")
-            p("src.shared.application.usecases.tts_from_article.run_tts_from_articles",
-              return_value=[])
-            p("src.shared.infrastructure.composition_root.create_video_generator",
-              return_value=Mock(is_available=Mock(return_value=False)))
-            p("src.shared.infrastructure.composition_root.run_wordpress")
-            p("src.shared.infrastructure.composition_root.run_bluesky")
-            p("src.shared.infrastructure.composition_root.run_mastodon")
-            p("src.shared.infrastructure.composition_root.run_facebook")
-            p("src.shared.adapters.mongo_db.get_database", return_value=fake_db)
-            p("src.shared.adapters.translator.translate_text",
-              side_effect=RuntimeError("rate limit"))
-
-            mock_repo_cls = stack.enter_context(
-                patch("src.news.infrastructure.adapters.MongoVerifiedNewsRepository")
-            )
-            mock_repo_cls.return_value.insert_news.side_effect = (
-                lambda arts: inserted.extend(arts)
-            )
-
-            pipeline = ProcessUrlPipeline(content_extractor=extractor, metrics_repo=None)
-            pipeline.execute("https://example.com/en/article")
-
-        assert inserted
-        # Si la traducción falla, title_es cae al título original (no se rompe el pipeline)
-        assert inserted[0].title_es == "English Headline Here"
+        # El LLM lo rellena más adelante (paso Generate Articles)
+        assert article.title_es == ""
+        mock_translate.assert_not_called()
 
 
 class TestProcessUrlErrorHandling:

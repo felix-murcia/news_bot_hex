@@ -66,17 +66,14 @@ class ProcessUrlPipeline:
         def save_verified():
             from src.news.domain.entities.verified_article import VerifiedArticle
             from src.news.infrastructure.adapters import MongoVerifiedNewsRepository
-            from src.shared.adapters.translator import translate_text
 
             title = next((l.strip() for l in content.splitlines() if l.strip()), url)[:200]
 
-            # title_es debe ir en español (como el pipeline automatico). Si se
-            # deja en ingles, article.py lo usa tal cual y el titulo del
-            # articulo/wp sale en ingles.
-            try:
-                title_es = translate_text(title[:200], target_lang="es")
-            except Exception:
-                title_es = title
+            # title_es vacío a propósito: el LLM genera el título en español
+            # como <h1> del artículo (paso "Generate Articles") y article.py lo
+            # extrae y lo escribe de vuelta en el post. No se traduce por API
+            # de Google (ver src/shared/adapters/translator.py).
+            title_es = ""
 
             article = VerifiedArticle(
                 title=title,
