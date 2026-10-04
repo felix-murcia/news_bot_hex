@@ -281,7 +281,7 @@ class FullVerifyNewsUseCase:
 
         url = top.get("url")
         if url and self._content_extractor:
-            contenido, _ = self._content_extractor.extract(url)
+            contenido, _, _titulo = self._content_extractor.extract(url)
             if len(contenido) >= weights.get("min_chars", 1000):
                 published_urls.add(url)
                 self._published_urls_repo.save_urls(

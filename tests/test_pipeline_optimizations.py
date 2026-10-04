@@ -222,7 +222,7 @@ class TestVideoPathPropagation:
         }.get
 
         extractor = Mock()
-        extractor.extract.return_value = ("x" * 200, "meta")
+        extractor.extract.return_value = ("x" * 200, "meta", "")
 
         pipeline = ProcessUrlPipeline(content_extractor=extractor)
 
@@ -289,7 +289,7 @@ class TestVideoPathPropagation:
         }.get
 
         extractor = Mock()
-        extractor.extract.return_value = ("x" * 200, "meta")
+        extractor.extract.return_value = ("x" * 200, "meta", "")
 
         pipeline = ProcessUrlPipeline(content_extractor=extractor)
 

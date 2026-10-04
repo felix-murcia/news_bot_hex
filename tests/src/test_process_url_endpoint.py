@@ -39,7 +39,7 @@ class TestNewsToNewsUseCaseForceExtractParameter:
         from src.news.application.usecases.news_to_news import NewsToNewsUseCase
 
         mock_extractor = Mock()
-        mock_extractor.extract = Mock(return_value=("Content from Jina", "jina"))
+        mock_extractor.extract = Mock(return_value=("Content from Jina", "jina", ""))
 
         # Test with force_extract=True
         use_case_force = NewsToNewsUseCase(
@@ -61,7 +61,7 @@ class TestNewsToNewsUseCaseForceExtractParameter:
         from src.news.application.usecases.news_to_news import NewsToNewsUseCase
 
         mock_extractor = Mock()
-        mock_extractor.extract = Mock(return_value=("Content from Jina", "jina"))
+        mock_extractor.extract = Mock(return_value=("Content from Jina", "jina", ""))
 
         # Test with force_extract=False (default)
         use_case = NewsToNewsUseCase(
@@ -331,7 +331,7 @@ class TestProcessUrlPipelineTitleEs:
     (article.py lo extrae del <h1> del LLM y lo escribe de vuelta en el post).
     """
 
-    def _run_pipeline(self):
+    def _run_pipeline(self, jina_title=""):
         import contextlib
         from unittest.mock import patch, Mock
         from src.news.application.usecases.process_url_pipeline import ProcessUrlPipeline
@@ -343,7 +343,8 @@ class TestProcessUrlPipelineTitleEs:
 
         content = "English Headline Here\n\n" + "Body text about the story. " * 20
         extractor = Mock()
-        extractor.extract.return_value = (content, "jina")
+        # Port ContentExtractor.extract -> (contenido, metodo, titulo_jina)
+        extractor.extract.return_value = (content, "jina", jina_title)
 
         mock_translate = None
         with contextlib.ExitStack() as stack:
@@ -384,6 +385,23 @@ class TestProcessUrlPipelineTitleEs:
         # El LLM lo rellena más adelante (paso Generate Articles)
         assert article.title_es == ""
         mock_translate.assert_not_called()
+
+    def test_jina_title_takes_precedence_over_first_content_line(self):
+        """El campo 'Title:' de Jina manda sobre la primera línea del cuerpo
+        (que en páginas con banner de cookies sería el banner, no el titular).
+        """
+        inserted, _ = self._run_pipeline(
+            jina_title="Azerbaijan, Turkey and Uzbekistan join forces in major military exercise"
+        )
+        assert inserted
+        assert inserted[0].title == (
+            "Azerbaijan, Turkey and Uzbekistan join forces in major military exercise"
+        )
+
+    def test_falls_back_to_first_line_when_jina_title_is_empty(self):
+        inserted, _ = self._run_pipeline(jina_title="")
+        assert inserted
+        assert inserted[0].title == "English Headline Here"
 
 
 class TestProcessUrlErrorHandling:

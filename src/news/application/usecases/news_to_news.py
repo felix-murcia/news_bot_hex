@@ -89,7 +89,7 @@ class NewsToNewsUseCase:
         if self.force_extract:
             logger.info("[NEWS_TO_NEWS] Forzando extracción fresca (omitiendo caché)")
 
-        content, method = self.content_extractor.extract(url)
+        content, method, _titulo = self.content_extractor.extract(url)
 
         if content:
             self._save_to_cache(url, content)

@@ -129,7 +129,13 @@ class ContentExtractor(ABC):
     """Puerto para extraer contenido de URLs."""
 
     @abstractmethod
-    def extract(self, url: str) -> tuple[str, str]:
+    def extract(self, url: str) -> tuple[str, str, str]:
+        """Devuelve (contenido, metodo, titulo).
+
+        `titulo` es el titular que la fuente de extracción (p. ej. el campo
+        'Title:' de Jina) proporcionó para la página; puede estar vacío, en
+        cuyo caso el llamador derivará el título del propio contenido.
+        """
         pass
 
 

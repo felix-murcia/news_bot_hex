@@ -153,7 +153,7 @@ class SoftVerifyUseCase:
         score = int(candidate.get("score", 0))
         logger.info(f"[SOFT] {prefix} #{idx}: Score={score}, URL={url[:60]}...")
 
-        content, method = self._content_extractor.extract(url)
+        content, method, _titulo = self._content_extractor.extract(url)
         content_length = len(content) if content else 0
 
         min_chars = MIN_CHARS if strategy == "relaxed" else MIN_CHARS

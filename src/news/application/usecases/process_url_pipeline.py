@@ -54,7 +54,7 @@ class ProcessUrlPipeline:
 
         # ── Step 1: Extract content ─────────────────────────────────────────
         t = time.time_ns()
-        content, _ = self.content_extractor.extract(url)
+        content, _, titulo_fuente = self.content_extractor.extract(url)
         if not content or len(content) < 100:
             raise ValueError(f"No se pudo extraer contenido suficiente de: {url}")
         ms = (time.time_ns() - t) // 1_000_000
@@ -67,7 +67,15 @@ class ProcessUrlPipeline:
             from src.news.domain.entities.verified_article import VerifiedArticle
             from src.news.infrastructure.adapters import MongoVerifiedNewsRepository
 
-            title = next((l.strip() for l in content.splitlines() if l.strip()), url)[:200]
+            # Prioridad: 'Title:' de Jina (metadato de la página) > primera
+            # línea del cuerpo > la URL. En páginas con banner de cookies la
+            # primera línea era el banner ("Continue without agreeing →").
+            titulo = titulo_fuente or next(
+                (l.strip() for l in content.splitlines() if l.strip()), url
+            )
+            if titulo.startswith("#"):
+                titulo = titulo.lstrip("#").strip()
+            title = titulo[:200]
 
             # title_es vacío a propósito: el LLM genera el título en español
             # como <h1> del artículo (paso "Generate Articles") y article.py lo

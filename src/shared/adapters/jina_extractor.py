@@ -16,6 +16,41 @@ _JINA_MARKDOWN_MARKER = re.compile(r"(?m)^\s*Markdown Content:\s*$")
 _JINA_HEADER_LINE = re.compile(r"\s*(Title|Published Time|URL Source|Warning|Markdown Content):")
 
 
+_JINA_TITLE_LINE = re.compile(r"(?m)^Title:\s*(.+?)\s*$")
+_H1_LINE = re.compile(r"^\s*#\s+\S")
+
+
+def extraer_titulo_jina(raw: Optional[str]) -> str:
+    """Devuelve el campo 'Title:' de la respuesta de Jina, o '' si no existe.
+
+    Solo se busca en la zona ANTES del marcador 'Markdown Content:' para no
+    confundirse con lineas 'Title:' que aparezcan dentro del propio artículo.
+    """
+    if not raw:
+        return ""
+    marker = _JINA_MARKDOWN_MARKER.search(raw)
+    zona = raw[: marker.start()] if marker else raw
+    match = _JINA_TITLE_LINE.search(zona)
+    return match.group(1).strip() if match else ""
+
+
+def quitar_ruido_inicial(cuerpo: str, max_lineas_busqueda: int = 150) -> str:
+    """Recorta el ruido de página que Jina antepone al artículo.
+
+    En páginas con banner de cookies (euronews, elpais, ...) el cuerpo va:
+    [banner + navegación] → [H1 del artículo] → [cuerpo]. Si el primer H1
+    markdown aparece dentro de las primeras `max_lineas_busqueda` líneas, el
+    cuerpo empieza ahí; si no hay ningún H1 cerca, no se toca nada.
+    """
+    if not cuerpo:
+        return cuerpo
+    lineas = cuerpo.split("\n")
+    for i, linea in enumerate(lineas[:max_lineas_busqueda]):
+        if _H1_LINE.match(linea):
+            return "\n".join(lineas[i:]).lstrip()
+    return cuerpo
+
+
 def limpiar_cabecera_jina(contenido: str) -> str:
     """Elimina la cabecera de Jina del principio del contenido.
 
@@ -49,7 +84,13 @@ class JinaExtractor:
         self.stats = {"success": 0, "failures": 0, "requests": 0, "last_request": None}
         logger.info("[JINA] Extractor inicializado")
 
-    def extract(self, url: str, max_retries: int = 2) -> Tuple[Optional[str], str]:
+    def extract(self, url: str, max_retries: int = 2) -> Tuple[Optional[str], str, str]:
+        """Devuelve (contenido, metodo, titulo).
+
+        `titulo` es el campo 'Title:' de la cabecera de Jina (vacio si no
+        viene) y `contenido` va recortado de cualquier banner de cookies o
+        navegación que Jina anteponga al H1 del artículo.
+        """
         logger.info(f"[JINA] Extrayendo {url[:60]}...")
         self.stats["requests"] += 1
         proxy_url = f"https://r.jina.ai/{url}"
@@ -75,12 +116,13 @@ class JinaExtractor:
                 )
 
                 if response.status_code == 200:
-                    content = limpiar_cabecera_jina(response.text)
+                    titulo = extraer_titulo_jina(response.text)
+                    content = quitar_ruido_inicial(limpiar_cabecera_jina(response.text))
                     if len(content) > 200:
                         self.stats["success"] += 1
                         self.stats["last_request"] = time.time()
-                        logger.info(f"[JINA] Exito ({len(content)} chars)")
-                        return content, "jina_success"
+                        logger.info(f"[JINA] Exito ({len(content)} chars, título: {titulo[:60]!r})")
+                        return content, "jina_success", titulo
                     logger.warning(f"[JINA] Contenido corto ({len(content)} chars)")
                 else:
                     logger.warning(f"[JINA] HTTP {response.status_code}")
@@ -91,11 +133,11 @@ class JinaExtractor:
 
         self.stats["failures"] += 1
         logger.error(f"[JINA] Fallo total para {url[:60]}")
-        return None, "jina_failed"
+        return None, "jina_failed", ""
 
 
 jina_extractor = JinaExtractor()
 
 
-def extraer_contenido(url: str) -> Tuple[Optional[str], str]:
+def extraer_contenido(url: str) -> Tuple[Optional[str], str, str]:
     return jina_extractor.extract(url)
