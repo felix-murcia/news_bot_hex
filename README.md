@@ -17,10 +17,11 @@ src/
 Each pipeline follows the same flow:
 1. **Fetch** content (RSS articles, audio, or video)
 2. **Transcribe/Extract** text
-3. **Generate** article with AI (Gemini, local models, or mock)
+3. **Generate** article with AI (Gemini, local models, or mock) — the model writes the article in Spanish and opens it with an `<h1>` holding the Spanish title, which the pipeline extracts and stores as `title_es` (WordPress/Facebook titles)
 4. **Enrich** with images (Unsplash, Google Images, extraction)
-5. **Publish** to WordPress
-6. **Share** to social media
+5. **Generate** audio (Coqui TTS) and video (from audio, using the article's enriched image)
+6. **Publish** to WordPress
+7. **Share** to social media
 
 ## Quick Start
 
@@ -289,7 +290,7 @@ pytest tests/ -v
 
 - **RSS aggregation** — Fetches from multiple news sources
 - **Fake news detection** — Heuristic scoring + ML model
-- **Article generation** — AI-powered with structured HTML output
+- **Article generation** — AI-powered with structured HTML output; the LLM also produces the Spanish title (no external translation API in the main pipeline)
 - **SEO optimization** — Slug generation, focus keywords, meta descriptions
 - **Image enrichment** — Multi-source with fallback
 - **Multi-platform publishing** — WordPress, X, Bluesky, Mastodon, Facebook

@@ -171,7 +171,7 @@ El pipeline ejecuta estos 10 pasos secuencialmente:
 5. **Fetch Images** - Busca imágenes (Unsplash + Google)
 6. **Enrich Images** - Enriquece contenido con imágenes
 7. **Generate Audio** - Convierte artículos a audio (TTS)
-8. **Generate Video** - Crea videos desde audio
+8. **Generate Video** - Crea videos desde audio (usando la imagen enriquecida del artículo, descargada al pool `/tmp/images`; si no hay imagen válida, el paso aborta)
 9. **Publish WordPress** - Publica en WordPress
 10. **Publish Social** - Publica en Facebook, Bluesky, Mastodon
 

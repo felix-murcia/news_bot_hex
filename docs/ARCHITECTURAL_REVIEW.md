@@ -1,5 +1,20 @@
 # Architectural Review: news_bot_hex — "Procesar URL Concreta" Feature
 
+> ## ⚠️ DOCUMENTO PARCIALMENTE DESACTUALIZADO (revisado 2026-10-04)
+>
+> Esta review es una instantánea histórica. Varios de sus objetos **ya no existen** o cambiaron:
+>
+> - `process_url_complete.py`, `process_url_with_publishing.py` y `publishing_pipeline.py` fueron
+>   **eliminados** (decisión 2026-10-02: use-case sin consumidor → borrar). Los paths vivos de
+>   `/news/process_url` son `process_url_pipeline.py` + `process_url_executor.py`, y el pipeline RSS
+>   es `pipeline_executor.py` (`execute_pipeline_async`, único pipeline activo).
+> - El pipeline principal **ya no usa el traductor de Google**: el LLM traduce el contenido y
+>   genera el título en español como `<h1>` del artículo (`article.py::_extract_title_es`, 2026-10-04).
+> - El patrón "SKIPPED + raise" (H7) y los 8 guard tests caídos (B1) están **cerrados** (2026-10-04).
+>
+> Para el estado real del código, la fuente canónica es **`.opencode/agents/cine.md`** (§15 y §16).
+> Cuando este documento y el código discrepen, **el código manda**.
+
 ## Executive Summary
 
 The `news_bot_hex` codebase aspires to Hexagonal Architecture (Ports & Adapters) and shows real effort: a `domain/ports/__init__.py` defines abstract repositories; `dependencies.py` is labelled as a Composition Root; entities are dataclasses in `domain/entities`. However, the **"Procesar URL Concreta" feature is the weakest part of the hex boundary** in the project. It is implemented as a stack of four overlapping use-cases (`process_url_complete`, `process_url_with_publishing`, `process_url_executor`, plus the legacy `news_to_news.process_news_url`) that all do approximately the same orchestration with different levels of dependency injection. Two of those files are **dead code** that no router or CLI invokes.
