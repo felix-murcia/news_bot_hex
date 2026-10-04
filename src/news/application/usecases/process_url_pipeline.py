@@ -111,7 +111,18 @@ class ProcessUrlPipeline:
         # ── Step 3: Generate Posts (same as automatic pipeline) ─────────────
         def generate_posts():
             from src.news.application.usecases.content import run_content
-            run_content(use_gemini=True, mode="news")
+            posts = run_content(use_gemini=True, mode="news")
+            # Fail-fast: run_content omite por-item las noticias cuya IA se
+            # negó (baja calidad). En el pipeline automático eso es legítimo
+            # (N artículos RSS), pero aquí hay UNA sola url: 0 posts = nada
+            # que publicar, y el pipeline termina sin quemar recursos en
+            # imágenes, audio, vídeo y publicación.
+            if not posts:
+                raise RuntimeError(
+                    f"No se generó ningún post para {url}: la IA descartó el "
+                    "contenido por insuficiente o de baja calidad. No hay nada "
+                    "que publicar: el pipeline termina aquí."
+                )
 
         run_step("Generate Posts", generate_posts, critical=True)
 
@@ -122,7 +133,15 @@ class ProcessUrlPipeline:
         # Enrich Images. Both are critical: exceptions propagate via .result().
         def generate_articles():
             from src.news.application.usecases.article import run as run_article
-            run_article(use_gemini=True)
+            generated = run_article(use_gemini=True)
+            # Fail-fast: si no se generó artículo para la url (p. ej. el post
+            # no coincide con la URL verificada, o el LLM no devolvió cuerpo),
+            # no hay nada que leer en audio/vídeo/publicación. Termina aquí.
+            if not generated:
+                raise RuntimeError(
+                    f"No se generó artículo para {url}: no hay contenido que "
+                    "publicar: el pipeline termina aquí."
+                )
 
         def fetch_images():
             from src.shared.infrastructure.composition_root import run_image_unsplash, run_image_google
@@ -149,7 +168,13 @@ class ProcessUrlPipeline:
         # of re-querying MongoDB at each step.
         from src.shared.adapters.mongo_db import get_database
         db = get_database()
-        articles_list = list(db["generated_articles"].find({}))
+        # Filtrar por original_url: generated_articles es compartida y
+        # save_all solo sustituye si hubo generación; sin el filtro, un resto
+        # de otra ejecución se procesaría aquí (TTS/vídeo de otra noticia).
+        articles_list = [
+            a for a in db["generated_articles"].find({})
+            if a.get("original_url") == url
+        ]
 
         # ── Step 7: Generate Audio ──────────────────────────────────────────
         def generate_audio():

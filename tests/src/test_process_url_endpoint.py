@@ -325,13 +325,19 @@ class TestProcessUrlInputValidation:
         )
 
 
-class TestProcessUrlPipelineTitleEs:
-    """save_verified ya no traduce el título por API de Google: deja title_es
-    vacío. El LLM genera el título en español al escribir el artículo
-    (article.py lo extrae del <h1> del LLM y lo escribe de vuelta en el post).
-    """
+class ProcessUrlPipelineTestBase:
+    """Base para los tests de ProcessUrlPipeline: helper _run_pipeline + url."""
 
-    def _run_pipeline(self, jina_title=""):
+    PIPELINE_URL = "https://example.com/en/article"
+
+    def _run_pipeline(self, jina_title="", run_content_result=None,
+                      run_article_result=None, articles_in_db=None):
+        """Ejecuta el pipeline con mocks. Devuelve (inserted, ctx).
+
+        `ctx` es un dict con los mocks (run_content, run_article, tts,
+        wordpress, ...) para poder asertar qué pasos llegaron a ejecutarse.
+        `articles_in_db` simula el contenido de generated_articles (F12).
+        """
         import contextlib
         from unittest.mock import patch, Mock
         from src.news.application.usecases.process_url_pipeline import ProcessUrlPipeline
@@ -339,31 +345,47 @@ class TestProcessUrlPipelineTitleEs:
         inserted = []
         fake_db = MagicMock()
         # list(db["generated_articles"].find({})) debe iterar -> []
-        fake_db.__getitem__.return_value.find.return_value = []
+        fake_db.__getitem__.return_value.find.return_value = (
+            [] if articles_in_db is None else articles_in_db
+        )
 
         content = "English Headline Here\n\n" + "Body text about the story. " * 20
         extractor = Mock()
         # Port ContentExtractor.extract -> (contenido, metodo, titulo_jina)
         extractor.extract.return_value = (content, "jina", jina_title)
 
-        mock_translate = None
+        ctx = {}
         with contextlib.ExitStack() as stack:
             p = lambda *a, **k: stack.enter_context(patch(*a, **k))  # noqa: E731
-            p("src.news.application.usecases.content.run_content")
-            p("src.news.application.usecases.article.run")
-            p("src.shared.infrastructure.composition_root.run_image_unsplash")
-            p("src.shared.infrastructure.composition_root.run_image_google")
-            p("src.shared.infrastructure.composition_root.run_image_enricher")
-            p("src.shared.application.usecases.tts_from_article.run_tts_from_articles",
-              return_value=[])
-            p("src.shared.infrastructure.composition_root.create_video_generator",
-              return_value=Mock(is_available=Mock(return_value=False)))
-            p("src.shared.infrastructure.composition_root.run_wordpress")
-            p("src.shared.infrastructure.composition_root.run_bluesky")
-            p("src.shared.infrastructure.composition_root.run_mastodon")
-            p("src.shared.infrastructure.composition_root.run_facebook")
+            ctx["run_content"] = p("src.news.application.usecases.content.run_content")
+            ctx["run_article"] = p("src.news.application.usecases.article.run")
+            ctx["images_unsplash"] = p(
+                "src.shared.infrastructure.composition_root.run_image_unsplash")
+            ctx["images_google"] = p(
+                "src.shared.infrastructure.composition_root.run_image_google")
+            ctx["image_enricher"] = p(
+                "src.shared.infrastructure.composition_root.run_image_enricher")
+            ctx["tts"] = p(
+                "src.shared.application.usecases.tts_from_article.run_tts_from_articles",
+                return_value=[])
+            ctx["video_gen"] = p(
+                "src.shared.infrastructure.composition_root.create_video_generator",
+                return_value=Mock(is_available=Mock(return_value=False)))
+            ctx["wordpress"] = p(
+                "src.shared.infrastructure.composition_root.run_wordpress")
+            ctx["bluesky"] = p(
+                "src.shared.infrastructure.composition_root.run_bluesky")
+            ctx["mastodon"] = p(
+                "src.shared.infrastructure.composition_root.run_mastodon")
+            ctx["facebook"] = p(
+                "src.shared.infrastructure.composition_root.run_facebook")
             p("src.shared.adapters.mongo_db.get_database", return_value=fake_db)
-            mock_translate = p("src.shared.adapters.translator.translate_text")
+            ctx["translate"] = p("src.shared.adapters.translator.translate_text")
+
+            if run_content_result is not None:
+                ctx["run_content"].return_value = run_content_result
+            if run_article_result is not None:
+                ctx["run_article"].return_value = run_article_result
 
             mock_repo_cls = stack.enter_context(
                 patch("src.news.infrastructure.adapters.MongoVerifiedNewsRepository")
@@ -373,18 +395,28 @@ class TestProcessUrlPipelineTitleEs:
             )
 
             pipeline = ProcessUrlPipeline(content_extractor=extractor, metrics_repo=None)
-            pipeline.execute("https://example.com/en/article")
+            try:
+                pipeline.execute(self.PIPELINE_URL)
+            except Exception as e:
+                ctx["error"] = e  # los tests fail-fast asertan sobre ella
 
-        return inserted, mock_translate
+        return inserted, ctx
+
+
+class TestProcessUrlPipelineTitleEs(ProcessUrlPipelineTestBase):
+    """save_verified ya no traduce el título por API de Google: deja title_es
+    vacío. El LLM genera el título en español al escribir el artículo
+    (article.py lo extrae del <h1> del LLM y lo escribe de vuelta en el post).
+    """
 
     def test_title_es_is_left_empty_and_no_google_call(self):
-        inserted, mock_translate = self._run_pipeline()
+        inserted, ctx = self._run_pipeline()
         assert inserted, "save_verified debe insertar un VerifiedArticle"
         article = inserted[0]
         assert article.title == "English Headline Here"
         # El LLM lo rellena más adelante (paso Generate Articles)
         assert article.title_es == ""
-        mock_translate.assert_not_called()
+        ctx["translate"].assert_not_called()
 
     def test_jina_title_takes_precedence_over_first_content_line(self):
         """El campo 'Title:' de Jina manda sobre la primera línea del cuerpo
@@ -402,6 +434,73 @@ class TestProcessUrlPipelineTitleEs:
         inserted, _ = self._run_pipeline(jina_title="")
         assert inserted
         assert inserted[0].title == "English Headline Here"
+
+
+class TestProcessUrlPipelineFailFastNoContent(ProcessUrlPipelineTestBase):
+    """El pipeline URL es de UNA sola url: si la IA no publica contenido
+    (negación / baja calidad) no hay nada que publicar y el pipeline debe
+    terminar AHÍ, sin quemar recursos en imágenes, audio, vídeo y WP/social.
+    El skip por-item es legítimo en el pipeline automático (N artículos RSS),
+    no aquí.
+    """
+
+    def test_aborts_when_no_post_is_generated(self):
+        """run_content -> [] (la IA se negó) => Generate Posts aborta y
+        NINGÚN paso posterior se ejecuta."""
+        inserted, ctx = self._run_pipeline(run_content_result=[])
+        assert isinstance(ctx.get("error"), RuntimeError)
+        assert "No se generó ningún post" in str(ctx["error"])
+        ctx["run_content"].assert_called_once()
+        ctx["run_article"].assert_not_called()
+        ctx["images_unsplash"].assert_not_called()
+        ctx["image_enricher"].assert_not_called()
+        ctx["tts"].assert_not_called()
+        ctx["wordpress"].assert_not_called()
+        ctx["bluesky"].assert_not_called()
+        ctx["mastodon"].assert_not_called()
+        ctx["facebook"].assert_not_called()
+        assert ctx.get("error") is not None
+
+    def test_run_content_with_post_does_not_abort(self):
+        """Con al menos un post, el pipeline completa (no aborta)."""
+        inserted, ctx = self._run_pipeline(
+            run_content_result=[{"tweet": "x", "url": self.PIPELINE_URL}]
+        )
+        assert inserted
+        assert ctx.get("error") is None
+        ctx["run_article"].assert_called()
+        ctx["wordpress"].assert_called()
+        ctx["facebook"].assert_called()
+
+    def test_aborts_when_no_article_is_generated(self):
+        """Post OK pero run_article -> [] => aborta antes de audio/vídeo/WP."""
+        inserted, ctx = self._run_pipeline(
+            run_content_result=[{"tweet": "x", "url": self.PIPELINE_URL}],
+            run_article_result=[],
+        )
+        assert isinstance(ctx.get("error"), RuntimeError)
+        assert "No se generó artículo" in str(ctx["error"])
+        ctx["run_article"].assert_called_once()
+        ctx["tts"].assert_not_called()
+        ctx["wordpress"].assert_not_called()
+        ctx["bluesky"].assert_not_called()
+
+    def test_audio_only_processes_articles_of_this_url(self):
+        """generated_articles puede contener restos de ejecuciones anteriores
+        (save_all solo sustituye si hubo generación). El paso F12 debe filtrar
+        por original_url para no procesar contenido ajeno a la url."""
+        this_url = self.PIPELINE_URL
+        arts = [
+            {"original_url": "https://otra-noticia.com/x",
+             "tts_audio_path": "/tmp/otro.mp3"},
+            {"original_url": this_url,
+             "tts_audio_path": "/tmp/este.mp3"},
+        ]
+        inserted, ctx = self._run_pipeline(articles_in_db=arts)
+        assert ctx.get("error") is None
+        # El TTS solo debe ver el artículo de ESTA url, no el resto:
+        tts_arg = ctx["tts"].call_args.args[0]
+        assert tts_arg == [arts[1]]
 
 
 class TestProcessUrlErrorHandling:
