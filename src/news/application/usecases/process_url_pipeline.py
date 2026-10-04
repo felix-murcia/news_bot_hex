@@ -66,8 +66,17 @@ class ProcessUrlPipeline:
         def save_verified():
             from src.news.domain.entities.verified_article import VerifiedArticle
             from src.news.infrastructure.adapters import MongoVerifiedNewsRepository
+            from src.shared.adapters.translator import translate_text
 
             title = next((l.strip() for l in content.splitlines() if l.strip()), url)[:200]
+
+            # title_es debe ir en español (como el pipeline automatico). Si se
+            # deja en ingles, article.py lo usa tal cual y el titulo del
+            # articulo/wp sale en ingles.
+            try:
+                title_es = translate_text(title[:200], target_lang="es")
+            except Exception:
+                title_es = title
 
             article = VerifiedArticle(
                 title=title,
@@ -84,7 +93,7 @@ class ProcessUrlPipeline:
                 verification={"verified": True},
                 content=content,
                 original_url=url,
-                title_es=title,
+                title_es=title_es,
                 source_url=url,
             )
 
