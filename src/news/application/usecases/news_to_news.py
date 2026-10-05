@@ -125,12 +125,18 @@ class NewsToNewsUseCase:
                 model = get_ai_adapter(provider, self.ai_config)
 
             agent = TweetGeopoliticsAgent(model)
-            tweet = agent.generate(title=title, tema=tema, context=desc)
-            tweet = truncate_social_post(tweet)
+            respuesta = agent.generate(title=title, tema=tema, context=desc)
 
-            if tweet:
-                logger.info(f"[NEWS_TO_NEWS] Tweet generado: {tweet[:80]}...")
-                return tweet
+            if respuesta.publishable:
+                tweet = truncate_social_post(respuesta.text)
+                if tweet:
+                    logger.info(f"[NEWS_TO_NEWS] Tweet generado: {tweet[:80]}...")
+                    return tweet
+            else:
+                logger.warning(
+                    f"[NEWS_TO_NEWS] La IA no generó un tweet publicable para "
+                    f"{title[:60]}...: {respuesta.reason[:160]}"
+                )
         except Exception as e:
             logger.warning(f"[NEWS_TO_NEWS] Error generando tweet con IA: {e}")
 

@@ -15,37 +15,6 @@ POST_LIMITS = {
     "facebook": 63206,
 }
 
-REFUSAL_PATTERNS = [
-    "no contiene información",
-    "no contiene suficiente",
-    "no es posible generar",
-    "no es posible crear",
-    "no es posible redactar",
-    "no es posible elaborar",
-    "no es posible escribir",
-    "no puedo generar",
-    "no puedo crear",
-    "no puedo redactar",
-    "no puedo elaborar",
-    "no puedo escribir",
-    "no hay información suficiente",
-    "no hay material suficiente",
-    "no es un hecho concreto",
-    "el contenido proporcionado",
-    "el contenido no contiene",
-    "lo siento",
-    # Respuesta meta: el LLM pide el contenido en vez de redactar la noticia
-    # (vista en producción: BBC 2026-10-05, se publicó por error en Mastodon).
-    "por favor, proporcione",
-    "proporcione el contenido",
-    "el contenido de la noticia",
-    "el texto suministrado",
-    "el texto proporcionado",
-    "solo contiene enlaces",
-    "etiquetas de navegación",
-]
-
-
 class ContentUseCase:
     """Caso de uso para generar contenido (tweets/posts) para redes sociales (DIP: inyección de repositorio)."""
 
@@ -107,15 +76,32 @@ class ContentUseCase:
             logger.error(f"[CONTENT] Error guardando posts: {e}")
 
     def _generate_tweet_ai(self, news_item: Dict) -> str:
+        """Genera el tweet con IA y lo devuelve.
+
+        El agente responde con JSON {"publicable": bool, ...} (ver
+        src/shared/domain/services/tweet_response.py): la publicabilidad la
+        declara el modelo y la decide `validar_tweet`, sin listas de frases.
+        Si no hay tweet publicable se lanza RuntimeError y no se publica nada.
+        """
         title = news_item.get("title", "")
         tema = news_item.get("tema", "Noticias")
         desc = news_item.get("desc", "")[:200]
 
         model = self._get_ai_model()
         agent = TweetGeopoliticsAgent(model)
-        tweet = agent.generate(title=title, tema=tema, context=desc)
+        respuesta = agent.generate(title=title, tema=tema, context=desc)
 
-        tweet = truncate_social_post(tweet, limit=self.MAX_CHARS)
+        if not respuesta.publishable:
+            logger.error(
+                f"[CONTENT] La IA no generó un tweet publicable para: "
+                f"{title[:80]}... (tema: {tema}). Motivo: {respuesta.reason[:160]}"
+            )
+            raise RuntimeError(
+                f"La IA no generó un tweet publicable para '{title[:80]}...': "
+                f"{respuesta.reason}. No se publica contenido de baja calidad."
+            )
+
+        tweet = truncate_social_post(respuesta.text, limit=self.MAX_CHARS)
         tweet = tweet.strip()
 
         # Aplicar post-edición automática
@@ -129,23 +115,6 @@ class ContentUseCase:
             raise RuntimeError(
                 f"Tweet vacío para '{title[:80]}...'. No se publica contenido de baja calidad."
             )
-
-        error_patterns = ["Error 500", "Server Error", "That’s an error", "403 Forbidden"]
-        for pattern in error_patterns:
-            if pattern.lower() in tweet.lower() or pattern.lower() in title.lower():
-                raise RuntimeError(f"Contenido generado inválido, posible página de error devuelta por IA o Traductor: {pattern}")
-
-        tweet_lower = tweet.lower()
-        for pattern in REFUSAL_PATTERNS:
-            if pattern.lower() in tweet_lower:
-                logger.error(
-                    f"[CONTENT] La IA devolvió una negación/apología en vez de un tweet para: "
-                    f"{title[:80]}... (tema: {tema}). No se publica: {tweet[:80]}..."
-                )
-                raise RuntimeError(
-                    f"La IA se negó a generar un tweet (contenido insuficiente o inválido) para "
-                    f"'{title[:80]}...'. No se publica contenido de baja calidad."
-                )
 
         return tweet
 

@@ -235,13 +235,23 @@ class ArticleFromTranscriptUseCase:
         model = self._get_ai_model()
         agent = TweetGeopoliticsAgent(model)
 
-        tweet = agent.generate(
+        respuesta = agent.generate(
             title=title,
             tema=tema,
             context=context[:200],
         )
 
-        tweet = tweet.strip()
+        if not respuesta.publishable:
+            logger.error(
+                f"[ARTICLE_TRANSCRIPT] La IA no generó un tweet publicable para: "
+                f"{title[:80]}... (tema: {tema}). Motivo: {respuesta.reason[:160]}"
+            )
+            raise RuntimeError(
+                f"La IA no generó un tweet publicable para '{title[:80]}...': "
+                f"{respuesta.reason}. No se publica contenido de baja calidad."
+            )
+
+        tweet = respuesta.text.strip()
 
         # Clean unwanted patterns
         tweet = re.sub(r"\[HASHTAGS\]", "", tweet, flags=re.IGNORECASE)

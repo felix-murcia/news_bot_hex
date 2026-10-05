@@ -9,6 +9,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from src.shared.adapters.ai.prompt_loader import load_prompt
+from src.shared.domain.services.tweet_response import TweetResponse, validar_tweet
 
 if TYPE_CHECKING:
     from src.shared.domain.ports.ai_model_port import AIModelPort
@@ -27,7 +28,11 @@ class TweetGeopoliticsAgent:
         from src.shared.adapters.ai.agents import TweetGeopoliticsAgent
 
         agent = TweetGeopoliticsAgent(ai)
-        tweet = agent.generate(title="BCE sube tipos", tema="Economía", context="...")
+        respuesta = agent.generate(title="BCE sube tipos", tema="Economía", context="...")
+        if respuesta.publishable:
+            publicar(respuesta.text)
+        else:
+            logger.warning(respuesta.reason)
     """
 
     AGENT_NAME = "tweet-geopolitics"
@@ -58,7 +63,7 @@ class TweetGeopoliticsAgent:
         temperature: float = 0.2,
         max_tokens: int = 1024,
         **kwargs,
-    ) -> str:
+    ) -> TweetResponse:
         """
         1024, no 256: el default era 256 y devolvia content=None con
         finish_reason="length" — el pipeline abortaba con "Tweet generado
@@ -67,6 +72,11 @@ class TweetGeopoliticsAgent:
         razonamiento, cuyo campo `reasoning` se paga con este mismo
         presupuesto. Los agentes de articulo usan 4096 por el mismo motivo.
         Genera un tweet estilo geopolítico.
+
+        El prompt obliga al modelo a responder con JSON
+        {"publicable": bool, "tweet"/"motivo"}; `validar_tweet` lo comprueba
+        y decide si hay un tweet publicable (comprobación determinista, con
+        segunda capa por patrones si no hay JSON).
 
         Args:
             title: Título de la noticia.
@@ -77,7 +87,7 @@ class TweetGeopoliticsAgent:
             **kwargs: Argumentos adicionales pasados al adapter.
 
         Returns:
-            Tweet generado como string.
+            TweetResponse: publishable + text (el tweet) o reason (motivo).
         """
         logger.info(f"[TWEET_GEOPOLITICS] Generating tweet for: {title[:80]}...")
 
@@ -92,15 +102,21 @@ class TweetGeopoliticsAgent:
             **kwargs,
         )
 
-        tweet = result.strip()
+        respuesta = validar_tweet(result, title=title)
 
-        if len(tweet) > self.MAX_CHARS:
+        if respuesta.publishable:
+            if len(respuesta.text) > self.MAX_CHARS:
+                logger.warning(
+                    f"[TWEET_GEOPOLITICS] Tweet exceeds {self.MAX_CHARS} chars "
+                    f"(got {len(respuesta.text)})"
+                )
+            logger.info("[TWEET_GEOPOLITICS] Tweet generated successfully")
+        else:
             logger.warning(
-                f"[TWEET_GEOPOLITICS] Tweet exceeds {self.MAX_CHARS} chars (got {len(tweet)})"
+                f"[TWEET_GEOPOLITICS] Respuesta no publicable para {title[:60]}...: "
+                f"{respuesta.reason[:120]}"
             )
-
-        logger.info("[TWEET_GEOPOLITICS] Tweet generated successfully")
-        return tweet
+        return respuesta
 
     def generate_batch(
         self,
@@ -108,7 +124,7 @@ class TweetGeopoliticsAgent:
         temperature: float = 0.2,
         max_tokens: int = 1024,
         **kwargs,
-    ) -> list[str]:
+    ) -> list[TweetResponse]:
         """
         Genera múltiples tweets desde una lista de items.
 
@@ -119,13 +135,13 @@ class TweetGeopoliticsAgent:
             **kwargs: Argumentos adicionales pasados al adapter.
 
         Returns:
-            Lista de tweets generados.
+            Lista de TweetResponse (una por item).
         """
         logger.info(f"[TWEET_GEOPOLITICS] Generating {len(items)} tweets")
 
-        tweets = []
+        respuestas = []
         for item in items:
-            tweet = self.generate(
+            respuesta = self.generate(
                 title=item.get("title", ""),
                 tema=item.get("tema", "Noticias"),
                 context=item.get("context", ""),
@@ -133,6 +149,6 @@ class TweetGeopoliticsAgent:
                 max_tokens=max_tokens,
                 **kwargs,
             )
-            tweets.append(tweet)
+            respuestas.append(respuesta)
 
-        return tweets
+        return respuestas

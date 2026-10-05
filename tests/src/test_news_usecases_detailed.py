@@ -61,7 +61,13 @@ class TestContentUseCaseDetailed:
 
 
 class TestContentRefusalGuard:
-    """ContentUseCase must not publish an LLM refusal/apology as a tweet."""
+    """ContentUseCase must not publish an LLM refusal/apology as a tweet.
+
+    La comprobación es determinista: el agente devuelve TweetResponse
+    (publicable lo declara el LLM vía JSON, ver
+    src/shared/domain/services/tweet_response.py). El caso de uso solo actúa
+    sobre esa respuesta: no publicable -> RuntimeError, nada se publica.
+    """
 
     def _uc(self):
         from src.news.application.usecases.content import ContentUseCase
@@ -74,30 +80,33 @@ class TestContentRefusalGuard:
         )
 
     @patch("src.news.application.usecases.content.TweetGeopoliticsAgent")
-    def test_refusal_tweet_raises(self, mock_agent_cls):
-        """The refusal actually seen in the log must be rejected, not published."""
+    def test_refusal_response_raises(self, mock_agent_cls):
+        """Negación marcada por el agente: no se publica, se aborta."""
+        from src.shared.domain.services.tweet_response import TweetResponse
+
         mock_agent = Mock()
-        mock_agent.generate.return_value = (
-            "El contenido proporcionado no contiene información suficiente "
-            "para generar un reporte de #geopolítica sobre un hecho concreto en #español."
+        mock_agent.generate.return_value = TweetResponse(
+            publishable=False,
+            reason="El contenido proporcionado no contiene información suficiente para generar un reporte.",
         )
         mock_agent_cls.return_value = mock_agent
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(RuntimeError) as exc:
             self._uc()._generate_tweet_ai(
                 {"title": "Published Time: Fri, 04 Sep 2026", "tema": "geopolítica", "desc": "..."}
             )
+        assert "no generó un tweet publicable" in str(exc.value)
 
     @patch("src.news.application.usecases.content.TweetGeopoliticsAgent")
     def test_meta_response_requesting_content_raises(self, mock_agent_cls):
-        """Meta-response real publicada en producción (BBC, 2026-10-05,
-        Mastodon/Bluesky): el LLM pide el contenido en vez de redactar la
-        noticia. NO se puede publicar."""
+        """Caso real de producción (BBC, 2026-10-05): el LLM devolvió
+        publicable=false por respuesta meta; el caso de uso no lo publica."""
+        from src.shared.domain.services.tweet_response import TweetResponse
+
         mock_agent = Mock()
-        mock_agent.generate.return_value = (
-            "Por favor, proporcione el contenido de la noticia. El texto "
-            "suministrado solo contiene enlaces y etiquetas de navegación, "
-            "por lo que no hay información disponible para redactar el tweet."
+        mock_agent.generate.return_value = TweetResponse(
+            publishable=False,
+            reason="El texto suministrado solo contiene enlaces y etiquetas de navegación.",
         )
         mock_agent_cls.return_value = mock_agent
 
@@ -108,30 +117,14 @@ class TestContentRefusalGuard:
             )
 
     @patch("src.news.application.usecases.content.TweetGeopoliticsAgent")
-    def test_meta_response_variant_raises(self, mock_agent_cls):
-        mock_agent = Mock()
-        mock_agent.generate.return_value = (
-            "El texto proporcionado solo contiene enlaces y etiquetas de "
-            "navegación; no es posible redactar el tweet sin el contenido."
-        )
-        mock_agent_cls.return_value = mock_agent
-
-        with pytest.raises(RuntimeError):
-            self._uc()._generate_tweet_ai({"title": "T", "tema": "x", "desc": "y"})
-
-    @patch("src.news.application.usecases.content.TweetGeopoliticsAgent")
-    def test_apology_opening_raises(self, mock_agent_cls):
-        mock_agent = Mock()
-        mock_agent.generate.return_value = "Lo siento, no es posible generar un tweet sobre ese contenido."
-        mock_agent_cls.return_value = mock_agent
-
-        with pytest.raises(RuntimeError):
-            self._uc()._generate_tweet_ai({"title": "T", "tema": "x", "desc": "y"})
-
-    @patch("src.news.application.usecases.content.TweetGeopoliticsAgent")
     def test_valid_tweet_passes(self, mock_agent_cls):
+        from src.shared.domain.services.tweet_response import TweetResponse
+
         mock_agent = Mock()
-        mock_agent.generate.return_value = "El #BCE subió los #TiposDeInteres 25 puntos básicos hasta el 4,25%."
+        mock_agent.generate.return_value = TweetResponse(
+            publishable=True,
+            text="El #BCE subió los #TiposDeInteres 25 puntos básicos hasta el 4,25%.",
+        )
         mock_agent_cls.return_value = mock_agent
 
         tweet = self._uc()._generate_tweet_ai({"title": "BCE sube tipos", "tema": "Economía", "desc": "..."})
