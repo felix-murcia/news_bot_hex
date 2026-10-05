@@ -34,6 +34,15 @@ REFUSAL_PATTERNS = [
     "el contenido proporcionado",
     "el contenido no contiene",
     "lo siento",
+    # Respuesta meta: el LLM pide el contenido en vez de redactar la noticia
+    # (vista en producción: BBC 2026-10-05, se publicó por error en Mastodon).
+    "por favor, proporcione",
+    "proporcione el contenido",
+    "el contenido de la noticia",
+    "el texto suministrado",
+    "el texto proporcionado",
+    "solo contiene enlaces",
+    "etiquetas de navegación",
 ]
 
 

@@ -89,6 +89,37 @@ class TestContentRefusalGuard:
             )
 
     @patch("src.news.application.usecases.content.TweetGeopoliticsAgent")
+    def test_meta_response_requesting_content_raises(self, mock_agent_cls):
+        """Meta-response real publicada en producción (BBC, 2026-10-05,
+        Mastodon/Bluesky): el LLM pide el contenido en vez de redactar la
+        noticia. NO se puede publicar."""
+        mock_agent = Mock()
+        mock_agent.generate.return_value = (
+            "Por favor, proporcione el contenido de la noticia. El texto "
+            "suministrado solo contiene enlaces y etiquetas de navegación, "
+            "por lo que no hay información disponible para redactar el tweet."
+        )
+        mock_agent_cls.return_value = mock_agent
+
+        with pytest.raises(RuntimeError):
+            self._uc()._generate_tweet_ai(
+                {"title": "Georgia officials hunt for suspect in shooting",
+                 "tema": "Noticias", "desc": "..."}
+            )
+
+    @patch("src.news.application.usecases.content.TweetGeopoliticsAgent")
+    def test_meta_response_variant_raises(self, mock_agent_cls):
+        mock_agent = Mock()
+        mock_agent.generate.return_value = (
+            "El texto proporcionado solo contiene enlaces y etiquetas de "
+            "navegación; no es posible redactar el tweet sin el contenido."
+        )
+        mock_agent_cls.return_value = mock_agent
+
+        with pytest.raises(RuntimeError):
+            self._uc()._generate_tweet_ai({"title": "T", "tema": "x", "desc": "y"})
+
+    @patch("src.news.application.usecases.content.TweetGeopoliticsAgent")
     def test_apology_opening_raises(self, mock_agent_cls):
         mock_agent = Mock()
         mock_agent.generate.return_value = "Lo siento, no es posible generar un tweet sobre ese contenido."
