@@ -61,7 +61,7 @@ class InMemoryJobRepository(JobRepositoryPort):
     """Adapter: in-memory job storage (implementation of JobRepositoryPort)"""
 
     def __init__(self, store: Dict[str, Dict] = None):
-        self.store = store or {}
+        self.store = store if store is not None else {}
         self._lock = threading.Lock()
 
     def create(self) -> str:
