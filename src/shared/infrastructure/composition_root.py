@@ -15,6 +15,7 @@ from src.audio.domain.ports.audio_fetcher_port import AudioFetcherPort
 from src.audio.domain.ports.audio_transcriber_port import AudioTranscriberPort
 from src.video.domain.ports.video_fetcher_port import VideoFetcherPort
 from src.video.domain.ports.video_transcriber_port import VideoTranscriberPort
+from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
 
 
 def create_audio_converter() -> AudioConverterPort:
@@ -60,6 +61,30 @@ def create_video_fetcher() -> VideoFetcherPort:
 def create_video_transcriber() -> VideoTranscriberPort:
     from src.video.infrastructure.adapters.video_transcriber import VideoTranscriber
     return VideoTranscriber()
+
+
+def create_metrics_repository() -> MetricsRepositoryPort:
+    from src.news.infrastructure.adapters.mongo_metrics_repository import MongoMetricsRepository
+    from src.shared.adapters.mongo_db import get_database
+    return MongoMetricsRepository(get_database())
+
+
+def create_generated_articles_repository():
+    from src.news.infrastructure.adapters.mongo_repositories import MongoGeneratedArticlesRepository
+    from src.shared.adapters.mongo_db import get_database
+    return MongoGeneratedArticlesRepository(get_database())
+
+
+def create_generated_posts_repository():
+    from src.news.infrastructure.adapters.mongo_repositories import MongoGeneratedPostsRepository
+    from src.shared.adapters.mongo_db import get_database
+    return MongoGeneratedPostsRepository(get_database())
+
+
+def create_verified_news_repository():
+    from src.news.infrastructure.adapters.mongo_repositories import MongoVerifiedNewsRepository
+    from src.shared.adapters.mongo_db import get_database
+    return MongoVerifiedNewsRepository(get_database())
 
 
 # ============================================================
