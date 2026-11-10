@@ -25,9 +25,12 @@ services:
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
       - LOG_DIR=/app/logs
       - TZ=${TZ}
+      # FFMPEG_API_URL: gana sobre .config/ai-keys.env (env_file) para
+      # fijar puerto correcto (8080, no 5001) y hostname DNS resuelto
+      - FFMPEG_API_URL=http://ffmpeg-api:8080
     env_file:
       - .env
-      - ${HOME}/.config/ai-keys.env
+      - .config/ai-keys.env
     volumes:
       - /tmp/logs:/app/logs
       - /tmp/data:/app/data
