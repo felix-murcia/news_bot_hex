@@ -100,7 +100,7 @@ class Settings:
     # === AI Model Configuration ===
     # Default is ALWAYS "local" — no external providers are used unless explicitly configured
     AI_PROVIDER = (os.getenv("AI_PROVIDER") or "local").lower()
-    SUPPORTED_AI_PROVIDERS = ["openrouter", "gemini", "local", "mock"]
+    SUPPORTED_AI_PROVIDERS = ["openrouter", "gemini", "local", "mock", "groq"]
 
     AI_ADAPTER_MAP = {
         "gemini": "src.shared.adapters.ai.gemini_adapter.GeminiAdapter",
