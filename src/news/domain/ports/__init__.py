@@ -175,6 +175,14 @@ class GeneratedArticlesRepository(ABC):
     def delete_all(self) -> bool:
         pass
 
+    @abstractmethod
+    def update_tts_audio_path(self, article_id: str, path: str) -> bool:
+        pass
+
+    @abstractmethod
+    def update_generated_video_path(self, article_id: str, path: str) -> bool:
+        pass
+
 
 class FakeNewsModel(ABC):
     """Puerto para el modelo de detección de fake news."""

@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from typing import List, Set
+from bson import ObjectId
 
 from src.news.domain.entities.article import Article
 from src.news.domain.entities.verified_article import VerifiedArticle
@@ -485,4 +486,26 @@ class MongoGeneratedArticlesRepository(GeneratedArticlesRepository):
             return True
         except Exception as e:
             logger.error(f"Error deleting generated articles: {e}")
+            return False
+
+    def update_tts_audio_path(self, article_id: str, path: str) -> bool:
+        try:
+            result = self._collection.update_one(
+                {"_id": ObjectId(article_id)},
+                {"$set": {"tts_audio_path": path}},
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error(f"Error updating tts_audio_path for article {article_id}: {e}")
+            return False
+
+    def update_generated_video_path(self, article_id: str, path: str) -> bool:
+        try:
+            result = self._collection.update_one(
+                {"_id": ObjectId(article_id)},
+                {"$set": {"generated_video_path": path}},
+            )
+            return result.modified_count > 0
+        except Exception as e:
+            logger.error(f"Error updating generated_video_path for article {article_id}: {e}")
             return False
