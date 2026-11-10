@@ -458,6 +458,7 @@ systemctl --user status news-bot-pipeline.timer
 | ID | Discrepancia | Resolución | Commit |
 |----|--------------|------------|--------|
 | B17 | `FFMPEG_API_URL` doble definición: `.env` (`http://ffmpeg-api-prod:8080`) + `.config/ai-keys.env` (`http://ffmpeg-api:5001/optimize`). La segunda gana por orden de carga en `env_file:`, causando 176 `Connection refused` a `:5001`. | Añadido `environment: FFMPEG_API_URL=http://ffmpeg-api:8080` al servicio `app` en `docker-compose.yml`. En Docker Compose, `environment:` tiene precedencia sobre `env_file:`. | `faff1d6` |
+| B18.1 | VOs de pipeline (`JobStatus`, `ProcessingStepName`, `ProcessingStepStatus`, `PipelineStepResult`, `PipelineResult`) vivían en `application/usecases/pipeline_job.py` (violación hexagonal). `STEP_CRITICALITY` hardcodeado en executor con `GENERATE_POSTS: True` (incorrecto). `JobStatus` duplicado en `domain/entities/job.py` (sin PARTIAL). | Movidos VOs a `domain/entities/pipeline_job.py` (nuevo). `JobStatus` unificado con PARTIAL. `STEP_CRITICALITY` → `ProcessingStepName.is_critical()` en domain. `GENERATE_POSTS` pasa a enriquecimiento. `pipeline_step.py` importa enums de `pipeline_job.py`. | `08e7673` |
 
 ---
 
@@ -467,3 +468,4 @@ systemctl --user status news-bot-pipeline.timer
 |----------|---------------------------|------------|
 | B17 (puerto ffmpeg-api) | `docker compose exec app env | grep FFMPEG_API_URL` → debe salir `http://ffmpeg-api:8080` | Tras cualquier cambio en compose/env |
 | B18 (PARTIAL enriquecimiento) | `docker logs news_bot_app | grep -c "Connection refused"` tras un run de pipeline → debe ser 0; `status` en job debe ser `PARTIAL` si falla audio/video; `FAILED` si falla publicación | Tras deploy o cambio en adaptadores de audio/vídeo o executor |
+| B18.1 (VOs en domain, criticidad) | `grep -rn "class JobStatus" src/` → 1 línea en `domain/entities/pipeline_job.py`; `grep -n "is_critical" src/news/domain/entities/pipeline_job.py` → método presente; `pytest tests/test_pipeline_status_partial.py tests/test_pipeline_fail_fast.py -xvs` → GREEN | Tras cambios en domain entities o pipeline executor |
