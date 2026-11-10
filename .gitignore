@@ -95,6 +95,7 @@ CLAUDE.md
 .codegraph/
 .config
 .config/
+.ruff_cache/
 
 package-lock.json
 package.json
