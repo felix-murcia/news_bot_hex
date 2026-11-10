@@ -25,7 +25,7 @@ class EndpointFilter(logging.Filter):
     noise that hides real errors in the TOC.
     """
 
-    SILENCED_PATHS = frozenset({"/api/v1/account/info", "/v1/models"})
+    SILENCED_PATHS = frozenset({"/api/v1/account/info", "/v1/models", "/api/v1/market/candles/latest"})
 
     def filter(self, record: logging.LogRecord) -> bool:
         args = record.args
