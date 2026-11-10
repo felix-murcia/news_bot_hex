@@ -59,7 +59,7 @@ class ImageProvider:
 
         if not images:
             logger.warning(
-                f"[IMAGE PROVIDER] No se encontraron imágenes en {self.images_dir}"
+                f"[IMAGE PROVIDER] No se encontraron imágenes en {self.images_dir} (contenido: {os.listdir(self.images_dir) if os.path.exists(self.images_dir) else 'Dir no existe'})"
             )
             return None
 
@@ -211,9 +211,11 @@ class VideoGeneratorAdapter(VideoGeneratorPort):
             logger.error(f"[VIDEO GENERATOR] Audio no encontrado: {audio_path}")
             return None
 
+        logger.info(f"[VIDEO GENERATOR] create_video_from_audio called with image={image}")
         # Obtener imagen: la solicitada (descargada/resuelta) o, como fallback,
         # una aleatoria del proveedor inyectado.
         image_path = self._resolve_image(image) or self.image_provider.get_random_image()
+        logger.info(f"[VIDEO GENERATOR] image_path resuelta: {image_path}")
         if not image_path:
             logger.error("[VIDEO GENERATOR] No se pudo obtener una imagen, abortando")
             return None
