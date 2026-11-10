@@ -1,49 +1,31 @@
-"""Pipeline job tracking for async execution."""
+"""Pipeline job tracking for async execution (application layer).
+
+Contains application-specific job management:
+- JobRepositoryPort: port for job persistence
+- InMemoryJobRepository: in-memory adapter
+- Global functions for job lifecycle (create_job, get_job, etc.)
+
+Domain enums and VOs (JobStatus, ProcessingStepName, ProcessingStepStatus,
+PipelineStepResult, PipelineResult) are imported from domain layer.
+"""
 
 import uuid
 import threading
 from typing import Dict, Optional, List
 from datetime import datetime
-from enum import Enum
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+
+from src.news.domain.entities.pipeline_job import (
+    JobStatus,
+    ProcessingStepName,
+    ProcessingStepStatus,
+    PipelineStepResult,
+    PipelineResult,
+)
+
 
 # In-memory job store (en producción usar Redis o DB)
 _jobs_store: Dict[str, Dict] = {}
-
-
-class JobStatus(str, Enum):
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    PARTIAL = "partial"
-    FAILED = "failed"
-
-
-class ProcessingStepName(str, Enum):
-    """Valid pipeline step names to avoid magic strings"""
-    INITIALIZING = "Inicializando"
-    PROCESSING_URL = "Procesando URL"
-    RSS_FETCH = "RSS Fetch"
-    FULL_VERIFICATION = "Full Verification"
-    GENERATE_POSTS = "Generate Posts"
-    GENERATE_ARTICLES = "Generate Articles"
-    FETCH_IMAGES = "Fetch Images"
-    ENRICH_IMAGES = "Enrich Images"
-    GENERATE_AUDIO = "Generate Audio"
-    GENERATE_VIDEO = "Generate Video"
-    PUBLISH_WORDPRESS = "Publish WordPress"
-    PUBLISH_SOCIAL = "Publish Social"
-    COMPLETED = "Completado"
-
-
-class ProcessingStepStatus(str, Enum):
-    """Valid step status values"""
-    PENDING = "pending"
-    RUNNING = "running"
-    OK = "ok"
-    ERROR = "error"
-    SKIPPED = "skipped"
 
 
 class JobRepositoryPort(ABC):
@@ -179,26 +161,3 @@ def add_step(job_id: str, step_name: str, status: str = "running") -> None:
 def update_job_log(job_id: str, log_message: str) -> None:
     """Update the last log message for real-time feedback in UI."""
     _default_repo.update_log(job_id, log_message)
-
-
-@dataclass(frozen=True)
-class PipelineStepResult:
-    """Result of a single pipeline step."""
-    name: ProcessingStepName
-    status: ProcessingStepStatus
-    error: Optional[str] = None
-    critical: bool = False
-
-
-@dataclass(frozen=True)
-class PipelineResult:
-    """Final result of a pipeline execution."""
-    job_id: str
-    status: JobStatus
-    steps: List[PipelineStepResult]
-    error: Optional[str] = None
-    failed_steps: List[str] = None
-
-    def __post_init__(self):
-        if self.failed_steps is None:
-            object.__setattr__(self, 'failed_steps', [])

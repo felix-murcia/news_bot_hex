@@ -17,7 +17,7 @@ import types
 from unittest.mock import patch
 
 from src.news.application.usecases import pipeline_executor
-from src.news.application.usecases.pipeline_job import (
+from src.news.domain.entities.pipeline_job import (
     JobStatus,
     ProcessingStepName,
     ProcessingStepStatus,

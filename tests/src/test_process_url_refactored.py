@@ -2,12 +2,12 @@
 
 import pytest
 from unittest.mock import Mock, MagicMock
-from src.news.application.usecases.pipeline_job import (
+from src.news.domain.entities.pipeline_job import (
     JobStatus,
     ProcessingStepName,
     ProcessingStepStatus,
-    InMemoryJobRepository,
 )
+from src.news.application.usecases.pipeline_job import InMemoryJobRepository
 from src.news.application.usecases.process_url_executor import ProcessUrlJobCoordinator
 
 

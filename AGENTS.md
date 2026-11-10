@@ -102,7 +102,7 @@ news_bot_hex/
 │   │   │   └── services/            # validation_rules.py ⚠️ ÚNICO leak: config.logging_config (línea 12)
 │   │   ├── application/
 │   │   │   └── usecases/            # FetchRSSNews, FullVerify, SoftVerify, ArticleFromNews, ContentFromNews,
-│   │   │                            #   pipeline_job.py, ProcessUrlJobCoordinator, pipeline_executor,
+│   │   │                            #   ProcessUrlJobCoordinator, pipeline_executor,
 │   │   │                            #   news_to_news, process_url_pipeline
 │   │   ├── infrastructure/adapters/ # mongo_repositories.py, mongo_metrics_repository.py,
 │   │   │                            #   content_extractor.py, FeedparserRSSFetcher, ScoringEngine,
@@ -201,11 +201,13 @@ news_bot_hex/
 
 8. **Error handling estructurado:** usa `http_error()` y `get_error_message()` desde `error_handler.py`. Nunca expongas trazas ni datos sensibles al cliente. Registro en `server.py:32` vía `register_error_handlers(app)`.
 
-9. **Doctrina fail-fast / degraded (vigente desde 2026-11-10, B18):** el pipeline clasifica los pasos en **CRÍTICOS** y **ENRIQUECIMIENTO**.
-   - **CRÍTICOS** (RSS Fetch, Full Verification, Generate Posts, Generate Articles, WordPress, Social): fallo ⇒ aborta, estado final `FAILED`.
-   - **ENRIQUECIMIENTO** (Fetch Images, Enrich Images, Generate Audio, Generate Video): fallo ⇒ registra `ERROR` en el step, **continúa**, estado final `PARTIAL` si hay fallos de enriquecimiento.
+9. **Doctrina fail-fast / degraded (vigente desde 2026-11-10, B18; actualizada B18.1):** el pipeline clasifica los pasos en **CRÍTICOS** y **ENRIQUECIMIENTO**.
+   - **CRÍTICOS** (RSS Fetch, Full Verification, Generate Articles, WordPress, Social): fallo ⇒ aborta, estado final `FAILED`.
+   - **ENRIQUECIMIENTO** (Generate Posts, Fetch Images, Enrich Images, Generate Audio, Generate Video): fallo ⇒ registra `ERROR` en el step, **continúa**, estado final `PARTIAL` si hay fallos de enriquecimiento.
+   - `GENERATE_POSTS` **no es crítico** (B18.1): fallo en generación de tweets no aborta publicación WordPress.
+   - La criticidad vive en `ProcessingStepName.is_critical()` (`domain/entities/pipeline_job.py`), no en dict hardcodeado.
    - Los `try/except` con fallback en adaptadores de audio/vídeo se mantienen; el executor decide el estado final inspeccionando qué steps fallaron.
-   - Estado `PARTIAL` añadido a `JobStatus` (`pipeline_job.py:18`). Contrato `PipelineResult` actualizado (§6).
+   - Estado `PARTIAL` añadido a `JobStatus` (`domain/entities/pipeline_job.py:19`). Contrato `PipelineResult` actualizado (§6).
 
 ---
 
@@ -215,7 +217,7 @@ news_bot_hex/
 
 | VO | Campos esperados | Invariantes |
 |---|---|---|
-| `PipelineResult` | `job_id: str`, `status: JobStatus` (SUCCESS/COMPLETED, PARTIAL, FAILED), `steps: list[PipelineStepResult]`, `error: Optional[str]`, `failed_steps: list[str]` | `status=PARTIAL` ⇒ `error` y `failed_steps` no vacíos (solo enriquecimiento). `status=FAILED` ⇒ `error` y `failed_steps` no vacíos (incluye crítico). |
+| `PipelineResult` | `job_id: str`, `status: JobStatus` (COMPLETED, PARTIAL, FAILED), `steps: list[PipelineStepResult]`, `error: Optional[str]`, `failed_steps: list[str]` | `status=PARTIAL` ⇒ `error` y `failed_steps` no vacíos (solo enriquecimiento). `status=FAILED` ⇒ `error` y `failed_steps` no vacíos (incluye crítico). `failed_steps` está en el contrato pero el frontend aún no lo consume. |
 | `PipelineStepResult` | `name: ProcessingStepName`, `status: ProcessingStepStatus`, `error: Optional[str]`, `critical: bool` | `status=ERROR` ⇒ `error` no nulo. `critical=true` ⇒ paso crítico (aborta si falla). |
 | `SocialPost` | `text: str`, `platform: SocialPlatform`, `title_es: Optional[str]` | `len(text) <= 280` para X/Bluesky |
 | `PublishResult` | `platform: str`, `success: bool`, `url: Optional[str]`, `error: Optional[str]` | `success=False` ⇒ `error` no nulo |
@@ -350,7 +352,7 @@ Flujo: validar URL y provider → crear job en `JobRepositoryPort` → **thread 
 
 ### 10.1 `dependencies.py` (API) — proveedores `Depends()`
 
-`get_content_extractor` (Jina) · `get_article_repo` · `get_verified_news_repo` (Mongo) · `get_article_usecase` · `get_content_usecase` · `get_fetch_rss_usecase` · `get_full_verify_usecase` · `get_soft_verify_usecase` · `get_generated_posts_repo` · `get_process_url_job_coordinator` · `get_process_url_job_repository` (`InMemoryJobRepository`, ⚠️ mal ubicado en `pipeline_job.py`)
+`get_content_extractor` (Jina) · `get_article_repo` · `get_verified_news_repo` (Mongo) · `get_article_usecase` · `get_content_usecase` · `get_fetch_rss_usecase` · `get_full_verify_usecase` · `get_soft_verify_usecase` · `get_generated_posts_repo` · `get_process_url_job_coordinator` · `get_process_url_job_repository` (`InMemoryJobRepository` en `pipeline_job.py` — capa application correcta)
 
 ⚠️ **Definidos pero sin consumidor (verificar B4):** `get_image_fetcher_usecase`, `get_image_enricher_usecase`, `get_publishers_usecase` (`dependencies.py:317,326,336`) — ningún router los inyecta.
 

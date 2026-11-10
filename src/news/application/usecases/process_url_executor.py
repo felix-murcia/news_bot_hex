@@ -14,12 +14,12 @@ import threading
 from typing import Callable, Dict, Any
 
 from config.logging_config import get_logger
-from src.news.application.usecases.pipeline_job import (
+from src.news.domain.entities.pipeline_job import (
     JobStatus,
     ProcessingStepName,
     ProcessingStepStatus,
-    JobRepositoryPort,
 )
+from src.news.application.usecases.pipeline_job import JobRepositoryPort
 from src.news.application.usecases.pipeline_log_handler import (
     setup_pipeline_logging,
     teardown_pipeline_logging,

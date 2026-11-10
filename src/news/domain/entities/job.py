@@ -2,16 +2,9 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
 from typing import List, Optional, Dict, Any
 
-
-class JobStatus(str, Enum):
-    """Job lifecycle states."""
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
+from .pipeline_job import JobStatus
 
 
 @dataclass

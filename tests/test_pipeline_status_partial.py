@@ -1,6 +1,6 @@
 """Tests TDD para B18: estados PARTIAL/FAILED en PipelineResult."""
 import pytest
-from src.news.application.usecases.pipeline_job import (
+from src.news.domain.entities.pipeline_job import (
     JobStatus,
     PipelineResult,
     PipelineStepResult,

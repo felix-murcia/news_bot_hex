@@ -2,34 +2,9 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from enum import Enum
 from typing import Optional, Dict, Any
 
-
-class ProcessingStepName(str, Enum):
-    """Valid pipeline step names."""
-    INITIALIZING = "Inicializando"
-    PROCESSING_URL = "Procesando URL"
-    RSS_FETCH = "RSS Fetch"
-    FULL_VERIFICATION = "Full Verification"
-    GENERATE_POSTS = "Generate Posts"
-    GENERATE_ARTICLES = "Generate Articles"
-    FETCH_IMAGES = "Fetch Images"
-    ENRICH_IMAGES = "Enrich Images"
-    GENERATE_AUDIO = "Generate Audio"
-    GENERATE_VIDEO = "Generate Video"
-    PUBLISH_WORDPRESS = "Publish WordPress"
-    PUBLISH_SOCIAL = "Publish Social"
-    COMPLETED = "Completado"
-
-
-class ProcessingStepStatus(str, Enum):
-    """Valid step status values."""
-    PENDING = "pending"
-    RUNNING = "running"
-    OK = "ok"
-    ERROR = "error"
-    SKIPPED = "skipped"
+from .pipeline_job import ProcessingStepName, ProcessingStepStatus
 
 
 @dataclass

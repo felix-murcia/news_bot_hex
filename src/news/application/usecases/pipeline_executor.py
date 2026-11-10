@@ -4,14 +4,16 @@ import threading
 import time
 from datetime import datetime
 from config.logging_config import get_logger
-from src.news.application.usecases.pipeline_job import (
+from src.news.domain.entities.pipeline_job import (
     JobStatus,
     ProcessingStepName,
     ProcessingStepStatus,
-    update_job_status,
-    add_step,
     PipelineStepResult,
     PipelineResult,
+)
+from src.news.application.usecases.pipeline_job import (
+    update_job_status,
+    add_step,
 )
 from src.news.application.usecases.pipeline_log_handler import (
     setup_pipeline_logging,
@@ -28,20 +30,6 @@ logger = get_logger("news_bot.pipeline.executor")
 
 # Global execution lock - only one pipeline execution at a time
 _execution_lock = threading.Lock()
-
-# Step classification: True = critical (abort on failure), False = enrichment (continue on failure)
-STEP_CRITICALITY = {
-    ProcessingStepName.RSS_FETCH: True,
-    ProcessingStepName.FULL_VERIFICATION: True,
-    ProcessingStepName.GENERATE_POSTS: True,
-    ProcessingStepName.GENERATE_ARTICLES: True,
-    ProcessingStepName.FETCH_IMAGES: False,
-    ProcessingStepName.ENRICH_IMAGES: False,
-    ProcessingStepName.GENERATE_AUDIO: False,
-    ProcessingStepName.GENERATE_VIDEO: False,
-    ProcessingStepName.PUBLISH_WORDPRESS: True,
-    ProcessingStepName.PUBLISH_SOCIAL: True,
-}
 
 
 def _format_duration(milliseconds: int) -> str:
@@ -66,7 +54,7 @@ def _execute_step(
     Returns:
         tuple: (success, error_message)
     """
-    is_critical = STEP_CRITICALITY.get(step_name, True)
+    is_critical = step_name.is_critical()
     add_step(job_id, step_name, ProcessingStepStatus.RUNNING)
     step_start_ns = time.time_ns()
 
