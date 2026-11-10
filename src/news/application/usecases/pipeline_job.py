@@ -2,10 +2,11 @@
 
 import uuid
 import threading
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 from datetime import datetime
 from enum import Enum
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
 # In-memory job store (en producción usar Redis o DB)
 _jobs_store: Dict[str, Dict] = {}
@@ -15,6 +16,7 @@ class JobStatus(str, Enum):
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
+    PARTIAL = "partial"
     FAILED = "failed"
 
 
@@ -177,3 +179,26 @@ def add_step(job_id: str, step_name: str, status: str = "running") -> None:
 def update_job_log(job_id: str, log_message: str) -> None:
     """Update the last log message for real-time feedback in UI."""
     _default_repo.update_log(job_id, log_message)
+
+
+@dataclass(frozen=True)
+class PipelineStepResult:
+    """Result of a single pipeline step."""
+    name: ProcessingStepName
+    status: ProcessingStepStatus
+    error: Optional[str] = None
+    critical: bool = False
+
+
+@dataclass(frozen=True)
+class PipelineResult:
+    """Final result of a pipeline execution."""
+    job_id: str
+    status: JobStatus
+    steps: List[PipelineStepResult]
+    error: Optional[str] = None
+    failed_steps: List[str] = None
+
+    def __post_init__(self):
+        if self.failed_steps is None:
+            object.__setattr__(self, 'failed_steps', [])

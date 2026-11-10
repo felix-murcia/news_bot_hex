@@ -10,7 +10,7 @@ interface PipelineStep {
 
 interface PipelineJob {
   id: string;
-  status: "pending" | "running" | "completed" | "failed";
+  status: "pending" | "running" | "completed" | "partial" | "failed";
   progress: number;
   message: string;
   steps: PipelineStep[];
@@ -50,9 +50,9 @@ export function PipelineJobMonitor({ jobId, endpoint = "pipeline", onComplete, o
         setJob(jobData);
 
         // Stop polling when job completes
-        if (jobData.status === "completed" || jobData.status === "failed") {
+        if (jobData.status === "completed" || jobData.status === "partial" || jobData.status === "failed") {
           setIsRunning(false);
-          if (jobData.status === "completed") {
+          if (jobData.status === "completed" || jobData.status === "partial") {
             onComplete?.(jobData);
           } else {
             const errorMsg = jobData.error || "Pipeline failed";
@@ -99,6 +99,8 @@ export function PipelineJobMonitor({ jobId, endpoint = "pipeline", onComplete, o
     switch (status) {
       case "completed":
         return "text-green-600";
+      case "partial":
+        return "text-amber-600";
       case "running":
         return "text-blue-600";
       case "failed":
@@ -118,6 +120,7 @@ export function PipelineJobMonitor({ jobId, endpoint = "pipeline", onComplete, o
             {job.status === "pending" && "Pendiente"}
             {job.status === "running" && "En ejecución"}
             {job.status === "completed" && "✅ Completado"}
+            {job.status === "partial" && "⚠️ Completado con pasos degradados"}
             {job.status === "failed" && "❌ Falló"}
           </span>
         </div>
@@ -131,7 +134,8 @@ export function PipelineJobMonitor({ jobId, endpoint = "pipeline", onComplete, o
           <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
             <div
               className={`h-full transition-all duration-300 ${
-                job.status === "failed" ? "bg-red-500" : "bg-green-500"
+                job.status === "failed" ? "bg-red-500" :
+                job.status === "partial" ? "bg-amber-500" : "bg-green-500"
               }`}
               style={{ width: `${job.progress}%` }}
             />
@@ -189,7 +193,11 @@ export function PipelineJobMonitor({ jobId, endpoint = "pipeline", onComplete, o
 
       {/* Timing Info */}
       {job.started_at && (
-        <div className={`rounded p-3 text-xs space-y-1 text-gray-300 border ${job.status === "failed" ? "bg-red-950/20 border-red-800" : "bg-blue-950/20 border-blue-800"}`}>
+        <div className={`rounded p-3 text-xs space-y-1 text-gray-300 border ${
+          job.status === "failed" ? "bg-red-950/20 border-red-800" :
+          job.status === "partial" ? "bg-amber-950/20 border-amber-800" :
+          "bg-blue-950/20 border-blue-800"
+        }`}>
           <div>Iniciado: {new Date(job.started_at).toLocaleTimeString("es-ES")}</div>
           {job.completed_at && (
             <div>Completado: {new Date(job.completed_at).toLocaleTimeString("es-ES")}</div>

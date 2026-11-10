@@ -201,10 +201,11 @@ news_bot_hex/
 
 8. **Error handling estructurado:** usa `http_error()` y `get_error_message()` desde `error_handler.py`. Nunca expongas trazas ni datos sensibles al cliente. Registro en `server.py:32` vía `register_error_handlers(app)`.
 
-9. **Doctrina fail-fast (vigente desde 2026-10-02):** si un paso falla, se registra como `ERROR` (métrica `FAILED`) y **aborta** el pipeline. Los `raise RuntimeError` de los publishers son correctos y **no deben revertirse**.
-
-   <!-- CAMBIO 2026-11-10 -->
-   > ⚠️ **Estado real (2026-11-10): la doctrina fail-fast NO se cumple en los pasos de audio.** Los adaptadores de TTS/audio (`audio_post_processor.py`, `audio_converter*.py`, `coqui_tts_adapter.py`) tienen `try/except` con fallback y el pipeline termina con `success=True` aunque falte el audio final (B18). B14 se cerró incorrectamente: la verificación se hizo en `pipeline_executor.py` (donde no había "skipped"), pero el fallback está en los adaptadores. **Antes de asumir fail-fast, ejecuta el comando de B18 del Anexo B.**
+9. **Doctrina fail-fast / degraded (vigente desde 2026-11-10, B18):** el pipeline clasifica los pasos en **CRÍTICOS** y **ENRIQUECIMIENTO**.
+   - **CRÍTICOS** (RSS Fetch, Full Verification, Generate Posts, Generate Articles, WordPress, Social): fallo ⇒ aborta, estado final `FAILED`.
+   - **ENRIQUECIMIENTO** (Fetch Images, Enrich Images, Generate Audio, Generate Video): fallo ⇒ registra `ERROR` en el step, **continúa**, estado final `PARTIAL` si hay fallos de enriquecimiento.
+   - Los `try/except` con fallback en adaptadores de audio/vídeo se mantienen; el executor decide el estado final inspeccionando qué steps fallaron.
+   - Estado `PARTIAL` añadido a `JobStatus` (`pipeline_job.py:18`). Contrato `PipelineResult` actualizado (§6).
 
 ---
 
@@ -214,8 +215,8 @@ news_bot_hex/
 
 | VO | Campos esperados | Invariantes |
 |---|---|---|
-| `PipelineResult` | `job_id: str`, `status: PipelineStatus`, `steps: list[PipelineStepResult]`, `error: Optional[str]` | `status=FAILED` ⇒ `error` no nulo. <!-- CAMBIO 2026-11-10 --> ⚠️ B18: el código actual pone `status=SUCCESS` aunque un step de audio haya fallado; el contrato vigente está en revisión (¿añadir `PARTIAL` o forzar fail-fast?). |
-| `PipelineStepResult` | `name: ProcessingStepName`, `status: ProcessingStepStatus`, `error: Optional[str]` | `status=ERROR` ⇒ `error` no nulo |
+| `PipelineResult` | `job_id: str`, `status: JobStatus` (SUCCESS/COMPLETED, PARTIAL, FAILED), `steps: list[PipelineStepResult]`, `error: Optional[str]`, `failed_steps: list[str]` | `status=PARTIAL` ⇒ `error` y `failed_steps` no vacíos (solo enriquecimiento). `status=FAILED` ⇒ `error` y `failed_steps` no vacíos (incluye crítico). |
+| `PipelineStepResult` | `name: ProcessingStepName`, `status: ProcessingStepStatus`, `error: Optional[str]`, `critical: bool` | `status=ERROR` ⇒ `error` no nulo. `critical=true` ⇒ paso crítico (aborta si falla). |
 | `SocialPost` | `text: str`, `platform: SocialPlatform`, `title_es: Optional[str]` | `len(text) <= 280` para X/Bluesky |
 | `PublishResult` | `platform: str`, `success: bool`, `url: Optional[str]`, `error: Optional[str]` | `success=False` ⇒ `error` no nulo |
 | `PipelineContext` | `job_id`, `provider`, `article`, `post`, `images`, `audio_path`, `video_path` | — |
@@ -401,6 +402,11 @@ Middleware `require_api_key` (`server.py:54`) con `_PUBLIC_PATHS = {"/health"}` 
 | `runPipeline()` | `/news/pipeline` | POST | `{ data: { job_id } }` |
 | `getPipelineStatus()` | `/news/pipeline/status/{job_id}` | GET | `{ data: { status, progress, steps } }` |
 
+**Estados de job (`status`):** `pending` | `running` | `completed` | `partial` | `failed`.
+- `completed`: todos los pasos OK.
+- `partial`: ≥1 paso de enriquecimiento falló (audio/video/imágenes); publicación OK.
+- `failed`: ≥1 paso crítico falló (RSS, verificación, artículos, WordPress, social).
+
 **Feature "Forzar extracción con Jina":** checkbox en `NewsTab.tsx` → envía `force_extract: true` → `NewsToNewsUseCase` respeta el flag y omite caché.
 
 ### 11.5 Comandos de verificación
@@ -458,4 +464,4 @@ systemctl --user status news-bot-pipeline.timer
 | Hallazgo | Comando de re-verificación | Frecuencia |
 |----------|---------------------------|------------|
 | B17 (puerto ffmpeg-api) | `docker compose exec app env | grep FFMPEG_API_URL` → debe salir `http://ffmpeg-api:8080` | Tras cualquier cambio en compose/env |
-| B18 (fail-fast audio) | `docker logs news_bot_app | grep -c "Connection refused"` tras un run de pipeline → debe ser 0; `status` en `PipelineResult` debe ser `PARTIAL` si falla audio | Tras deploy o cambio en adaptadores de audio |
+| B18 (PARTIAL enriquecimiento) | `docker logs news_bot_app | grep -c "Connection refused"` tras un run de pipeline → debe ser 0; `status` en job debe ser `PARTIAL` si falla audio/video; `FAILED` si falla publicación | Tras deploy o cambio en adaptadores de audio/vídeo o executor |

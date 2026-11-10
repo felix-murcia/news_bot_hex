@@ -83,16 +83,22 @@ export function LogPanel({ response, error, loading }: LogPanelProps) {
   if (!response) return null;
 
   const isOk = response.status === "ok";
+  const isPartial = response.status === "partial";
 
   return (
     <div
       className={`mt-3 p-3 rounded-lg border text-xs ${
         isOk
           ? "bg-green-950/30 border-green-800 text-green-300"
+          : isPartial
+          ? "bg-amber-950/30 border-amber-800 text-amber-300"
           : "bg-yellow-950/30 border-yellow-700 text-yellow-300"
       }`}
     >
-      <strong className="block mb-1">{isOk ? "✓ " : "⚠ "}{response.message}</strong>
+      <strong className="block mb-1">
+        {isOk ? "✓ " : isPartial ? "⚠️ " : "⚠ "}
+        {response.message}
+      </strong>
       {response.data && (
         <pre className="mt-2 text-gray-300 whitespace-pre-wrap break-all">
           {JSON.stringify(response.data, null, 2)}

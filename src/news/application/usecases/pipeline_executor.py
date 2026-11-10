@@ -10,6 +10,8 @@ from src.news.application.usecases.pipeline_job import (
     ProcessingStepStatus,
     update_job_status,
     add_step,
+    PipelineStepResult,
+    PipelineResult,
 )
 from src.news.application.usecases.pipeline_log_handler import (
     setup_pipeline_logging,
@@ -27,6 +29,20 @@ logger = get_logger("news_bot.pipeline.executor")
 # Global execution lock - only one pipeline execution at a time
 _execution_lock = threading.Lock()
 
+# Step classification: True = critical (abort on failure), False = enrichment (continue on failure)
+STEP_CRITICALITY = {
+    ProcessingStepName.RSS_FETCH: True,
+    ProcessingStepName.FULL_VERIFICATION: True,
+    ProcessingStepName.GENERATE_POSTS: True,
+    ProcessingStepName.GENERATE_ARTICLES: True,
+    ProcessingStepName.FETCH_IMAGES: False,
+    ProcessingStepName.ENRICH_IMAGES: False,
+    ProcessingStepName.GENERATE_AUDIO: False,
+    ProcessingStepName.GENERATE_VIDEO: False,
+    ProcessingStepName.PUBLISH_WORDPRESS: True,
+    ProcessingStepName.PUBLISH_SOCIAL: True,
+}
+
 
 def _format_duration(milliseconds: int) -> str:
     """Convert milliseconds to human-readable hh:mm:ss format."""
@@ -37,9 +53,71 @@ def _format_duration(milliseconds: int) -> str:
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
+def _execute_step(
+    job_id: str,
+    step_name: ProcessingStepName,
+    step_func,
+    metrics_steps: list,
+    step_results: list,
+) -> tuple[bool, str | None]:
+    """
+    Execute a single pipeline step.
+
+    Returns:
+        tuple: (success, error_message)
+    """
+    is_critical = STEP_CRITICALITY.get(step_name, True)
+    add_step(job_id, step_name, ProcessingStepStatus.RUNNING)
+    step_start_ns = time.time_ns()
+
+    try:
+        step_func()
+        step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
+        add_step(job_id, step_name, ProcessingStepStatus.OK)
+        record_step_metric(metrics_steps, step_name.value, "OK", step_duration_ms)
+        step_results.append(PipelineStepResult(
+            name=step_name,
+            status=ProcessingStepStatus.OK,
+            critical=is_critical,
+        ))
+        logger.info(f"[PIPELINE-JOB] {job_id} {step_name.value} completado ({_format_duration(step_duration_ms)})")
+        return True, None
+    except Exception as e:
+        step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
+        error_msg = str(e)
+        logger.error(f"[PIPELINE-JOB] {job_id} Error en {step_name.value}: {e}")
+        add_step(job_id, step_name, ProcessingStepStatus.ERROR)
+        record_step_metric(metrics_steps, step_name.value, "FAILED", step_duration_ms, error_msg)
+        step_results.append(PipelineStepResult(
+            name=step_name,
+            status=ProcessingStepStatus.ERROR,
+            error=error_msg,
+            critical=is_critical,
+        ))
+        return False, error_msg
+
+
+def record_step_metric(metrics_steps: list, step_name: str, status: str, duration_ms: int, error: str = None):
+    """Record a step metric."""
+    try:
+        step_status = StepStatus(status)
+    except ValueError:
+        step_status = StepStatus.FAILED
+
+    metrics_steps.append(StepMetric(
+        name=step_name,
+        status=step_status,
+        duration_ms=duration_ms,
+        error=error,
+    ))
+
+
 def execute_pipeline_async(job_id: str) -> bool:
     """
     Execute pipeline in background thread with job tracking and metrics collection.
+
+    Enrichment steps (images, audio, video) don't abort on failure - they mark PARTIAL.
+    Critical steps (RSS, verification, posts, articles, WordPress, social) abort on failure.
 
     Returns:
         bool: True if execution started, False if another execution is in progress.
@@ -54,153 +132,95 @@ def execute_pipeline_async(job_id: str) -> bool:
     logger.info(f"[PIPELINE-JOB] {job_id} Lock acquired - execution starting")
 
     def run_pipeline():
+        log_handler = None
         try:
             # Setup logging handler to capture real-time feedback for UI
             log_handler = setup_pipeline_logging(job_id)
         except Exception as e:
             logger.error(f"[PIPELINE-JOB] {job_id} Error setup logging: {e}", exc_info=True)
             update_job_status(job_id, JobStatus.FAILED, f"Error en logging: {str(e)}", error=str(e))
+            _execution_lock.release()
             return
 
         # Initialize metrics collection
         metrics_steps = []
+        step_results = []
         pipeline_start_ns = time.time_ns()
 
         try:
             update_job_status(job_id, JobStatus.RUNNING, "Pipeline iniciado")
             logger.info(f"[PIPELINE-JOB] {job_id} iniciado")
 
-            # Helper to record metrics for each step
-            def record_step_metric(step_name: str, status: str, duration_ms: int, error: str = None):
-                try:
-                    step_status = StepStatus(status)
-                except ValueError:
-                    step_status = StepStatus.FAILED
+            # Step 1: Fetch RSS (CRITICAL)
+            success, error = _execute_step(
+                job_id,
+                ProcessingStepName.RSS_FETCH,
+                lambda: __import__('src.news.entrypoints.cli', fromlist=['main_rss']).main_rss(),
+                metrics_steps,
+                step_results,
+            )
+            if not success:
+                raise RuntimeError(f"Fallo crítico en RSS: {error}")
 
-                metrics_steps.append(StepMetric(
-                    name=step_name,
-                    status=step_status,
-                    duration_ms=duration_ms,
-                    error=error,
-                ))
+            # Step 2: Full Verification (CRITICAL)
+            success, error = _execute_step(
+                job_id,
+                ProcessingStepName.FULL_VERIFICATION,
+                lambda: __import__('src.news.entrypoints.cli', fromlist=['main_full_verify']).main_full_verify(),
+                metrics_steps,
+                step_results,
+            )
+            if not success:
+                raise RuntimeError(f"Fallo crítico en Verification: {error}")
 
-            # Step 1: Fetch RSS
-            add_step(job_id, ProcessingStepName.RSS_FETCH, ProcessingStepStatus.RUNNING)
-            step_start_ns = time.time_ns()
-            try:
-                from src.news.entrypoints.cli import main_rss
+            # Step 3: Generate Posts (CRITICAL)
+            success, error = _execute_step(
+                job_id,
+                ProcessingStepName.GENERATE_POSTS,
+                lambda: __import__('src.news.application.usecases.content', fromlist=['run_content']).run_content(use_gemini=True, mode="news"),
+                metrics_steps,
+                step_results,
+            )
+            if not success:
+                raise RuntimeError(f"Fallo crítico en Posts: {error}")
 
-                main_rss()
-                step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-                add_step(job_id, ProcessingStepName.RSS_FETCH, ProcessingStepStatus.OK)
-                record_step_metric("RSS Fetch", "OK", step_duration_ms)
-                logger.info(f"[PIPELINE-JOB] {job_id} RSS completado ({_format_duration(step_duration_ms)})")
-            except Exception as e:
-                step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-                logger.error(f"[PIPELINE-JOB] {job_id} Error en RSS: {e}")
-                add_step(job_id, ProcessingStepName.RSS_FETCH, ProcessingStepStatus.ERROR)
-                record_step_metric("RSS Fetch", "FAILED", step_duration_ms, str(e))
-                # Abort the pipeline on any error, especially AI provider failures
-                raise
+            # Step 4: Generate Articles (CRITICAL)
+            success, error = _execute_step(
+                job_id,
+                ProcessingStepName.GENERATE_ARTICLES,
+                lambda: __import__('src.news.application.usecases.article', fromlist=['run']).run(use_gemini=True),
+                metrics_steps,
+                step_results,
+            )
+            if not success:
+                raise RuntimeError(f"Fallo crítico en Articles: {error}")
 
-            # Step 2: Full Verification
-            add_step(job_id, ProcessingStepName.FULL_VERIFICATION, ProcessingStepStatus.RUNNING)
-            step_start_ns = time.time_ns()
-            try:
-                from src.news.entrypoints.cli import main_full_verify
+            # Step 5: Fetch Images (ENRICHMENT)
+            success, error = _execute_step(
+                job_id,
+                ProcessingStepName.FETCH_IMAGES,
+                lambda: (
+                    __import__('src.shared.infrastructure.composition_root', fromlist=['run_image_unsplash']).run_image_unsplash(),
+                    __import__('src.shared.infrastructure.composition_root', fromlist=['run_image_google']).run_image_google(),
+                ),
+                metrics_steps,
+                step_results,
+            )
+            # Continue on failure (enrichment)
 
-                main_full_verify()
-                step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-                add_step(job_id, ProcessingStepName.FULL_VERIFICATION, ProcessingStepStatus.OK)
-                record_step_metric("Full Verification", "OK", step_duration_ms)
-                logger.info(f"[PIPELINE-JOB] {job_id} Verification completada ({_format_duration(step_duration_ms)})")
-            except Exception as e:
-                step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-                logger.error(f"[PIPELINE-JOB] {job_id} Error en Verification: {e}")
-                add_step(job_id, ProcessingStepName.FULL_VERIFICATION, ProcessingStepStatus.ERROR)
-                record_step_metric("Full Verification", "FAILED", step_duration_ms, str(e))
-                raise
+            # Step 6: Enrich Images (ENRICHMENT)
+            success, error = _execute_step(
+                job_id,
+                ProcessingStepName.ENRICH_IMAGES,
+                lambda: __import__('src.shared.infrastructure.composition_root', fromlist=['run_image_enricher']).run_image_enricher(),
+                metrics_steps,
+                step_results,
+            )
+            # Continue on failure (enrichment)
 
-            # Step 3: Generate Posts
-            add_step(job_id, ProcessingStepName.GENERATE_POSTS, ProcessingStepStatus.RUNNING)
-            step_start_ns = time.time_ns()
-            try:
-                from src.news.application.usecases.content import run_content
-
-                run_content(use_gemini=True, mode="news")
-                step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-                add_step(job_id, ProcessingStepName.GENERATE_POSTS, ProcessingStepStatus.OK)
-                record_step_metric("Generate Posts", "OK", step_duration_ms)
-                logger.info(f"[PIPELINE-JOB] {job_id} Posts generados ({_format_duration(step_duration_ms)})")
-            except Exception as e:
-                step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-                logger.error(f"[PIPELINE-JOB] {job_id} Error en Posts: {e}")
-                add_step(job_id, ProcessingStepName.GENERATE_POSTS, ProcessingStepStatus.ERROR)
-                record_step_metric("Generate Posts", "FAILED", step_duration_ms, str(e))
-                raise
-
-            # Step 4: Generate Articles
-            add_step(job_id, ProcessingStepName.GENERATE_ARTICLES, ProcessingStepStatus.RUNNING)
-            step_start_ns = time.time_ns()
-            try:
-                from src.news.application.usecases.article import run as run_article
-
-                run_article(use_gemini=True)
-                step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-                add_step(job_id, ProcessingStepName.GENERATE_ARTICLES, ProcessingStepStatus.OK)
-                record_step_metric("Generate Articles", "OK", step_duration_ms)
-                logger.info(f"[PIPELINE-JOB] {job_id} Artículos generados ({_format_duration(step_duration_ms)})")
-            except Exception as e:
-                step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-                logger.error(f"[PIPELINE-JOB] {job_id} Error en Articles: {e}")
-                add_step(job_id, ProcessingStepName.GENERATE_ARTICLES, ProcessingStepStatus.ERROR)
-                record_step_metric("Generate Articles", "FAILED", step_duration_ms, str(e))
-                raise
-
-            # Step 5: Fetch Images
-            add_step(job_id, ProcessingStepName.FETCH_IMAGES, ProcessingStepStatus.RUNNING)
-            step_start_ns = time.time_ns()
-            try:
-                from src.shared.infrastructure.composition_root import run_image_unsplash, run_image_google
-
-                run_image_unsplash()
-                run_image_google()
-                step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-                add_step(job_id, ProcessingStepName.FETCH_IMAGES, ProcessingStepStatus.OK)
-                record_step_metric("Fetch Images", "OK", step_duration_ms)
-                logger.info(f"[PIPELINE-JOB] {job_id} Imágenes descargadas ({_format_duration(step_duration_ms)})")
-            except Exception as e:
-                step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-                logger.error(f"[PIPELINE-JOB] {job_id} Error en Images: {e}")
-                add_step(job_id, ProcessingStepName.FETCH_IMAGES, ProcessingStepStatus.ERROR)
-                record_step_metric("Fetch Images", "FAILED", step_duration_ms, str(e))
-                raise
-
-            # Step 6: Enrich Images
-            add_step(job_id, ProcessingStepName.ENRICH_IMAGES, ProcessingStepStatus.RUNNING)
-            step_start_ns = time.time_ns()
-            try:
-                from src.shared.infrastructure.composition_root import run_image_enricher
-
-                run_image_enricher()
-                step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-                add_step(job_id, ProcessingStepName.ENRICH_IMAGES, ProcessingStepStatus.OK)
-                record_step_metric("Enrich Images", "OK", step_duration_ms)
-                logger.info(f"[PIPELINE-JOB] {job_id} Imágenes enriquecidas ({_format_duration(step_duration_ms)})")
-            except Exception as e:
-                step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-                logger.error(f"[PIPELINE-JOB] {job_id} Error en Enrichment: {e}")
-                add_step(job_id, ProcessingStepName.ENRICH_IMAGES, ProcessingStepStatus.ERROR)
-                record_step_metric("Enrich Images", "FAILED", step_duration_ms, str(e))
-                raise
-
-            # Step 7: Generate Audio (TTS)
-            add_step(job_id, ProcessingStepName.GENERATE_AUDIO, ProcessingStepStatus.RUNNING)
-            step_start_ns = time.time_ns()
-            try:
-                from src.shared.application.usecases.tts_from_article import (
-                    run_tts_from_articles,
-                )
+            # Step 7: Generate Audio (ENRICHMENT)
+            def _run_audio():
+                from src.shared.application.usecases.tts_from_article import run_tts_from_articles
                 from src.shared.adapters.mongo_db import get_database
 
                 db = get_database()
@@ -216,21 +236,20 @@ def execute_pipeline_async(job_id: str) -> bool:
                                 {"$set": {"tts_audio_path": article["tts_audio_path"]}},
                             )
                     logger.info(f"[PIPELINE-JOB] {job_id} Audio generado")
-                step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-                add_step(job_id, ProcessingStepName.GENERATE_AUDIO, ProcessingStepStatus.OK)
-                record_step_metric("Generate Audio", "OK", step_duration_ms)
-            except Exception as e:
-                step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-                logger.error(f"[PIPELINE-JOB] {job_id} Error en Audio: {e}")
-                add_step(job_id, ProcessingStepName.GENERATE_AUDIO, ProcessingStepStatus.ERROR)
-                record_step_metric("Generate Audio", "FAILED", step_duration_ms, str(e))
-                raise
 
-            # Step 8: Generate Video
-            add_step(job_id, ProcessingStepName.GENERATE_VIDEO, ProcessingStepStatus.RUNNING)
-            step_start_ns = time.time_ns()
-            try:
+            success, error = _execute_step(
+                job_id,
+                ProcessingStepName.GENERATE_AUDIO,
+                _run_audio,
+                metrics_steps,
+                step_results,
+            )
+            # Continue on failure (enrichment)
+
+            # Step 8: Generate Video (ENRICHMENT)
+            def _run_video():
                 from src.shared.infrastructure.composition_root import create_video_generator
+                from src.shared.adapters.mongo_db import get_database
                 import os
 
                 db = get_database()
@@ -252,79 +271,77 @@ def execute_pipeline_async(job_id: str) -> bool:
                                     {"$set": {"generated_video_path": video_path}},
                                 )
                     logger.info(f"[PIPELINE-JOB] {job_id} Videos generados")
-                step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-                add_step(job_id, ProcessingStepName.GENERATE_VIDEO, ProcessingStepStatus.OK)
-                record_step_metric("Generate Video", "OK", step_duration_ms)
-            except Exception as e:
-                step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-                logger.error(f"[PIPELINE-JOB] {job_id} Error en Video: {e}")
-                add_step(job_id, ProcessingStepName.GENERATE_VIDEO, ProcessingStepStatus.ERROR)
-                record_step_metric("Generate Video", "FAILED", step_duration_ms, str(e))
-                raise
 
-            # Step 9: WordPress
-            add_step(job_id, ProcessingStepName.PUBLISH_WORDPRESS, ProcessingStepStatus.RUNNING)
-            step_start_ns = time.time_ns()
-            try:
-                from src.shared.infrastructure.composition_root import run_wordpress
-
-                run_wordpress()
-                step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-                add_step(job_id, ProcessingStepName.PUBLISH_WORDPRESS, ProcessingStepStatus.OK)
-                record_step_metric("Publish WordPress", "OK", step_duration_ms)
-                logger.info(f"[PIPELINE-JOB] {job_id} WordPress publicado")
-            except Exception as e:
-                step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-                logger.error(f"[PIPELINE-JOB] {job_id} Error en WordPress: {e}")
-                add_step(job_id, ProcessingStepName.PUBLISH_WORDPRESS, ProcessingStepStatus.ERROR)
-                record_step_metric("Publish WordPress", "FAILED", step_duration_ms, str(e))
-                raise
-
-            # Step 10: Social Networks
-            add_step(job_id, ProcessingStepName.PUBLISH_SOCIAL, ProcessingStepStatus.RUNNING)
-            step_start_ns = time.time_ns()
-            social_ok = 0
-            from src.shared.infrastructure.composition_root import (
-                run_bluesky, run_facebook, run_mastodon,
+            success, error = _execute_step(
+                job_id,
+                ProcessingStepName.GENERATE_VIDEO,
+                _run_video,
+                metrics_steps,
+                step_results,
             )
+            # Continue on failure (enrichment)
 
-            try:
+            # Step 9: WordPress (CRITICAL)
+            success, error = _execute_step(
+                job_id,
+                ProcessingStepName.PUBLISH_WORDPRESS,
+                lambda: __import__('src.shared.infrastructure.composition_root', fromlist=['run_wordpress']).run_wordpress(),
+                metrics_steps,
+                step_results,
+            )
+            if not success:
+                raise RuntimeError(f"Fallo crítico en WordPress: {error}")
+
+            # Step 10: Social Networks (CRITICAL)
+            def _run_social():
+                from src.shared.infrastructure.composition_root import run_bluesky, run_facebook, run_mastodon
+                social_ok = 0
+
                 run_bluesky()
                 social_ok += 1
-            except Exception as e:
-                logger.error(f"[PIPELINE-JOB] {job_id} Error en Bluesky: {e}")
-                raise RuntimeError(f"Fallo crítico publicando en Bluesky: {e}")
 
-            try:
                 run_facebook()
                 social_ok += 1
-            except Exception as e:
-                logger.error(f"[PIPELINE-JOB] {job_id} Error en Facebook: {e}")
-                raise RuntimeError(f"Fallo crítico publicando en Facebook: {e}")
 
-            try:
                 run_mastodon()
                 social_ok += 1
-            except Exception as e:
-                logger.error(f"[PIPELINE-JOB] {job_id} Error en Mastodon: {e}")
-                raise RuntimeError(f"Fallo crítico publicando en Mastodon: {e}")
 
-            step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
-            add_step(job_id, ProcessingStepName.PUBLISH_SOCIAL, ProcessingStepStatus.OK)
-            record_step_metric("Publish Social Networks", "OK", step_duration_ms)
-            logger.info(
-                f"[PIPELINE-JOB] {job_id} Redes sociales completadas ({social_ok}/3)"
+                logger.info(f"[PIPELINE-JOB] {job_id} Redes sociales completadas ({social_ok}/3)")
+
+            success, error = _execute_step(
+                job_id,
+                ProcessingStepName.PUBLISH_SOCIAL,
+                _run_social,
+                metrics_steps,
+                step_results,
             )
+            if not success:
+                raise RuntimeError(f"Fallo crítico en Social: {error}")
 
-            update_job_status(job_id, JobStatus.COMPLETED, "Pipeline completado exitosamente")
-            logger.info(f"[PIPELINE-JOB] {job_id} COMPLETADO")
+            # All steps completed - determine final status
+            failed_critical = [s for s in step_results if s.status == ProcessingStepStatus.ERROR and s.critical]
+            failed_enrichment = [s for s in step_results if s.status == ProcessingStepStatus.ERROR and not s.critical]
+
+            if failed_critical:
+                final_status = JobStatus.FAILED
+                error_msg = f"Fallo crítico: {', '.join(s.name.value for s in failed_critical)}"
+                failed_steps = [s.name.value for s in failed_critical] + [s.name.value for s in failed_enrichment]
+            elif failed_enrichment:
+                final_status = JobStatus.PARTIAL
+                error_msg = f"Fallo en enriquecimiento: {', '.join(s.name.value for s in failed_enrichment)}"
+                failed_steps = [s.name.value for s in failed_enrichment]
+            else:
+                final_status = JobStatus.COMPLETED
+                error_msg = None
+                failed_steps = []
+
+            update_job_status(job_id, final_status, error_msg or "Pipeline completado", error=error_msg)
+            logger.info(f"[PIPELINE-JOB] {job_id} {final_status.value.upper()}")
 
             # Save metrics to database
             try:
                 pipeline_duration_ms = (time.time_ns() - pipeline_start_ns) // 1_000_000
-                has_failures = any(
-                    step.status == StepStatus.FAILED for step in metrics_steps
-                )
+                has_failures = any(step.status == StepStatus.FAILED for step in metrics_steps)
                 success = not has_failures
 
                 metric = ProcessingMetric(
@@ -373,7 +390,8 @@ def execute_pipeline_async(job_id: str) -> bool:
 
         finally:
             # Cleanup logging handler
-            teardown_pipeline_logging(log_handler)
+            if log_handler:
+                teardown_pipeline_logging(log_handler)
 
             # Release execution lock
             _execution_lock.release()
