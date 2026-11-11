@@ -33,6 +33,7 @@ class BasePipelineUseCase(ABC):
         no_publish: bool = False,
         enable_bluesky: bool = True,
         enable_mastodon: bool = True,
+        enable_facebook: bool = True,
     ):
         self.mode = mode
         self.no_publish = no_publish
@@ -40,6 +41,7 @@ class BasePipelineUseCase(ABC):
         self._social_publisher = None
         self._enable_bluesky = enable_bluesky
         self._enable_mastodon = enable_mastodon
+        self._enable_facebook = enable_facebook
         self._temp_files: List[str] = []
         self._wp_validated = False
 
@@ -74,6 +76,7 @@ class BasePipelineUseCase(ABC):
             self._social_publisher = SocialMediaPublisher(
                 enable_bluesky=self._enable_bluesky,
                 enable_mastodon=self._enable_mastodon,
+                enable_facebook=self._enable_facebook,
             )
         return self._social_publisher
 

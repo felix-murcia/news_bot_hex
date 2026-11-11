@@ -1,7 +1,7 @@
 """Social media publisher facade.
 
-Publishes articles to Bluesky and Mastodon (real implementations).
-X, LinkedIn and Facebook are simulated for now.
+Publishes articles to Bluesky, Mastodon and Facebook (real implementations).
+X and LinkedIn are simulated.
 """
 
 from config.logging_config import get_logger
@@ -14,13 +14,19 @@ from typing import List, Dict, Any
 class SocialMediaPublisher:
     """Publish an article to social platforms.
 
-    Real: Bluesky, Mastodon
-    Simulated: X, LinkedIn, Facebook
+    Real: Bluesky, Mastodon, Facebook
+    Simulated: X, LinkedIn
     """
 
-    def __init__(self, enable_bluesky: bool = True, enable_mastodon: bool = True):
+    def __init__(
+        self,
+        enable_bluesky: bool = True,
+        enable_mastodon: bool = True,
+        enable_facebook: bool = True,
+    ):
         self._bluesky = None
         self._mastodon = None
+        self._facebook = None
         if enable_bluesky:
             try:
                 from src.shared.adapters.bluesky_publisher import BlueskyPublisher
@@ -33,6 +39,12 @@ class SocialMediaPublisher:
                 self._mastodon = MastodonPublisher()
             except Exception as e:
                 logger.warning(f"Mastodon init failed: {e}")
+        if enable_facebook:
+            try:
+                from src.shared.adapters.facebook_publisher import FacebookPublisher
+                self._facebook = FacebookPublisher()
+            except Exception as e:
+                logger.warning(f"Facebook init failed: {e}")
 
     def publish(self, post: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Publish the post to all configured platforms."""
@@ -44,12 +56,20 @@ class SocialMediaPublisher:
         results: List[Dict[str, Any]] = []
 
         # Simulated platforms
-        for platform in ("X", "LinkedIn", "Facebook"):
+        for platform in ("X", "LinkedIn"):
             results.append({
                 "platform": platform,
                 "status": "success",
                 "url": f"https://example.com/{platform.lower()}/post/12345",
             })
+
+        # Facebook (real)
+        if self._facebook:
+            try:
+                res = self._facebook.publish_posts(articles=[post])
+                results.append({"platform": "Facebook", "status": "success", "detail": res})
+            except Exception as e:
+                results.append({"platform": "Facebook", "status": "error", "error": str(e)})
 
         # Bluesky (real)
         if self._bluesky:
