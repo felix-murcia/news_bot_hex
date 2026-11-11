@@ -126,6 +126,12 @@ def create_social_publisher():
     return SocialMediaPublisher()
 
 
+def create_debug_output_repository():
+    from config.settings import Settings
+    from src.shared.adapters.json_debug_output_repository import JsonDebugOutputRepository
+    return JsonDebugOutputRepository(Settings.DATA_DIR)
+
+
 def run_image_enricher():
     from src.shared.adapters.image_enricher import run
     return run()
