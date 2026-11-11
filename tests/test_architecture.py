@@ -65,7 +65,6 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
         "src.shared.adapters.social_post_adapter",  # TODO B20
         "src.shared.adapters.content_post_editor",  # TODO B20
         "argparse",  # TODO B20
-        "src.shared.infrastructure.composition_root",  # TODO B20: wiring helper process_audio_url()
     },
     "news/application/usecases/__init__.py": {
         "src.news.infrastructure.adapters",  # TODO B20
@@ -210,7 +209,6 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
         "src.shared.adapters.social_post_adapter",  # TODO B20
         "src.shared.adapters.content_post_editor",  # TODO B20
         "argparse",  # TODO B20
-        "src.shared.infrastructure.composition_root",  # TODO B20: wiring helper process_video_url()
     },
 }
 
