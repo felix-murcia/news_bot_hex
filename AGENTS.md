@@ -190,7 +190,7 @@ news_bot_hex/
    - Prohibido crear adaptadores directamente en routers o use-cases.
 
 4. **Sin Service Locator en `application/`/`domain/`:** prohibido llamar a `get_database()`, `get_ai_adapter()`, `get_video_generator()`, `get_tts_adapter()` desde `application/` o `domain/`. **Excepción:** `infrastructure/adapters/` sí puede usar `get_database()`.
-   - **Violación real y extendida:** ver B3 (Anexo B).
+    - ✅ **Resuelto en B3 (2026-11-11).** Los repositorios se inyectan por constructor desde `composition_root.py` y `dependencies.py`. `rg get_database src/*/application/ src/*/domain/` devuelve vac‭o.
 
 5. **Puertos obligatorios:** si un use-case necesita capacidad externa, debe existir un puerto en `domain/ports/`.
    - ✅ **Los 4 puertos "faltantes" ya existen** (`image_fetcher_port.py`, `image_enricher_port.py`, `social_publisher_port.py`, `wordpress_publisher_port.py`).
@@ -468,6 +468,7 @@ systemctl --user status news-bot-pipeline.timer
 
 | Hallazgo | Comando de re-verificación | Frecuencia |
 |----------|---------------------------|------------|
+| **B3** | `get_database()` en `application/` — **7 ficheros, 12 llamadas** | 🔴 | `pipeline_executor.py` (4), `news_to_news.py` (1), `process_url_pipeline.py` (1), `article.py` (1), `content.py` (1), `__init__.py` (1), `news_to_news` (función en `__init__`) | **CERRADO** (2026-11-11: commits B3.1 `d6d8a4d`, B3.2 `fe5d44e`, B3.3a `fe5d44e`, B3.3b `94984dc`; `rg get_database src/*/application/ src/*/domain/` vacío) |
 | B17 (puerto ffmpeg-api) | `docker compose exec app env | grep FFMPEG_API_URL` → debe salir `http://ffmpeg-api:8080` | Tras cualquier cambio en compose/env |
 | B18 (PARTIAL enriquecimiento) | `docker logs news_bot_app | grep -c "Connection refused"` tras un run de pipeline → debe ser 0; `status` en job debe ser `PARTIAL` si falla audio/video; `FAILED` si falla publicación | Tras deploy o cambio en adaptadores de audio/vídeo o executor |
 | B18.1 (VOs en domain, criticidad) | `grep -rn "class JobStatus" src/` → 1 línea en `domain/entities/pipeline_job.py`; `grep -n "is_critical" src/news/domain/entities/pipeline_job.py` → método presente; `pytest tests/test_pipeline_status_partial.py tests/test_pipeline_fail_fast.py -xvs` → GREEN | Tras cambios en domain entities o pipeline executor |
