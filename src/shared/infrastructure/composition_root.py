@@ -121,6 +121,11 @@ def run_image_google():
     return run()
 
 
+def create_social_publisher():
+    from src.shared.adapters.publishers.social import SocialMediaPublisher
+    return SocialMediaPublisher()
+
+
 def run_image_enricher():
     from src.shared.adapters.image_enricher import run
     return run()

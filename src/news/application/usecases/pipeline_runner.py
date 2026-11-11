@@ -108,12 +108,9 @@ def record_step_metric(metrics_steps: list, step_name: str, status: str, duratio
 
 
 class PipelineRunner:
-    def __init__(self, generated_articles_repo, metrics_repo, social_publisher=None):
+    def __init__(self, generated_articles_repo, metrics_repo, social_publisher):
         self._generated_articles_repo = generated_articles_repo
         self._metrics_repo = metrics_repo
-        if social_publisher is None:
-            from src.shared.adapters.publishers.social import SocialMediaPublisher
-            social_publisher = SocialMediaPublisher()
         self._social_publisher = social_publisher
 
     def run(self, ctx: PipelineContext) -> None:

@@ -28,17 +28,14 @@ class ProcessUrlPipeline:
         generated_articles_repo: GeneratedArticlesRepository,
         generated_posts_repo: GeneratedPostsRepository,
         metrics_repo: Optional[MetricsRepositoryPort] = None,
-        social_publisher=None,
+        *,
+        social_publisher,
     ):
         self.content_extractor = content_extractor
         self.generated_articles_repo = generated_articles_repo
         self.generated_posts_repo = generated_posts_repo
         self.metrics_repo = metrics_repo
-        if social_publisher is None:
-            from src.shared.adapters.publishers.social import SocialMediaPublisher
-            self._social_publisher = SocialMediaPublisher()
-        else:
-            self._social_publisher = social_publisher
+        self._social_publisher = social_publisher
 
     def execute(self, url: str, job_id: Optional[str] = None) -> dict:
         logger.info(f"[PROCESS_URL] Starting pipeline for: {url}")

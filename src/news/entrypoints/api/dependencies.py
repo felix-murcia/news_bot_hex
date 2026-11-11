@@ -334,11 +334,14 @@ def get_process_url_usecase(
     """ProcessUrlPipeline - same pipeline as automatic, starting from URL extraction."""
     from src.news.application.usecases.process_url_pipeline import ProcessUrlPipeline
 
+    from src.shared.infrastructure.composition_root import create_social_publisher
+
     pipeline = ProcessUrlPipeline(
         content_extractor=content_extractor,
         generated_articles_repo=generated_articles_repo,
         generated_posts_repo=generated_posts_repo,
         metrics_repo=metrics_repo,
+        social_publisher=create_social_publisher(),
     )
     return pipeline.execute
 

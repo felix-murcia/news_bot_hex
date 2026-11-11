@@ -394,7 +394,19 @@ class ProcessUrlPipelineTestBase:
                 lambda arts: inserted.extend(arts)
             )
 
-            pipeline = ProcessUrlPipeline(content_extractor=extractor, metrics_repo=None)
+            mock_articles_repo = Mock()
+            mock_articles_repo.load_all.return_value = [] if articles_in_db is None else articles_in_db
+            mock_posts_repo = Mock()
+            mock_posts_repo.load_all.return_value = []
+            mock_social = Mock()
+            ctx["social_publisher"] = mock_social
+            pipeline = ProcessUrlPipeline(
+                content_extractor=extractor,
+                generated_articles_repo=mock_articles_repo,
+                generated_posts_repo=mock_posts_repo,
+                metrics_repo=None,
+                social_publisher=mock_social,
+            )
             try:
                 pipeline.execute(self.PIPELINE_URL)
             except Exception as e:
@@ -456,9 +468,7 @@ class TestProcessUrlPipelineFailFastNoContent(ProcessUrlPipelineTestBase):
         ctx["image_enricher"].assert_not_called()
         ctx["tts"].assert_not_called()
         ctx["wordpress"].assert_not_called()
-        ctx["bluesky"].assert_not_called()
-        ctx["mastodon"].assert_not_called()
-        ctx["facebook"].assert_not_called()
+        ctx["social_publisher"].publish_all.assert_not_called()
         assert ctx.get("error") is not None
 
     def test_run_content_with_post_does_not_abort(self):
@@ -470,7 +480,7 @@ class TestProcessUrlPipelineFailFastNoContent(ProcessUrlPipelineTestBase):
         assert ctx.get("error") is None
         ctx["run_article"].assert_called()
         ctx["wordpress"].assert_called()
-        ctx["facebook"].assert_called()
+        ctx["social_publisher"].publish_all.assert_called()
 
     def test_aborts_when_no_article_is_generated(self):
         """Post OK pero run_article -> [] => aborta antes de audio/vídeo/WP."""
@@ -483,7 +493,7 @@ class TestProcessUrlPipelineFailFastNoContent(ProcessUrlPipelineTestBase):
         ctx["run_article"].assert_called_once()
         ctx["tts"].assert_not_called()
         ctx["wordpress"].assert_not_called()
-        ctx["bluesky"].assert_not_called()
+        ctx["social_publisher"].publish_all.assert_not_called()
 
     def test_audio_only_processes_articles_of_this_url(self):
         """generated_articles puede contener restos de ejecuciones anteriores

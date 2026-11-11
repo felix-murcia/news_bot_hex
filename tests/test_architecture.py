@@ -154,27 +154,25 @@ ALLOWED_IMPORTS: dict[str, set[tuple[int, str]]] = {
     "news/application/usecases/pipeline_runner.py": {
         (11, "config.logging_config"),  # TODO B20
         (62, "src.news.application.usecases.pipeline_executor"),  # TODO B20
-        (116, "src.news.application.usecases.pipeline_executor"),  # TODO B20
-        (202, "src.shared.application.usecases.tts_from_article"),  # TODO B20
-        (225, "src.shared.infrastructure.composition_root"),  # TODO B20
-        (226, "os"),  # TODO B20
-        (266, "src.shared.infrastructure.composition_root"),  # TODO B20
+        (117, "src.news.application.usecases.pipeline_executor"),  # TODO B20
+        (203, "src.shared.application.usecases.tts_from_article"),  # TODO B20
+        (226, "src.shared.infrastructure.composition_root"),  # TODO B20
+        (227, "os"),  # TODO B20
     },
     "news/application/usecases/process_url_executor.py": {
         (16, "config.logging_config"),  # TODO B20
     },
     "news/application/usecases/process_url_pipeline.py": {
         (14, "config.logging_config"),  # TODO B20
-        (76, "src.news.domain.entities.verified_article"),  # TODO B20
-        (77, "src.news.infrastructure.adapters"),  # TODO B20
-        (122, "src.news.application.usecases.content"),  # TODO B20
-        (144, "src.news.application.usecases.article"),  # TODO B20
-        (156, "src.shared.infrastructure.composition_root"),  # TODO B20
-        (170, "src.shared.infrastructure.composition_root"),  # TODO B20
-        (185, "src.shared.application.usecases.tts_from_article"),  # TODO B20
-        (198, "src.shared.infrastructure.composition_root"),  # TODO B20
-        (229, "src.shared.infrastructure.composition_root"),  # TODO B20
-        (236, "src.shared.infrastructure.composition_root"),  # TODO B20
+        (79, "src.news.domain.entities.verified_article"),  # TODO B20
+        (80, "src.news.infrastructure.adapters"),  # TODO B20
+        (125, "src.news.application.usecases.content"),  # TODO B20
+        (147, "src.news.application.usecases.article"),  # TODO B20
+        (159, "src.shared.infrastructure.composition_root"),  # TODO B20
+        (173, "src.shared.infrastructure.composition_root"),  # TODO B20
+        (188, "src.shared.application.usecases.tts_from_article"),  # TODO B20
+        (201, "src.shared.infrastructure.composition_root"),  # TODO B20
+        (232, "src.shared.infrastructure.composition_root"),  # TODO B20
     },
     "news/application/usecases/soft_verify.py": {
         (10, "src.shared.adapters.cache_manager"),  # TODO B20
@@ -202,15 +200,15 @@ ALLOWED_IMPORTS: dict[str, set[tuple[int, str]]] = {
     },
     "shared/application/usecases/base_pipeline.py": {
         (15, "config.logging_config"),  # TODO B20
-        (50, "src.shared.adapters.wordpress_token_manager"),  # TODO B20
-        (65, "src.shared.adapters.image_enricher"),  # TODO B20
-        (73, "src.shared.adapters.publishers.social"),  # TODO B20
-        (115, "src.shared.adapters.wikimedia_fetcher"),  # TODO B20
-        (124, "src.shared.adapters.google_images_fetcher"),  # TODO B20
-        (133, "src.shared.adapters.unsplash_fetcher"),  # TODO B20
-        (156, "config.settings"),  # TODO B20
-        (164, "src.shared.adapters.wordpress_publisher"),  # TODO B20
-        (259, "src.shared.infrastructure.composition_root"),  # TODO B20
+        (52, "src.shared.adapters.wordpress_token_manager"),  # TODO B20
+        (67, "src.shared.adapters.image_enricher"),  # TODO B20
+        (75, "src.shared.adapters.publishers.social"),  # TODO B20
+        (118, "src.shared.adapters.wikimedia_fetcher"),  # TODO B20
+        (127, "src.shared.adapters.google_images_fetcher"),  # TODO B20
+        (136, "src.shared.adapters.unsplash_fetcher"),  # TODO B20
+        (159, "config.settings"),  # TODO B20
+        (167, "src.shared.adapters.wordpress_publisher"),  # TODO B20
+        (262, "src.shared.infrastructure.composition_root"),  # TODO B20
     },
     "shared/application/usecases/tts_from_article.py": {
         (8, "config.logging_config"),  # TODO B20

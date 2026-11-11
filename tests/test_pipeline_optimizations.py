@@ -227,6 +227,7 @@ class TestVideoPathPropagation:
             content_extractor=extractor,
             generated_articles_repo=mock_articles_repo,
             generated_posts_repo=mock_posts_repo,
+            social_publisher=Mock(),
         )
 
         video_gen = Mock()
@@ -294,6 +295,7 @@ class TestVideoPathPropagation:
             content_extractor=extractor,
             generated_articles_repo=mock_articles_repo,
             generated_posts_repo=mock_posts_repo,
+            social_publisher=Mock(),
         )
 
         video_gen = Mock()

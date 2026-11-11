@@ -11,6 +11,7 @@ from src.news.application.usecases.pipeline_runner import (
     PipelineRunner,
     logger,
 )
+from src.shared.infrastructure.composition_root import create_social_publisher
 
 # Global execution lock - only one pipeline execution at a time
 _execution_lock = threading.Lock()
@@ -38,7 +39,7 @@ def execute_pipeline_async(job_id, generated_articles_repo, metrics_repo) -> boo
     logger.info(f"[PIPELINE-JOB] {job_id} Lock acquired - execution starting")
 
     ctx = PipelineContext(job_id=job_id)
-    runner = PipelineRunner(generated_articles_repo, metrics_repo)
+    runner = PipelineRunner(generated_articles_repo, metrics_repo, create_social_publisher())
 
     def _target():
         try:
