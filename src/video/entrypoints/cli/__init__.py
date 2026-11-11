@@ -2,9 +2,10 @@ from config.logging_config import setup_logging, get_logger
 setup_logging()
 logger = get_logger("video_bot")
 from src.video.infrastructure.adapters.video_fetcher import VideoFetcher, download_video
-from src.video.application.usecases.video_to_news import process_video_url
+from src.video.application.usecases.video_to_news import VideoToNewsUseCase
 from src.video.application.usecases.video_pipeline import VideoPipelineUseCase
 from src.shared.application.usecases.article_from_transcript import run_from_transcript
+from src.shared.infrastructure.composition_root import create_debug_output_repository
 from config.settings import Settings
 
 
@@ -80,11 +81,15 @@ def main_video_to_news():
     parser.add_argument("--local", action="store_true", help="Usar solo modelo local")
     args, _ = parser.parse_known_args(sys.argv[3:])
 
-    result = process_video_url(
-        url=url,
-        model_provider=args.model,
+    processor = VideoToNewsUseCase(
+        debug_output_repo=create_debug_output_repository(),
+        cache_dir=Settings.CACHE_DIR,
         use_ai=not args.local,
+        model_provider=args.model,
+        wp_site_url=Settings.WP_SITE_URL,
+        copyright_domains=Settings.VIDEO_COPYRIGHT_DOMAINS,
     )
+    result = processor.process_video_url(url)
 
     logger.info(f"[VIDEO] Procesado: {url}")
     print(f"✅ Artículo: {len(result.get('article', ''))} caracteres")
@@ -186,7 +191,15 @@ def main_full_pipeline():
     logger.info(f"[VIDEO] {info.get('title')}")
 
     logger.info("[2/10] Procesando video y generando contenido...")
-    result = process_video_url(url)
+    processor = VideoToNewsUseCase(
+        debug_output_repo=create_debug_output_repository(),
+        cache_dir=Settings.CACHE_DIR,
+        use_ai=True,
+        model_provider=llm_provider,
+        wp_site_url=Settings.WP_SITE_URL,
+        copyright_domains=Settings.VIDEO_COPYRIGHT_DOMAINS,
+    )
+    result = processor.process_video_url(url)
     logger.info("[VIDEO] Contenido generado")
 
     logger.info("[3/10] Generando tweets/posts...")
@@ -266,7 +279,15 @@ def main_pipeline():
     logger.info(f"[VIDEO] {info.get('title')}")
 
     logger.info("[2/4] Procesando video y generando contenido...")
-    result = process_video_url(url)
+    processor = VideoToNewsUseCase(
+        debug_output_repo=create_debug_output_repository(),
+        cache_dir=Settings.CACHE_DIR,
+        use_ai=True,
+        model_provider=llm_provider,
+        wp_site_url=Settings.WP_SITE_URL,
+        copyright_domains=Settings.VIDEO_COPYRIGHT_DOMAINS,
+    )
+    result = processor.process_video_url(url)
     logger.info("[VIDEO] Contenido generado")
 
     logger.info("[3/4] Generando artículo...")

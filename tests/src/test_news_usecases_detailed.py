@@ -1,5 +1,6 @@
 """Comprehensive tests for news use cases to boost coverage."""
 import pytest
+from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime, timezone
 
@@ -270,7 +271,7 @@ class TestAudioToNewsDetailed:
         mock_model.provider = "local"
         mock_get_model.return_value = mock_model
 
-        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), use_ai=True)
+        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], use_ai=True)
 
         with patch('src.shared.adapters.ai.agents.ArticleFromContentAgent') as mock_agent:
             mock_agent_instance = Mock()
@@ -288,7 +289,7 @@ class TestAudioToNewsDetailed:
     def test_generate_article_fallback(self):
         from src.audio.application.usecases.audio_to_news import AudioToNewsUseCase
 
-        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), use_ai=True)
+        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], use_ai=True)
         # Force exception in AI path by using invalid state
         use_case.ai_model = Mock()
         use_case.ai_model.generate.side_effect = Exception("AI error")
@@ -309,7 +310,7 @@ class TestAudioToNewsDetailed:
         mock_model.provider = "local"
         mock_get_model.return_value = mock_model
 
-        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), use_ai=True)
+        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], use_ai=True)
 
         with patch('src.shared.adapters.ai.agents.TweetAgent') as mock_agent:
             mock_agent_instance = Mock()
@@ -323,7 +324,7 @@ class TestAudioToNewsDetailed:
     def test_generate_unique_slug(self):
         from src.audio.application.usecases.audio_to_news import AudioToNewsUseCase
 
-        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), use_ai=False)
+        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], use_ai=False)
         slug = use_case._generate_unique_slug(
             title="Test Audio Title",
             content="<p>Some content here</p>",

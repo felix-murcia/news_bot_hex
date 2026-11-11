@@ -2,7 +2,7 @@ import uuid
 import json
 import re
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict, List, Optional
 
 from config.logging_config import setup_logging, get_logger
 
@@ -19,10 +19,10 @@ def slugify(text: str) -> str:
     return text.strip("-")
 
 
-def check_copyright(url: str) -> bool:
+def check_copyright(url: str, domains: List[str]) -> bool:
     """Verifica riesgo de copyright."""
-    from config.settings import Settings
-    return any(domain in url.lower() for domain in Settings.VIDEO_COPYRIGHT_DOMAINS)
+    url_lower = url.lower()
+    return any(domain in url_lower for domain in domains)
 
 
 def validate_video(video_path: Path) -> bool:
@@ -48,9 +48,12 @@ class VideoToNewsUseCase:
     def __init__(
         self,
         debug_output_repo: DebugOutputRepository,
+        cache_dir: Path,
+        wp_site_url: str,
+        copyright_domains: List[str],
         use_ai: bool = True,
         model_provider: str = "gemini",
-        ai_config: dict = None,
+        ai_config: Optional[dict] = None,
         ai_model=None,
     ):
         self.use_ai = use_ai
@@ -58,6 +61,9 @@ class VideoToNewsUseCase:
         self.ai_config = ai_config or {}
         self.ai_model = ai_model
         self._debug_output_repo = debug_output_repo
+        self._cache_dir = Path(cache_dir)
+        self._wp_site_url = wp_site_url.rstrip("/")
+        self._copyright_domains = list(copyright_domains)
 
     def _generate_unique_slug(self, title: str, content: str, tema: str) -> str:
         """Generate a unique, SEO-friendly slug from title and content."""
@@ -198,7 +204,7 @@ class VideoToNewsUseCase:
                 "slug": slug,
                 "labels": [tema],
                 "source_type": "video_man",
-                "url": f"{Settings.WP_SITE_URL}/{slug}",
+                "url": f"{self._wp_site_url}/{slug}" if self._wp_site_url else slug,
                 "original_url": url,
             }
 
@@ -267,13 +273,12 @@ class VideoToNewsUseCase:
         """Procesa un video y genera artículo."""
         logger.info(f"[VIDEO] Procesando video: {url}")
 
-        if check_copyright(url):
+        if check_copyright(url, self._copyright_domains):
             logger.warning(f"[VIDEO] Posible riesgo de copyright: {url}")
 
-        from config.settings import Settings
         file_id = str(uuid.uuid5(uuid.NAMESPACE_URL, url))
-        video_path = Settings.CACHE_DIR / f"{file_id}.mp4"
-        transcript_path = Settings.CACHE_DIR / f"{file_id}.txt"
+        video_path = self._cache_dir / f"{file_id}.mp4"
+        transcript_path = self._cache_dir / f"{file_id}.txt"
 
         transcript = self._get_or_create_transcript(url, video_path, transcript_path)
 
@@ -294,24 +299,6 @@ class VideoToNewsUseCase:
 
         logger.info("[VIDEO] Procesamiento completado")
         return result
-
-
-def process_video_url(
-    url: str,
-    model_provider: str = "gemini",
-    use_ai: bool = True,
-    ai_config: dict = None,
-) -> Dict[str, Any]:
-    """Función principal."""
-    from src.shared.infrastructure.composition_root import create_debug_output_repository
-
-    processor = VideoToNewsUseCase(
-        debug_output_repo=create_debug_output_repository(),
-        model_provider=model_provider,
-        use_ai=use_ai,
-        ai_config=ai_config,
-    )
-    return processor.process_video_url(url)
 
 
 

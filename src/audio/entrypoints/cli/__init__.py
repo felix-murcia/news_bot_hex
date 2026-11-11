@@ -2,8 +2,9 @@ from config.logging_config import setup_logging, get_logger
 setup_logging()
 logger = get_logger("audio_bot")
 from src.audio.infrastructure.adapters.audio_fetcher import AudioFetcher, download_audio
-from src.audio.application.usecases.audio_to_news import process_audio_url
+from src.audio.application.usecases.audio_to_news import AudioToNewsUseCase
 from src.shared.application.usecases.article_from_transcript import run_from_transcript
+from src.shared.infrastructure.composition_root import create_debug_output_repository
 from config.settings import Settings
 
 
@@ -55,11 +56,15 @@ def main_audio_to_news():
     parser.add_argument("--local", action="store_true", help="Usar solo modelo local")
     args, _ = parser.parse_known_args(sys.argv[3:])
 
-    result = process_audio_url(
-        url=url,
-        model_provider=args.model,
+    processor = AudioToNewsUseCase(
+        debug_output_repo=create_debug_output_repository(),
+        cache_dir=Settings.CACHE_DIR,
         use_ai=not args.local,
+        model_provider=args.model,
+        wp_site_url=Settings.WP_SITE_URL,
+        copyright_domains=Settings.VIDEO_COPYRIGHT_DOMAINS,
     )
+    result = processor.process_audio_url(url)
 
     logger.info(f"[AUDIO] Procesado: {url}")
     print(f"✅ Artículo: {len(result.get('article', ''))} caracteres")

@@ -42,10 +42,20 @@ class PipelineResponse(BaseModel):
 def audio_process(req: AudioRequest):
     """Process audio URL and generate article + tweet."""
     try:
-        from src.audio.application.usecases.audio_to_news import process_audio_url
+        from config.settings import Settings
+        from src.audio.application.usecases.audio_to_news import AudioToNewsUseCase
+        from src.shared.infrastructure.composition_root import create_debug_output_repository
 
         model_provider = req.get_model_provider()
-        result = process_audio_url(url=req.url, model_provider=model_provider, use_ai=True)
+        processor = AudioToNewsUseCase(
+            debug_output_repo=create_debug_output_repository(),
+            cache_dir=Settings.CACHE_DIR,
+            use_ai=True,
+            model_provider=model_provider,
+            wp_site_url=Settings.WP_SITE_URL,
+            copyright_domains=Settings.VIDEO_COPYRIGHT_DOMAINS,
+        )
+        result = processor.process_audio_url(req.url)
         return PipelineResponse(
             status="ok",
             message="Audio processed successfully",

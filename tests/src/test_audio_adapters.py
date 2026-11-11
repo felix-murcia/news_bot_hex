@@ -1,6 +1,7 @@
 """Tests for audio infrastructure adapters."""
 
 import pytest
+from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 
 
@@ -145,13 +146,13 @@ class TestAudioToNewsUseCaseMethods:
     def test_get_ai_model_lazy(self):
         from src.audio.application.usecases.audio_to_news import AudioToNewsUseCase
 
-        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), use_ai=False)
+        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], use_ai=False)
         assert use_case.ai_model is None
 
     def test_save_outputs_creates_files(self, tmp_path):
         from src.audio.application.usecases.audio_to_news import AudioToNewsUseCase
 
-        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), use_ai=False)
+        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], use_ai=False)
 
         article_data = {
             "article": {"title": "Test Article", "content": "<p>Content</p>"}

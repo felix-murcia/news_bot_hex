@@ -1,4 +1,5 @@
 import pytest
+from pathlib import Path
 import sys
 import os
 from unittest.mock import Mock, patch, MagicMock
@@ -61,7 +62,11 @@ class TestAudioToNewsUseCase:
         from src.audio.application.usecases import AudioToNewsUseCase
 
         use_case = AudioToNewsUseCase(
-            debug_output_repo=Mock(), model_provider=Settings.AI_PROVIDER
+            debug_output_repo=Mock(),
+            cache_dir=Path("/tmp"),
+            wp_site_url="https://test.example",
+            copyright_domains=[],
+            model_provider=Settings.AI_PROVIDER,
         )
         assert use_case.model_provider == Settings.AI_PROVIDER
 
@@ -96,7 +101,7 @@ class TestAudioPipeline:
         from src.audio.application.usecases import AudioToNewsUseCase
         from src.audio.application.usecases import ArticleFromAudioUseCase
 
-        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), use_ai=False)
+        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], use_ai=False)
         assert use_case is not None
 
         article_use_case = ArticleFromAudioUseCase(llm_provider=Settings.AI_PROVIDER)

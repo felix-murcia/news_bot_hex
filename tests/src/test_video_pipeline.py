@@ -1,4 +1,5 @@
 import pytest
+from pathlib import Path
 import sys
 import os
 from unittest.mock import Mock, patch, MagicMock
@@ -29,7 +30,7 @@ class TestVideoToNewsUseCase:
         from src.video.application.usecases import VideoToNewsUseCase
 
         use_case = VideoToNewsUseCase(
-            debug_output_repo=Mock(), use_ai=True, model_provider=Settings.AI_PROVIDER
+            debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], use_ai=True, model_provider=Settings.AI_PROVIDER
         )
         assert use_case.use_ai is True
         assert use_case.model_provider == Settings.AI_PROVIDER
@@ -38,10 +39,11 @@ class TestVideoToNewsUseCase:
         """Test copyright check function."""
         from src.video.application.usecases.video_to_news import check_copyright
 
-        assert check_copyright("https://youtube.com/watch?v=123") is True
-        assert check_copyright("https://youtu.be/abc") is True
-        assert check_copyright("https://tiktok.com/@user/video/123") is True
-        assert check_copyright("https://example.com/article") is False
+        domains = Settings.VIDEO_COPYRIGHT_DOMAINS
+        assert check_copyright("https://youtube.com/watch?v=123", domains) is True
+        assert check_copyright("https://youtu.be/abc", domains) is True
+        assert check_copyright("https://tiktok.com/@user/video/123", domains) is True
+        assert check_copyright("https://example.com/article", domains) is False
 
     def test_slugify(self):
         """Test slugify function."""
@@ -83,7 +85,7 @@ class TestVideoPipeline:
         from src.video.application.usecases import VideoToNewsUseCase
         from src.video.application.usecases import ArticleFromVideoUseCase
 
-        use_case = VideoToNewsUseCase(debug_output_repo=Mock(), use_ai=False)
+        use_case = VideoToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], use_ai=False)
         assert use_case is not None
 
         article_use_case = ArticleFromVideoUseCase(llm_provider="mock")

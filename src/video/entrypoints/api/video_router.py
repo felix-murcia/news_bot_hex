@@ -42,10 +42,20 @@ class PipelineResponse(BaseModel):
 def video_process(req: VideoRequest):
     """Process video URL and generate article + tweet."""
     try:
-        from src.video.application.usecases.video_to_news import process_video_url
+        from config.settings import Settings
+        from src.video.application.usecases.video_to_news import VideoToNewsUseCase
+        from src.shared.infrastructure.composition_root import create_debug_output_repository
 
         model_provider = req.get_model_provider()
-        result = process_video_url(url=req.url, model_provider=model_provider, use_ai=True)
+        processor = VideoToNewsUseCase(
+            debug_output_repo=create_debug_output_repository(),
+            cache_dir=Settings.CACHE_DIR,
+            use_ai=True,
+            model_provider=model_provider,
+            wp_site_url=Settings.WP_SITE_URL,
+            copyright_domains=Settings.VIDEO_COPYRIGHT_DOMAINS,
+        )
+        result = processor.process_video_url(req.url)
         return PipelineResponse(
             status="ok",
             message="Video processed successfully",

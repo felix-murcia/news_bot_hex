@@ -1,6 +1,7 @@
 """Tests for news application use cases."""
 
 import pytest
+from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 
 
@@ -180,7 +181,7 @@ class TestAudioToNewsUseCase:
     def test_init(self):
         from src.audio.application.usecases.audio_to_news import AudioToNewsUseCase
 
-        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), use_ai=False)
+        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], use_ai=False)
         assert use_case.use_ai is False
 
     def test_slugify(self):
@@ -189,9 +190,12 @@ class TestAudioToNewsUseCase:
         assert slugify("Test Audio Title") == "test-audio-title"
 
     def test_check_copyright(self):
+        from config.settings import Settings
         from src.audio.application.usecases.audio_to_news import check_copyright
 
-        result = check_copyright("https://youtube.com/test")
+        result = check_copyright(
+            "https://youtube.com/test", Settings.VIDEO_COPYRIGHT_DOMAINS
+        )
         assert isinstance(result, bool)
 
 

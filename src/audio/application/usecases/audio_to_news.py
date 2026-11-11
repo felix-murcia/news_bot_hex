@@ -2,7 +2,7 @@ import uuid
 import json
 import re
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 from config.logging_config import setup_logging, get_logger
 
 from src.shared.domain.ports.debug_output_repository import DebugOutputRepository
@@ -18,10 +18,10 @@ def slugify(text: str) -> str:
     return text.strip("-")
 
 
-def check_copyright(url: str) -> bool:
+def check_copyright(url: str, domains: List[str]) -> bool:
     """Verifica riesgo de copyright."""
-    from config.settings import Settings
-    return any(domain in url.lower() for domain in Settings.VIDEO_COPYRIGHT_DOMAINS)
+    url_lower = url.lower()
+    return any(domain in url_lower for domain in domains)
 
 
 class AudioToNewsUseCase:
@@ -30,6 +30,9 @@ class AudioToNewsUseCase:
     def __init__(
         self,
         debug_output_repo: DebugOutputRepository,
+        cache_dir: Path,
+        wp_site_url: str,
+        copyright_domains: List[str],
         use_ai: bool = True,
         model_provider: str = "gemini",
         ai_config: Optional[dict] = None,
@@ -40,6 +43,9 @@ class AudioToNewsUseCase:
         self.ai_config = ai_config or {}
         self.ai_model = ai_model
         self._debug_output_repo = debug_output_repo
+        self._cache_dir = Path(cache_dir)
+        self._wp_site_url = wp_site_url.rstrip("/")
+        self._copyright_domains = list(copyright_domains)
 
     def _generate_unique_slug(self, title: str, content: str, tema: str) -> str:
         """Generate a unique, SEO-friendly slug from title and content."""
@@ -168,7 +174,6 @@ class AudioToNewsUseCase:
     ) -> Dict[str, Any]:
         """Genera artículo desde transcripción."""
         try:
-            from config.settings import Settings
             from src.shared.adapters.ai.agents import ArticleFromContentAgent
 
             model = self._get_ai_model()
@@ -189,7 +194,7 @@ class AudioToNewsUseCase:
                 "slug": slug,
                 "labels": [tema],
                 "source_type": "audio_man",
-                "url": f"{Settings.WP_SITE_URL}/{slug}",
+                "url": f"{self._wp_site_url}/{slug}" if self._wp_site_url else slug,
                 "original_url": url,
             }
 
@@ -258,13 +263,12 @@ class AudioToNewsUseCase:
         """Procesa un audio y genera artículo."""
         logger.info(f"[AUDIO] Procesando audio: {url}")
 
-        if check_copyright(url):
+        if check_copyright(url, self._copyright_domains):
             logger.warning(f"[AUDIO] Posible riesgo de copyright: {url}")
 
-        from config.settings import Settings
         file_id = str(uuid.uuid5(uuid.NAMESPACE_URL, url))
-        audio_path = Settings.CACHE_DIR / f"{file_id}.mp3"
-        transcript_path = Settings.CACHE_DIR / f"{file_id}.txt"
+        audio_path = self._cache_dir / f"{file_id}.mp3"
+        transcript_path = self._cache_dir / f"{file_id}.txt"
 
         transcript = self._get_or_create_transcript(url, audio_path, transcript_path)
 
@@ -285,24 +289,6 @@ class AudioToNewsUseCase:
 
         logger.info("[AUDIO] Procesamiento completado")
         return result
-
-
-def process_audio_url(
-    url: str,
-    model_provider: str = "gemini",
-    use_ai: bool = True,
-    ai_config: Optional[dict] = None,
-) -> Dict[str, Any]:
-    """Función principal."""
-    from src.shared.infrastructure.composition_root import create_debug_output_repository
-
-    processor = AudioToNewsUseCase(
-        model_provider=model_provider,
-        use_ai=use_ai,
-        ai_config=ai_config,
-        debug_output_repo=create_debug_output_repository(),
-    )
-    return processor.process_audio_url(url)
 
 
 
