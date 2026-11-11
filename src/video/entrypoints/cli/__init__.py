@@ -52,14 +52,39 @@ def main_info():
 
 def main_video_to_news():
     """Punto de entrada para procesar video y generar artículo."""
+    import argparse
     import sys
 
+    from config.settings import Settings
+
     if len(sys.argv) < 3:
-        print("Uso: python -m src.video.entrypoints.cli process <video_url>")
+        print(
+            "Uso: python -m src.video.entrypoints.cli process <video_url> "
+            "[--model X] [--local]"
+        )
         return
 
     url = sys.argv[2]
-    result = process_video_url(url)
+
+    parser = argparse.ArgumentParser(
+        description="Procesar video y generar artículo",
+        add_help=False,
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=Settings.AI_PROVIDER,
+        choices=Settings.SUPPORTED_AI_PROVIDERS,
+        help="Modelo de IA a usar",
+    )
+    parser.add_argument("--local", action="store_true", help="Usar solo modelo local")
+    args, _ = parser.parse_known_args(sys.argv[3:])
+
+    result = process_video_url(
+        url=url,
+        model_provider=args.model,
+        use_ai=not args.local,
+    )
 
     logger.info(f"[VIDEO] Procesado: {url}")
     print(f"✅ Artículo: {len(result.get('article', ''))} caracteres")

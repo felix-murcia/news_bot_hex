@@ -323,31 +323,4 @@ def process_video_url(
     return processor.process_video_url(url)
 
 
-def main():
-    import argparse
-    from config.settings import Settings
 
-    parser = argparse.ArgumentParser(description="Procesar video y generar artículo")
-    parser.add_argument("url", help="URL del video")
-    parser.add_argument(
-        "--model",
-        type=str,
-        default=Settings.AI_PROVIDER,
-        choices=Settings.SUPPORTED_AI_PROVIDERS,
-        help="Modelo de IA a usar",
-    )
-    parser.add_argument("--local", action="store_true", help="Usar solo modelo local")
-
-    args = parser.parse_args()
-
-    result = process_video_url(
-        url=args.url,
-        model_provider=args.model,
-        use_ai=not args.local,
-    )
-    print(f"✅ Procesado: {args.url}")
-    print(f"📄 Artículo: {len(result['article'])} caracteres")
-
-
-if __name__ == "__main__":
-    main()
