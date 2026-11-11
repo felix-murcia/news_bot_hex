@@ -26,10 +26,7 @@ from src.news.application.usecases.content import (
     run_content as run_content_gemini,
     main as main_content_gemini,
 )
-from src.news.application.usecases.news_to_news import (
-    process_news_url,
-    main as main_news_to_news,
-)
+from src.news.application.usecases.news_to_news import process_news_url
 from src.shared.adapters.bluesky_publisher import run as run_bluesky, BlueskyPublisher
 from src.shared.adapters.facebook_publisher import (
     run as run_facebook,
@@ -190,14 +187,86 @@ def main_content():
 
 def main_news_to_news():
     """Punto de entrada para procesar URLs de noticias."""
+    import argparse
     import sys
 
-    if len(sys.argv) > 2:
-        url = sys.argv[2]
-        result = process_news_url(url)
-        logger.info(f"[NEWS_TO_NEWS] Procesado: {result.get('article_file', '')}")
-    else:
-        print("Uso: python -m src.news.entrypoints.cli news_to_news <url>")
+    from config.settings import Settings
+
+    if len(sys.argv) < 3:
+        print(
+            "Uso: python -m src.news.entrypoints.cli news_to_news <url> "
+            "[--model X] [--local] [--force-extract] [--debug]"
+        )
+        return
+
+    url = sys.argv[2]
+
+    parser = argparse.ArgumentParser(
+        description="Procesar URL de noticia y generar artículo",
+        add_help=False,
+    )
+    parser.add_argument("--debug", action="store_true")
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=Settings.AI_PROVIDER,
+        choices=Settings.SUPPORTED_AI_PROVIDERS,
+        help="Modelo de IA a usar",
+    )
+    parser.add_argument("--local", action="store_true", help="Usar solo modelo local")
+    parser.add_argument(
+        "--force-extract",
+        action="store_true",
+        help="Omitir caché y forzar extracción fresca con Jina",
+    )
+    args, _ = parser.parse_known_args(sys.argv[3:])
+
+    print("=" * 60)
+    print("📰 NEWS_TO_NEWS - Procesador de noticias web")
+    print("=" * 60)
+    print(f"URL: {url}")
+    print(f"Modelo: {args.model}")
+    print()
+
+    try:
+        from src.shared.infrastructure.composition_root import (
+            create_generated_articles_repository,
+            create_generated_posts_repository,
+        )
+        from src.news.infrastructure.adapters import JinaContentExtractor
+
+        content_extractor = JinaContentExtractor()
+        generated_articles_repo = create_generated_articles_repository()
+        generated_posts_repo = create_generated_posts_repository()
+
+        result = process_news_url(
+            url=url,
+            content_extractor=content_extractor,
+            generated_articles_repo=generated_articles_repo,
+            generated_posts_repo=generated_posts_repo,
+            model_provider=args.model,
+            use_ai=not args.local,
+            force_extract=args.force_extract,
+        )
+
+        print("✅ PROCESAMIENTO COMPLETADO")
+        print(f"📝 Contenido extraído: {len(result['source_content'])} caracteres")
+        print(f"📄 Artículo: {len(result['article'])} caracteres")
+        print(f"🐦 Tweet generado: {result['post'][:100]}...")
+
+        print("\n" + "=" * 60)
+        print("✅ PRUEBA COMPLETADA")
+        print("=" * 60)
+
+    except Exception as e:
+        print(f"\n❌ ERROR: {e}")
+        if args.debug:
+            import traceback
+
+            traceback.print_exc()
+        return 1
+
+    return 0
 
 
 def main_bluesky():
