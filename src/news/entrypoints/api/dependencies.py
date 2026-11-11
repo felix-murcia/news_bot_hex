@@ -170,21 +170,21 @@ def get_fetch_rss_usecase(
 
 
 def get_verify_news_usecase(
-    article_repo=Depends(get_article_repo),
     verified_repo=Depends(get_verified_news_repo),
-    validator=Depends(get_news_validator),
-    keywords_repo=Depends(get_keywords_repo),
-    scoring_repo=Depends(get_scoring_config_repo),
+    generated_articles_repo=Depends(get_generated_articles_repo),
+    content_extractor=Depends(get_content_extractor),
 ):
     """Use case para verificar noticias."""
     from src.news.application.usecases import VerifyNewsUseCase
     return VerifyNewsUseCase(
-        article_repo, verified_repo, validator, keywords_repo, scoring_repo
+        verified_repo=verified_repo,
+        generated_articles_repo=generated_articles_repo,
+        content_extractor=content_extractor,
     )
 
 
 def get_full_verify_usecase(
-    article_repo=Depends(get_article_repo),
+    generated_articles_repo=Depends(get_generated_articles_repo),
     verified_repo=Depends(get_verified_news_repo),
     published_urls_repo=Depends(get_published_urls_repo),
     keywords_repo=Depends(get_keywords_repo),
@@ -194,8 +194,8 @@ def get_full_verify_usecase(
     from src.news.application.usecases import FullVerifyNewsUseCase
     from src.news.infrastructure.adapters import MongoFrozenTermsRepository
     return FullVerifyNewsUseCase(
-        article_repo=article_repo,
-        verified_repo=verified_repo,
+        generated_articles_repo=generated_articles_repo,
+        verified_news_repo=verified_repo,
         published_urls_repo=published_urls_repo,
         keywords_repo=keywords_repo,
         scoring_config_repo=scoring_config_repo,
