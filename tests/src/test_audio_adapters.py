@@ -145,23 +145,17 @@ class TestAudioToNewsUseCaseMethods:
     def test_get_ai_model_lazy(self):
         from src.audio.application.usecases.audio_to_news import AudioToNewsUseCase
 
-        use_case = AudioToNewsUseCase(use_ai=False)
+        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), use_ai=False)
         assert use_case.ai_model is None
 
     def test_save_outputs_creates_files(self, tmp_path):
         from src.audio.application.usecases.audio_to_news import AudioToNewsUseCase
-        import json
-        from pathlib import Path
 
-        use_case = AudioToNewsUseCase(use_ai=False)
-        # Mock the DATA_DIR to use tmp_path
-        use_case_data_dir = tmp_path / "data"
-        use_case_data_dir.mkdir()
+        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), use_ai=False)
 
         article_data = {
             "article": {"title": "Test Article", "content": "<p>Content</p>"}
         }
-        transcript = "Test transcript"
 
         # Test _generate_tweet by mocking AI
         with patch.object(use_case, "_generate_tweet", return_value="Test tweet"):

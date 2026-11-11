@@ -180,7 +180,7 @@ class TestAudioToNewsUseCase:
     def test_init(self):
         from src.audio.application.usecases.audio_to_news import AudioToNewsUseCase
 
-        use_case = AudioToNewsUseCase(use_ai=False)
+        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), use_ai=False)
         assert use_case.use_ai is False
 
     def test_slugify(self):

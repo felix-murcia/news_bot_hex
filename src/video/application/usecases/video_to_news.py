@@ -6,6 +6,8 @@ from typing import Dict, Any
 
 from config.logging_config import setup_logging, get_logger
 
+from src.shared.domain.ports.debug_output_repository import DebugOutputRepository
+
 setup_logging()
 logger = get_logger("video_bot")
 
@@ -45,6 +47,7 @@ class VideoToNewsUseCase:
 
     def __init__(
         self,
+        debug_output_repo: DebugOutputRepository,
         use_ai: bool = True,
         model_provider: str = "gemini",
         ai_config: dict = None,
@@ -54,6 +57,7 @@ class VideoToNewsUseCase:
         self.model_provider = model_provider
         self.ai_config = ai_config or {}
         self.ai_model = ai_model
+        self._debug_output_repo = debug_output_repo
 
     def _generate_unique_slug(self, title: str, content: str, tema: str) -> str:
         """Generate a unique, SEO-friendly slug from title and content."""
@@ -251,29 +255,13 @@ class VideoToNewsUseCase:
 
         return tweet
 
-    def _save_outputs(
-        self,
-        article_data: Dict,
-        transcript: str,
-        video_path: Path,
-        transcript_path: Path,
-    ):
+    def _save_outputs(self, article_data: Dict) -> Path:
         """Guarda los outputs."""
-        from config.settings import Settings
-        article = article_data.get("article", {})
-
-        articles_path = Settings.DATA_DIR / "generated_video_articles.json"
-        posts_path = Settings.DATA_DIR / "generated_video_posts.json"
-
-        with open(articles_path, "w", encoding="utf-8") as f:
-            json.dump([article], f, indent=2, ensure_ascii=False)
-
-        with open(posts_path, "w", encoding="utf-8") as f:
-            json.dump(
-                [{"tweet": "", "article": article}], f, indent=2, ensure_ascii=False
-            )
-
-        logger.info(f"[VIDEO] Archivos guardados en {Settings.DATA_DIR}")
+        article_path = self._debug_output_repo.save_outputs(
+            "video", article_data, {"tweet": ""}
+        )
+        logger.info(f"[VIDEO] Archivos guardados en {article_path.parent}")
+        return article_path
 
     def process_video_url(self, url: str) -> Dict[str, Any]:
         """Procesa un video y genera artículo."""
@@ -293,13 +281,13 @@ class VideoToNewsUseCase:
 
         tweet_text = self._generate_tweet(article_data)
 
-        self._save_outputs(article_data, transcript, video_path, transcript_path)
+        article_path = self._save_outputs(article_data)
 
         result = {
             "transcript": transcript,
             "transcript_file": str(transcript_path),
             "article": article_data["article"].get("content", ""),
-            "article_file": str(Settings.DATA_DIR / "generated_video_articles.json"),
+            "article_file": str(article_path),
             "post": tweet_text,
             "mode": self.model_provider,
         }
@@ -315,7 +303,10 @@ def process_video_url(
     ai_config: dict = None,
 ) -> Dict[str, Any]:
     """Función principal."""
+    from src.shared.infrastructure.composition_root import create_debug_output_repository
+
     processor = VideoToNewsUseCase(
+        debug_output_repo=create_debug_output_repository(),
         model_provider=model_provider,
         use_ai=use_ai,
         ai_config=ai_config,

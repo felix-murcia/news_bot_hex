@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from config.logging_config import setup_logging, get_logger
 
+from src.shared.domain.ports.debug_output_repository import DebugOutputRepository
+
 setup_logging()
 logger = get_logger("audio_bot")
 
@@ -27,6 +29,7 @@ class AudioToNewsUseCase:
 
     def __init__(
         self,
+        debug_output_repo: DebugOutputRepository,
         use_ai: bool = True,
         model_provider: str = "gemini",
         ai_config: Optional[dict] = None,
@@ -36,6 +39,7 @@ class AudioToNewsUseCase:
         self.model_provider = model_provider
         self.ai_config = ai_config or {}
         self.ai_model = ai_model
+        self._debug_output_repo = debug_output_repo
 
     def _generate_unique_slug(self, title: str, content: str, tema: str) -> str:
         """Generate a unique, SEO-friendly slug from title and content."""
@@ -242,24 +246,13 @@ class AudioToNewsUseCase:
 
         return tweet
 
-    def _save_outputs(self, article_data: Dict, transcript: str):
+    def _save_outputs(self, article_data: Dict, tweet: str) -> Path:
         """Guarda los outputs."""
-        from config.settings import Settings
-        article = article_data.get("article", {})
-
-        articles_path = Settings.DATA_DIR / "generated_audio_articles.json"
-        posts_path = Settings.DATA_DIR / "generated_audio_posts.json"
-
-        with open(articles_path, "w", encoding="utf-8") as f:
-            json.dump([article], f, indent=2, ensure_ascii=False)
-
-        with open(posts_path, "w", encoding="utf-8") as f:
-            tweet = self._generate_tweet(article_data)
-            json.dump(
-                [{"tweet": tweet, "article": article}], f, indent=2, ensure_ascii=False
-            )
-
-        logger.info(f"[AUDIO] Archivos guardados en {Settings.DATA_DIR}")
+        article_path = self._debug_output_repo.save_outputs(
+            "audio", article_data, {"tweet": tweet}
+        )
+        logger.info(f"[AUDIO] Archivos guardados en {article_path.parent}")
+        return article_path
 
     def process_audio_url(self, url: str) -> Dict[str, Any]:
         """Procesa un audio y genera artículo."""
@@ -279,13 +272,13 @@ class AudioToNewsUseCase:
 
         tweet = self._generate_tweet(article_data)
 
-        self._save_outputs(article_data, transcript)
+        article_path = self._save_outputs(article_data, tweet)
 
         result = {
             "transcript": transcript,
             "transcript_file": str(transcript_path),
             "article": article_data["article"].get("content", ""),
-            "article_file": str(Settings.DATA_DIR / "generated_audio_articles.json"),
+            "article_file": str(article_path),
             "post": tweet,
             "mode": "audio",
         }
@@ -301,10 +294,13 @@ def process_audio_url(
     ai_config: Optional[dict] = None,
 ) -> Dict[str, Any]:
     """Función principal."""
+    from src.shared.infrastructure.composition_root import create_debug_output_repository
+
     processor = AudioToNewsUseCase(
         model_provider=model_provider,
         use_ai=use_ai,
         ai_config=ai_config,
+        debug_output_repo=create_debug_output_repository(),
     )
     return processor.process_audio_url(url)
 

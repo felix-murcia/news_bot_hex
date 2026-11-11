@@ -17,7 +17,7 @@ class TestVideoPipelineIntegration:
         """Test VideoToNewsUseCase with a mocked video."""
         from src.video.application.usecases import VideoToNewsUseCase
 
-        use_case = VideoToNewsUseCase(use_ai=False)
+        use_case = VideoToNewsUseCase(debug_output_repo=Mock(), use_ai=False)
         assert use_case.use_ai is False
 
     def test_article_from_video_with_mock(self):
@@ -45,7 +45,9 @@ class TestVideoPipelineIntegration:
         """Test VideoToNewsUseCase dependencies are available."""
         from src.video.application.usecases import VideoToNewsUseCase
 
-        use_case = VideoToNewsUseCase(use_ai=True, model_provider=Settings.AI_PROVIDER)
+        use_case = VideoToNewsUseCase(
+            debug_output_repo=Mock(), use_ai=True, model_provider=Settings.AI_PROVIDER
+        )
         assert use_case.use_ai is True
         assert use_case.model_provider == Settings.AI_PROVIDER
 
@@ -71,7 +73,7 @@ class TestVideoPipelineWorkflow:
         from src.video.application.usecases import VideoToNewsUseCase
         from src.video.application.usecases import ArticleFromVideoUseCase
 
-        video_use_case = VideoToNewsUseCase(use_ai=False)
+        video_use_case = VideoToNewsUseCase(debug_output_repo=Mock(), use_ai=False)
         article_use_case = ArticleFromVideoUseCase(llm_provider="mock")
 
         assert video_use_case is not None
@@ -119,7 +121,9 @@ class TestVideoAIProviders:
         """Test VideoToNewsUseCase with configured AI provider from Settings."""
         from src.video.application.usecases import VideoToNewsUseCase
 
-        use_case = VideoToNewsUseCase(model_provider=Settings.AI_PROVIDER, use_ai=True)
+        use_case = VideoToNewsUseCase(
+            debug_output_repo=Mock(), model_provider=Settings.AI_PROVIDER, use_ai=True
+        )
         assert use_case.model_provider == Settings.AI_PROVIDER
         assert use_case.use_ai is True
 
@@ -129,7 +133,9 @@ class TestVideoAIProviders:
 
         for provider in Settings.SUPPORTED_AI_PROVIDERS:
             use_ai = provider != "mock"
-            use_case = VideoToNewsUseCase(model_provider=provider, use_ai=use_ai)
+            use_case = VideoToNewsUseCase(
+                debug_output_repo=Mock(), model_provider=provider, use_ai=use_ai
+            )
             assert use_case.model_provider == provider
             assert use_case.use_ai == use_ai
 
@@ -137,7 +143,9 @@ class TestVideoAIProviders:
         """Test VideoToNewsUseCase with mock provider."""
         from src.video.application.usecases import VideoToNewsUseCase
 
-        use_case = VideoToNewsUseCase(model_provider="mock", use_ai=False)
+        use_case = VideoToNewsUseCase(
+            debug_output_repo=Mock(), model_provider="mock", use_ai=False
+        )
         assert use_case.model_provider == "mock"
         assert use_case.use_ai is False
 
@@ -146,7 +154,7 @@ class TestVideoAIProviders:
         from src.video.application.usecases import VideoToNewsUseCase
 
         # Test default behavior uses Settings
-        use_case = VideoToNewsUseCase(use_ai=True)
+        use_case = VideoToNewsUseCase(debug_output_repo=Mock(), use_ai=True)
         # If no model_provider passed, it should use Settings.AI_PROVIDER as default
         # (This depends on the implementation)
         assert use_case.use_ai is True
