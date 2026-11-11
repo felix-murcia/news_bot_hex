@@ -99,7 +99,7 @@ news_bot_hex/
 │   │   │   ├── entities/            # article.py:Article, timer_config.py:TimerConfig (dataclasses sin comportamiento)
 │   │   │   ├── ports/               # ArticleRepository, VerifiedNewsRepository, ContentExtractor,
 │   │   │   │                        #   ScoringConfigRepository, FakeNewsModel
-│   │   │   └── services/            # validation_rules.py ⚠️ ÚNICO leak: config.logging_config (línea 12)
+│   │   │   └── services/            # validation_rules.py ⚠️ ÚNICO leak: config.logging_config (línea 11)
 │   │   ├── application/
 │   │   │   └── usecases/            # FetchRSSNews, FullVerify, SoftVerify, ArticleFromNews, ContentFromNews,
 │   │   │                            #   ProcessUrlJobCoordinator, pipeline_executor,
@@ -180,7 +180,7 @@ news_bot_hex/
    - `application/` solo importa `domain/` e `infrastructure/` (vía puertos).
    - `infrastructure/` importa `domain/` y librerías externas.
    - `entrypoints/` importa `application/`, `domain/` e `infrastructure/`.
-   - **Violación conocida:** `src/news/domain/services/validation_rules.py:12` importa `config.logging_config`.
+   - **Violación conocida:** `src/news/domain/services/validation_rules.py:11` importa `config.logging_config`.
 
 2. **DIP:** los use-cases **reciben** colaboradores por constructor (inyección). Prohibido `from X import get_X` dentro de métodos de use-cases. El Composition Root es el **único** lugar que crea instancias concretas.
 
@@ -473,3 +473,4 @@ systemctl --user status news-bot-pipeline.timer
 | B18 (PARTIAL enriquecimiento) | `docker logs news_bot_app | grep -c "Connection refused"` tras un run de pipeline → debe ser 0; `status` en job debe ser `PARTIAL` si falla audio/video; `FAILED` si falla publicación | Tras deploy o cambio en adaptadores de audio/vídeo o executor |
 | B18.1 (VOs en domain, criticidad) | `grep -rn "class JobStatus" src/` → 1 línea en `domain/entities/pipeline_job.py`; `grep -n "is_critical" src/news/domain/entities/pipeline_job.py` → método presente; `pytest tests/test_pipeline_status_partial.py tests/test_pipeline_fail_fast.py -xvs` → GREEN | Tras cambios en domain entities o pipeline executor |
 | B19 (tests bloqueados por .env con paths de Docker) | `.venv/bin/python -m pytest tests/test_settings.py tests/test_pipeline_status_partial.py -q` → 8+ passed; `.env` no debe contener `BASE_DIR=/app`, `DATA_DIR=/app/data`, `CACHE_DIR=/app/data/cache`, `MODELS_DIR=/app/models`, `IMAGES_DIR=/app/data/images`, `LOG_DIR=/app/logs` | Tras cambios en .env o docker-compose.yml |
+| B6 (guard tests imports inline) | `pytest tests/test_architecture.py -q` → 288 passed, 10 failed (solo `test_adapter_implements_port` preexistente); 158 imports allowlisteados con `# TODO B20` en 22 ficheros | Tras cambios en tests/test_architecture.py o imports en application/ + domain/ |
