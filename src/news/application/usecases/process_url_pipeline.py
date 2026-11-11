@@ -14,6 +14,7 @@ from typing import Optional
 from config.logging_config import get_logger
 from src.news.application.usecases.metrics_collector import MetricsCollector
 from src.news.domain.entities.processing_metric import PipelineType
+from src.news.domain.ports import GeneratedArticlesRepository, GeneratedPostsRepository
 from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
 
 logger = get_logger("news_bot.pipeline.process_url")
@@ -21,8 +22,16 @@ logger = get_logger("news_bot.pipeline.process_url")
 
 class ProcessUrlPipeline:
 
-    def __init__(self, content_extractor, metrics_repo: Optional[MetricsRepositoryPort] = None):
+    def __init__(
+        self,
+        content_extractor,
+        generated_articles_repo: GeneratedArticlesRepository,
+        generated_posts_repo: GeneratedPostsRepository,
+        metrics_repo: Optional[MetricsRepositoryPort] = None,
+    ):
         self.content_extractor = content_extractor
+        self.generated_articles_repo = generated_articles_repo
+        self.generated_posts_repo = generated_posts_repo
         self.metrics_repo = metrics_repo
 
     def execute(self, url: str, job_id: Optional[str] = None) -> dict:
@@ -166,36 +175,27 @@ class ProcessUrlPipeline:
         # ── F12: read generated_articles ONCE (stable after enrich) ────────
         # Reused by Generate Audio, Generate Video and the final read, instead
         # of re-querying MongoDB at each step.
-        from src.shared.adapters.mongo_db import get_database
-        db = get_database()
-        # Filtrar por original_url: generated_articles es compartida y
-        # save_all solo sustituye si hubo generación; sin el filtro, un resto
-        # de otra ejecución se procesaría aquí (TTS/vídeo de otra noticia).
         articles_list = [
-            a for a in db["generated_articles"].find({})
+            a for a in self.generated_articles_repo.load_all()
             if a.get("original_url") == url
         ]
 
         # ── Step 7: Generate Audio ──────────────────────────────────────────
         def generate_audio():
             from src.shared.application.usecases.tts_from_article import run_tts_from_articles
-            coll = db["generated_articles"]
             if articles_list:
                 updated = run_tts_from_articles(articles_list)
                 for article in updated:
                     if article.get("tts_audio_path"):
-                        coll.update_one(
-                            {"_id": article["_id"]},
-                            {"$set": {"tts_audio_path": article["tts_audio_path"]}},
-                        )
+                        article_id = article.get("_id")
+                        if article_id:
+                            self.generated_articles_repo.update_tts_audio_path(str(article_id), article["tts_audio_path"])
 
         run_step("Generate Audio", generate_audio, critical=True)
 
         # ── Step 8: Generate Video ──────────────────────────────────────────
         def generate_video():
             from src.shared.infrastructure.composition_root import create_video_generator
-            coll = db["generated_articles"]
-            posts_coll = db["generated_posts"]
             video_gen = create_video_generator()
             if video_gen.is_available():
                 for article in articles_list:
@@ -206,19 +206,21 @@ class ProcessUrlPipeline:
                             image=article.get("image_url"),
                         )
                         if video_path:
-                            coll.update_one(
-                                {"_id": article["_id"]},
-                                {"$set": {"generated_video_path": video_path}},
-                            )
+                            article_id = article.get("_id")
+                            if article_id:
+                                self.generated_articles_repo.update_generated_video_path(str(article_id), video_path)
                             # F3: propagate video_path to generated_posts so
                             # Facebook (which reads post["video_path"]) can
                             # publish the video in the URL/API flow.
                             original_url = article.get("original_url")
                             if original_url:
-                                posts_coll.update_one(
-                                    {"url": original_url},
-                                    {"$set": {"video_path": video_path}},
-                                )
+                                # Update the post with video_path
+                                posts = self.generated_posts_repo.load_all()
+                                for post in posts:
+                                    if post.get("url") == original_url:
+                                        post["video_path"] = video_path
+                                        break
+                                self.generated_posts_repo.save_all(posts)
 
         run_step("Generate Video", generate_video, critical=True)
 
@@ -252,7 +254,8 @@ class ProcessUrlPipeline:
         # generated_video_path by the steps above) instead of re-reading.
         article = dict(articles_list[0]) if articles_list else {}
         article.pop("_id", None)
-        post = db["generated_posts"].find_one({}, {"_id": 0}) or {}
+        posts = self.generated_posts_repo.load_all()
+        post = posts[0] if posts else {}
 
         logger.info("[PROCESS_URL] ✅ Pipeline completed")
         return {

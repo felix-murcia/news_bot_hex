@@ -26,6 +26,8 @@ from src.news.entrypoints.api.dependencies import (
     get_generated_posts_repo,
     get_process_url_job_coordinator,
     get_process_url_job_repository,
+    get_generated_articles_repo,
+    get_metrics_repository,
 )
 from src.news.entrypoints.api.error_handler import http_error, get_error_message
 
@@ -349,14 +351,17 @@ def news_content(
 
 
 @router.post("/pipeline", response_model=PipelineResponse)
-def news_full_pipeline():
+def news_full_pipeline(
+    generated_articles_repo=Depends(get_generated_articles_repo),
+    metrics_repo=Depends(get_metrics_repository),
+):
     """Start the complete news pipeline asynchronously (returns job_id for polling)."""
     try:
         from src.news.application.usecases.pipeline_job import create_job
         from src.news.application.usecases.pipeline_executor import execute_pipeline_async
 
         job_id = create_job()
-        started = execute_pipeline_async(job_id)
+        started = execute_pipeline_async(job_id, generated_articles_repo, metrics_repo)
 
         if not started:
             raise HTTPException(

@@ -78,10 +78,6 @@ def _audio_fails():
             "src.shared.application.usecases.tts_from_article.run_tts_from_articles",
             side_effect=_Boom("TTS exploded"),
         )
-        p(
-            "src.shared.adapters.mongo_db.get_database",
-            return_value=_FakeDb({"generated_articles": _FakeCollection([{"_id": 1}])}),
-        )
         # Patch video, WordPress and social to avoid real DB access
         p(
             "src.shared.infrastructure.composition_root.create_video_generator",
@@ -123,14 +119,8 @@ def _video_fails():
             "src.shared.infrastructure.composition_root.create_video_generator",
             return_value=_Gen(),
         )
-        p(
-            "src.shared.adapters.mongo_db.get_database",
-            return_value=_FakeDb({
-                "generated_articles": _FakeCollection(
-                    [{"_id": 1, "tts_audio_path": os.path.abspath(__file__)}]
-                )
-            }),
-        )
+        # Patch os.path.exists to return True so the video step attempts generation
+        p("os.path.exists", return_value=True)
         # Patch WordPress and social to avoid real DB access
         p("src.shared.infrastructure.composition_root.run_wordpress")
         p("src.shared.infrastructure.composition_root.run_bluesky")
@@ -139,14 +129,32 @@ def _video_fails():
         yield
 
 
-def _run_pipeline(job_id):
+def _run_pipeline(job_id, articles_repo=None, metrics_repo=None):
     """Start the pipeline and wait until its worker thread releases the lock.
 
     ``execute_pipeline_async`` spawns its own daemon thread and returns
     immediately, so waiting on the call is not enough — the module-level
     ``_execution_lock`` is released in the worker's ``finally``.
     """
-    started = pipeline_executor.execute_pipeline_async(job_id)
+    from unittest.mock import Mock
+    from src.news.domain.ports import GeneratedArticlesRepository, MetricsRepositoryPort
+
+    # Mock repositories for the new injected dependencies
+    if articles_repo is None:
+        mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
+        mock_articles_repo.load_all.return_value = []
+        mock_articles_repo.update_tts_audio_path.return_value = True
+        mock_articles_repo.update_generated_video_path.return_value = True
+    else:
+        mock_articles_repo = articles_repo
+
+    if metrics_repo is None:
+        mock_metrics_repo = Mock(spec=MetricsRepositoryPort)
+        mock_metrics_repo.save.return_value = None
+    else:
+        mock_metrics_repo = metrics_repo
+
+    started = pipeline_executor.execute_pipeline_async(job_id, mock_articles_repo, mock_metrics_repo)
     assert started, "pipeline rejected: execution lock was still held"
 
     deadline = time.time() + 60
@@ -158,14 +166,31 @@ def _run_pipeline(job_id):
     )
 
 
-def _capture_steps(job_id, scenario):
+def _capture_steps(job_id, scenario, video_scenario=False):
     """Run the pipeline recording every (step_name, status) pair."""
+    from unittest.mock import Mock
+    from src.news.domain.ports import GeneratedArticlesRepository, MetricsRepositoryPort
+
+    # Create mock repositories with articles for audio/video steps
+    mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
+    if video_scenario:
+        # Video test needs articles with valid audio paths
+        mock_articles_repo.load_all.return_value = [{"_id": "test-id", "tts_audio_path": "/tmp/test.mp3", "image_url": None}]
+    else:
+        # Audio test needs articles (audio path can be None since TTS generates it)
+        mock_articles_repo.load_all.return_value = [{"_id": "test-id", "tts_audio_path": None, "image_url": None}]
+    mock_articles_repo.update_tts_audio_path.return_value = True
+    mock_articles_repo.update_generated_video_path.return_value = True
+
+    mock_metrics_repo = Mock(spec=MetricsRepositoryPort)
+    mock_metrics_repo.save.return_value = None
+
     steps = []
     with patch.object(
         pipeline_executor, "add_step",
         side_effect=lambda job, name, status: steps.append((name, status)),
     ), patch.object(pipeline_executor, "update_job_status"), scenario:
-        _run_pipeline(job_id)
+        _run_pipeline(job_id, mock_articles_repo, mock_metrics_repo)
     return steps
 
 
@@ -192,10 +217,21 @@ class TestAudioFailureIsEnrichment:
 
     def test_audio_failure_is_logged_as_error_not_warning(self):
         """Enrichment failure logs as error; 'Warning en ...' is wrong."""
+        from unittest.mock import Mock
+        from src.news.domain.ports import GeneratedArticlesRepository, MetricsRepositoryPort
+
+        mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
+        mock_articles_repo.load_all.return_value = [{"_id": "test-id", "tts_audio_path": None, "image_url": None}]
+        mock_articles_repo.update_tts_audio_path.return_value = True
+        mock_articles_repo.update_generated_video_path.return_value = True
+
+        mock_metrics_repo = Mock(spec=MetricsRepositoryPort)
+        mock_metrics_repo.save.return_value = None
+
         with patch.object(pipeline_executor.logger, "error") as err, \
              patch.object(pipeline_executor.logger, "warning") as warn, \
              _audio_fails():
-            _run_pipeline("job-audio-3")
+            _run_pipeline("job-audio-3", mock_articles_repo, mock_metrics_repo)
 
         errors = [str(c.args[0]) for c in err.call_args_list if c.args]
         warnings = [str(c.args[0]) for c in warn.call_args_list if c.args]
@@ -217,9 +253,20 @@ class TestAudioFailureIsEnrichment:
 
     def test_audio_failure_final_status_is_partial(self):
         """Enrichment failure -> final job status PARTIAL."""
+        from unittest.mock import Mock
+        from src.news.domain.ports import GeneratedArticlesRepository, MetricsRepositoryPort
+
+        mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
+        mock_articles_repo.load_all.return_value = [{"_id": "test-id", "tts_audio_path": None, "image_url": None}]
+        mock_articles_repo.update_tts_audio_path.return_value = True
+        mock_articles_repo.update_generated_video_path.return_value = True
+
+        mock_metrics_repo = Mock(spec=MetricsRepositoryPort)
+        mock_metrics_repo.save.return_value = None
+
         with patch.object(pipeline_executor, "update_job_status") as update_status, \
              _audio_fails():
-            _run_pipeline("job-audio-5")
+            _run_pipeline("job-audio-5", mock_articles_repo, mock_metrics_repo)
 
         # Check final update_job_status call
         calls = update_status.call_args_list
@@ -236,23 +283,34 @@ class TestVideoFailureIsEnrichment:
     """Step 8 (video) failing is ENRICHMENT: records ERROR, continues, final PARTIAL."""
 
     def test_video_failure_records_error_status(self):
-        steps = _capture_steps("job-video-1", _video_fails())
+        steps = _capture_steps("job-video-1", _video_fails(), video_scenario=True)
         status = _terminal_status(steps, VIDEO)
         assert status == ProcessingStepStatus.ERROR, (
             f"video failure must be ERROR, got {status}"
         )
 
     def test_video_failure_does_not_record_skipped(self):
-        steps = _capture_steps("job-video-2", _video_fails())
+        steps = _capture_steps("job-video-2", _video_fails(), video_scenario=True)
         status = _terminal_status(steps, VIDEO)
         assert status != ProcessingStepStatus.SKIPPED
 
     def test_video_failure_is_logged_as_error_not_warning(self):
         """Enrichment failure logs as error via the executor's logger."""
+        from unittest.mock import Mock
+        from src.news.domain.ports import GeneratedArticlesRepository, MetricsRepositoryPort
+
+        mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
+        mock_articles_repo.load_all.return_value = [{"_id": "test-id", "tts_audio_path": "/tmp/test.mp3", "image_url": None}]
+        mock_articles_repo.update_tts_audio_path.return_value = True
+        mock_articles_repo.update_generated_video_path.return_value = True
+
+        mock_metrics_repo = Mock(spec=MetricsRepositoryPort)
+        mock_metrics_repo.save.return_value = None
+
         with patch.object(pipeline_executor.logger, "error") as err, \
              patch.object(pipeline_executor.logger, "warning") as warn, \
              _video_fails():
-            _run_pipeline("job-video-3")
+            _run_pipeline("job-video-3", mock_articles_repo, mock_metrics_repo)
 
         errors = [str(c.args[0]) for c in err.call_args_list if c.args]
         assert any("ffmpeg died" in m for m in errors), (
@@ -261,7 +319,7 @@ class TestVideoFailureIsEnrichment:
 
     def test_video_failure_continues_to_wordpress_step(self):
         """Enrichment: pipeline continues to WordPress step after video failure."""
-        steps = _capture_steps("job-video-4", _video_fails())
+        steps = _capture_steps("job-video-4", _video_fails(), video_scenario=True)
         names = [n for n, _ in steps]
         assert ProcessingStepName.PUBLISH_WORDPRESS in names, (
             "pipeline should continue to WordPress step after video enrichment failure"
@@ -269,9 +327,20 @@ class TestVideoFailureIsEnrichment:
 
     def test_video_failure_final_status_is_partial(self):
         """Enrichment failure -> final job status PARTIAL."""
+        from unittest.mock import Mock
+        from src.news.domain.ports import GeneratedArticlesRepository, MetricsRepositoryPort
+
+        mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
+        mock_articles_repo.load_all.return_value = [{"_id": "test-id", "tts_audio_path": "/tmp/test.mp3", "image_url": None}]
+        mock_articles_repo.update_tts_audio_path.return_value = True
+        mock_articles_repo.update_generated_video_path.return_value = True
+
+        mock_metrics_repo = Mock(spec=MetricsRepositoryPort)
+        mock_metrics_repo.save.return_value = None
+
         with patch.object(pipeline_executor, "update_job_status") as update_status, \
              _video_fails():
-            _run_pipeline("job-video-5")
+            _run_pipeline("job-video-5", mock_articles_repo, mock_metrics_repo)
 
         calls = update_status.call_args_list
         final_call = calls[-1]
@@ -288,6 +357,17 @@ class TestCriticalFailureAborts:
 
     def test_rss_failure_aborts_and_fails(self):
         """RSS is critical: failure aborts, no further steps, final FAILED."""
+        from unittest.mock import Mock
+        from src.news.domain.ports import GeneratedArticlesRepository, MetricsRepositoryPort
+
+        mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
+        mock_articles_repo.load_all.return_value = []
+        mock_articles_repo.update_tts_audio_path.return_value = True
+        mock_articles_repo.update_generated_video_path.return_value = True
+
+        mock_metrics_repo = Mock(spec=MetricsRepositoryPort)
+        mock_metrics_repo.save.return_value = None
+
         with contextlib.ExitStack() as stack:
             stack.enter_context(_stub_cli_package())
             p = lambda *a, **k: stack.enter_context(patch(*a, **k))
@@ -304,7 +384,7 @@ class TestCriticalFailureAborts:
             stack.enter_context(_stub_cli_package())
             p = lambda *a, **k: stack.enter_context(patch(*a, **k))
             p("src.news.entrypoints.cli.main_rss", side_effect=_Boom("RSS exploded"))
-            _run_pipeline("job-rss-2")
+            _run_pipeline("job-rss-2", mock_articles_repo, mock_metrics_repo)
 
             calls = update_status.call_args_list
             final_call = calls[-1]

@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from src.news.domain.ports import ContentExtractor
+from src.news.domain.ports import ContentExtractor, GeneratedArticlesRepository, GeneratedPostsRepository
 from config.logging_config import get_logger
 from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
 
@@ -30,6 +30,8 @@ class NewsToNewsUseCase:
     def __init__(
         self,
         content_extractor: ContentExtractor,
+        generated_articles_repo: GeneratedArticlesRepository,
+        generated_posts_repo: GeneratedPostsRepository,
         use_ai: bool = True,
         model_provider: str = "gemini",
         ai_config: Optional[dict] = None,
@@ -38,6 +40,8 @@ class NewsToNewsUseCase:
         force_extract: bool = False,
     ):
         self.content_extractor = content_extractor
+        self.generated_articles_repo = generated_articles_repo
+        self.generated_posts_repo = generated_posts_repo
         self.use_ai = use_ai
         self.model_provider = model_provider
         self.ai_config = ai_config or {}
@@ -147,22 +151,20 @@ class NewsToNewsUseCase:
         return tweet
 
     def _save_outputs(self, article_data: Dict, content: str, content_path: Path):
-        """Persiste artículo y post en MongoDB (fuente de verdad única)."""
+        """Persiste artículo y post usando repositorios inyectados (DIP)."""
         article = article_data.get("article", {})
         post = article_data.get("post", {})
 
         try:
-            from src.shared.adapters.mongo_db import get_database
-            db = get_database()
-            articles_coll = db["generated_articles"]
-            posts_coll = db["generated_posts"]
-            articles_coll.delete_many({})
-            articles_coll.insert_one(dict(article))
-            posts_coll.delete_many({})
+            # Save article via repository
+            self.generated_articles_repo.save_all([dict(article)])
+            logger.info("[NEWS_TO_NEWS] Artículo guardado en MongoDB")
+
+            # Save post via repository
             tweet = post.get("tweet", "") if isinstance(post, dict) else ""
             original_url = article.get("original_url", "")
-            posts_coll.insert_one({"url": original_url, "tweet": tweet})
-            logger.info("[NEWS_TO_NEWS] Artículo y post guardados en MongoDB")
+            self.generated_posts_repo.save_all([{"url": original_url, "tweet": tweet}])
+            logger.info("[NEWS_TO_NEWS] Post guardado en MongoDB")
         except Exception as e:
             logger.error(f"[NEWS_TO_NEWS] Error persistiendo en MongoDB: {e}")
 
@@ -259,6 +261,8 @@ class NewsToNewsUseCase:
 def process_news_url(
     url: str,
     content_extractor: ContentExtractor,
+    generated_articles_repo: GeneratedArticlesRepository,
+    generated_posts_repo: GeneratedPostsRepository,
     model_provider: str = "gemini",
     use_ai: bool = True,
     ai_config: Optional[dict] = None,
@@ -268,6 +272,8 @@ def process_news_url(
     """Función principal para procesar URL de noticia."""
     processor = NewsToNewsUseCase(
         content_extractor=content_extractor,
+        generated_articles_repo=generated_articles_repo,
+        generated_posts_repo=generated_posts_repo,
         model_provider=model_provider,
         use_ai=use_ai,
         ai_config=ai_config,
@@ -312,8 +318,21 @@ def main():
     print()
 
     try:
+        from src.shared.infrastructure.composition_root import (
+            create_generated_articles_repository,
+            create_generated_posts_repository,
+        )
+        from src.news.infrastructure.adapters import JinaContentExtractor
+
+        content_extractor = JinaContentExtractor()
+        generated_articles_repo = create_generated_articles_repository()
+        generated_posts_repo = create_generated_posts_repository()
+
         result = process_news_url(
             url=args.url,
+            content_extractor=content_extractor,
+            generated_articles_repo=generated_articles_repo,
+            generated_posts_repo=generated_posts_repo,
             model_provider=args.model,
             use_ai=not args.local,
             force_extract=args.force_extract,

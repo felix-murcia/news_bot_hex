@@ -100,12 +100,21 @@ def record_step_metric(metrics_steps: list, step_name: str, status: str, duratio
     ))
 
 
-def execute_pipeline_async(job_id: str) -> bool:
+def execute_pipeline_async(
+    job_id: str,
+    generated_articles_repo,
+    metrics_repo,
+) -> bool:
     """
     Execute pipeline in background thread with job tracking and metrics collection.
 
     Enrichment steps (images, audio, video) don't abort on failure - they mark PARTIAL.
     Critical steps (RSS, verification, posts, articles, WordPress, social) abort on failure.
+
+    Args:
+        job_id: Unique job identifier
+        generated_articles_repo: Repository for generated articles (injected)
+        metrics_repo: Repository for metrics (injected)
 
     Returns:
         bool: True if execution started, False if another execution is in progress.
@@ -209,20 +218,16 @@ def execute_pipeline_async(job_id: str) -> bool:
             # Step 7: Generate Audio (ENRICHMENT)
             def _run_audio():
                 from src.shared.application.usecases.tts_from_article import run_tts_from_articles
-                from src.shared.adapters.mongo_db import get_database
 
-                db = get_database()
-                articles_coll = db["generated_articles"]
-                articles = list(articles_coll.find({}))
+                articles = generated_articles_repo.load_all()
 
                 if articles:
                     updated = run_tts_from_articles(articles)
                     for article in updated:
                         if article.get("tts_audio_path"):
-                            articles_coll.update_one(
-                                {"_id": article["_id"]},
-                                {"$set": {"tts_audio_path": article["tts_audio_path"]}},
-                            )
+                            article_id = article.get("_id")
+                            if article_id:
+                                generated_articles_repo.update_tts_audio_path(str(article_id), article["tts_audio_path"])
                     logger.info(f"[PIPELINE-JOB] {job_id} Audio generado")
 
             success, error = _execute_step(
@@ -237,12 +242,9 @@ def execute_pipeline_async(job_id: str) -> bool:
             # Step 8: Generate Video (ENRICHMENT)
             def _run_video():
                 from src.shared.infrastructure.composition_root import create_video_generator
-                from src.shared.adapters.mongo_db import get_database
                 import os
 
-                db = get_database()
-                articles_coll = db["generated_articles"]
-                articles = list(articles_coll.find({}))
+                articles = generated_articles_repo.load_all()
 
                 video_gen = create_video_generator()
                 if video_gen.is_available():
@@ -254,10 +256,9 @@ def execute_pipeline_async(job_id: str) -> bool:
                                 image=article.get("image_url"),
                             )
                             if video_path:
-                                articles_coll.update_one(
-                                    {"_id": article["_id"]},
-                                    {"$set": {"generated_video_path": video_path}},
-                                )
+                                article_id = article.get("_id")
+                                if article_id:
+                                    generated_articles_repo.update_generated_video_path(str(article_id), video_path)
                     logger.info(f"[PIPELINE-JOB] {job_id} Videos generados")
 
             success, error = _execute_step(
@@ -341,9 +342,6 @@ def execute_pipeline_async(job_id: str) -> bool:
                     created_at=datetime.now(),
                 )
 
-                from src.news.infrastructure.adapters.mongo_metrics_repository import MongoMetricsRepository
-                from src.shared.adapters.mongo_db import get_database as get_metrics_db
-                metrics_repo = MongoMetricsRepository(get_metrics_db())
                 metrics_repo.save(metric)
                 logger.info(
                     f"[PIPELINE-JOB] {job_id} Métricas guardadas: "
@@ -368,9 +366,6 @@ def execute_pipeline_async(job_id: str) -> bool:
                     created_at=datetime.now(),
                 )
 
-                from src.news.infrastructure.adapters.mongo_metrics_repository import MongoMetricsRepository
-                from src.shared.adapters.mongo_db import get_database as get_metrics_db
-                metrics_repo = MongoMetricsRepository(get_metrics_db())
                 metrics_repo.save(metric)
                 logger.debug(f"[PIPELINE-JOB] {job_id} Métricas de error guardadas")
             except Exception as metric_err:

@@ -198,6 +198,7 @@ class TestVideoPathPropagation:
     def test_video_path_propagated_to_generated_posts(self, tmp_path):
         """Al generar el video, generated_posts recibe video_path (lo lee Facebook)."""
         from src.news.application.usecases.process_url_pipeline import ProcessUrlPipeline
+        from src.news.domain.ports import GeneratedArticlesRepository, GeneratedPostsRepository
 
         audio_file = tmp_path / "audio.mp3"
         audio_file.write_bytes(b"fake audio")
@@ -210,28 +211,29 @@ class TestVideoPathPropagation:
             }
         ]
 
-        articles_coll = Mock()
-        articles_coll.find.return_value = iter(articles)
-        posts_coll = Mock()
-        posts_coll.find_one.return_value = {"tweet": "tweet de prueba"}
+        # Mock repositories
+        mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
+        mock_articles_repo.load_all.return_value = articles
+        mock_articles_repo.update_generated_video_path.return_value = True
 
-        mock_db = MagicMock()
-        mock_db.__getitem__.side_effect = {
-            "generated_articles": articles_coll,
-            "generated_posts": posts_coll,
-        }.get
+        mock_posts_repo = Mock(spec=GeneratedPostsRepository)
+        mock_posts_repo.load_all.return_value = [{"url": "https://example.com/news/1", "tweet": "tweet de prueba"}]
+        mock_posts_repo.save_all.return_value = True
 
         extractor = Mock()
         extractor.extract.return_value = ("x" * 200, "meta", "")
 
-        pipeline = ProcessUrlPipeline(content_extractor=extractor)
+        pipeline = ProcessUrlPipeline(
+            content_extractor=extractor,
+            generated_articles_repo=mock_articles_repo,
+            generated_posts_repo=mock_posts_repo,
+        )
 
         video_gen = Mock()
         video_gen.is_available.return_value = True
         video_gen.create_video_from_audio.return_value = "/tmp/video.mp4"
 
-        with patch("src.shared.adapters.mongo_db.get_database", return_value=mock_db), \
-             patch("src.news.infrastructure.adapters.MongoVerifiedNewsRepository"), \
+        with patch("src.news.infrastructure.adapters.MongoVerifiedNewsRepository"), \
              patch("src.news.application.usecases.content.run_content"), \
              patch("src.news.application.usecases.article.run"), \
              patch("src.shared.infrastructure.composition_root.run_image_unsplash"), \
@@ -248,23 +250,23 @@ class TestVideoPathPropagation:
              patch("src.shared.infrastructure.composition_root.run_wordpress"), \
              patch("src.shared.infrastructure.composition_root.run_bluesky"), \
              patch("src.shared.infrastructure.composition_root.run_mastodon"), \
-             patch("src.shared.infrastructure.composition_root.run_facebook"):
+             patch("src.shared.infrastructure.composition_root.run_facebook"), \
+             patch("os.path.exists", return_value=True):
             result = pipeline.execute("https://example.com/news/1")
 
         # F3: video_path escrito en generated_posts indexado por url
-        posts_coll.update_one.assert_called_once_with(
-            {"url": "https://example.com/news/1"},
-            {"$set": {"video_path": "/tmp/video.mp4"}},
-        )
+        mock_posts_repo.save_all.assert_called()
+        # Check that the saved posts contain video_path
+        saved_posts = mock_posts_repo.save_all.call_args[0][0]
+        assert any(p.get("video_path") == "/tmp/video.mp4" for p in saved_posts)
         # generated_articles también recibe generated_video_path
-        assert call(
-            {"_id": 1}, {"$set": {"generated_video_path": "/tmp/video.mp4"}}
-        ) in articles_coll.update_one.call_args_list
+        mock_articles_repo.update_generated_video_path.assert_called_once_with("1", "/tmp/video.mp4")
         assert result["post"] == "tweet de prueba"
 
     def test_no_video_when_generator_unavailable(self, tmp_path):
         """Si el generador no está disponible, no se escribe video_path en posts."""
         from src.news.application.usecases.process_url_pipeline import ProcessUrlPipeline
+        from src.news.domain.ports import GeneratedArticlesRepository, GeneratedPostsRepository
 
         audio_file = tmp_path / "audio.mp3"
         audio_file.write_bytes(b"fake audio")
@@ -277,27 +279,27 @@ class TestVideoPathPropagation:
             }
         ]
 
-        articles_coll = Mock()
-        articles_coll.find.return_value = iter(articles)
-        posts_coll = Mock()
-        posts_coll.find_one.return_value = {"tweet": "tweet"}
+        mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
+        mock_articles_repo.load_all.return_value = articles
+        mock_articles_repo.update_generated_video_path.return_value = True
 
-        mock_db = MagicMock()
-        mock_db.__getitem__.side_effect = {
-            "generated_articles": articles_coll,
-            "generated_posts": posts_coll,
-        }.get
+        mock_posts_repo = Mock(spec=GeneratedPostsRepository)
+        mock_posts_repo.load_all.return_value = [{"url": "https://example.com/news/1", "tweet": "tweet"}]
+        mock_posts_repo.save_all.return_value = True
 
         extractor = Mock()
         extractor.extract.return_value = ("x" * 200, "meta", "")
 
-        pipeline = ProcessUrlPipeline(content_extractor=extractor)
+        pipeline = ProcessUrlPipeline(
+            content_extractor=extractor,
+            generated_articles_repo=mock_articles_repo,
+            generated_posts_repo=mock_posts_repo,
+        )
 
         video_gen = Mock()
         video_gen.is_available.return_value = False
 
-        with patch("src.shared.adapters.mongo_db.get_database", return_value=mock_db), \
-             patch("src.news.infrastructure.adapters.MongoVerifiedNewsRepository"), \
+        with patch("src.news.infrastructure.adapters.MongoVerifiedNewsRepository"), \
              patch("src.news.application.usecases.content.run_content"), \
              patch("src.news.application.usecases.article.run"), \
              patch("src.shared.infrastructure.composition_root.run_image_unsplash"), \
@@ -314,7 +316,9 @@ class TestVideoPathPropagation:
              patch("src.shared.infrastructure.composition_root.run_wordpress"), \
              patch("src.shared.infrastructure.composition_root.run_bluesky"), \
              patch("src.shared.infrastructure.composition_root.run_mastodon"), \
-             patch("src.shared.infrastructure.composition_root.run_facebook"):
+             patch("src.shared.infrastructure.composition_root.run_facebook"), \
+             patch("os.path.exists", return_value=True):
             pipeline.execute("https://example.com/news/1")
 
-        posts_coll.update_one.assert_not_called()
+        # No se debe llamar a update_generated_video_path ni save_all con video_path
+        mock_articles_repo.update_generated_video_path.assert_not_called()

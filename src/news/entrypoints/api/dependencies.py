@@ -63,10 +63,10 @@ def get_generated_posts_repo(db=Depends(get_db)):
     return MongoGeneratedPostsRepository(db)
 
 
-def get_generated_articles_repo(db=Depends(get_db)):
+def get_generated_articles_repo():
     """Repositorio de artículos generados."""
-    from src.news.infrastructure.adapters import MongoGeneratedArticlesRepository
-    return MongoGeneratedArticlesRepository(db)
+    from src.shared.infrastructure.composition_root import create_generated_articles_repository
+    return create_generated_articles_repository()
 
 
 def get_scoring_config_repo(db=Depends(get_db)):
@@ -75,10 +75,10 @@ def get_scoring_config_repo(db=Depends(get_db)):
     return MongoScoringConfigRepository(db)
 
 
-def get_metrics_repository(db=Depends(get_db)):
+def get_metrics_repository():
     """Repositorio de métricas de pipeline."""
-    from src.news.infrastructure.adapters.mongo_metrics_repository import MongoMetricsRepository
-    return MongoMetricsRepository(db)
+    from src.shared.infrastructure.composition_root import create_metrics_repository
+    return create_metrics_repository()
 
 
 def get_timer_config_repository(db=Depends(get_db)):
@@ -302,6 +302,8 @@ def get_process_url_job_repository():
 
 def get_process_url_content_processor(
     content_extractor=Depends(get_content_extractor),
+    generated_articles_repo=Depends(get_generated_articles_repo),
+    generated_posts_repo=Depends(get_generated_posts_repo),
 ):
     """Content processor function for process_url (wraps NewsToNewsUseCase)."""
     from src.news.application.usecases.news_to_news import process_news_url
@@ -312,6 +314,8 @@ def get_process_url_content_processor(
         return process_news_url(
             url=url,
             content_extractor=content_extractor,
+            generated_articles_repo=generated_articles_repo,
+            generated_posts_repo=generated_posts_repo,
             model_provider=Settings.AI_PROVIDER,
             use_ai=True,
             ai_config={},
@@ -324,12 +328,16 @@ def get_process_url_content_processor(
 def get_process_url_usecase(
     content_extractor=Depends(get_content_extractor),
     metrics_repo=Depends(get_metrics_repository),
+    generated_articles_repo=Depends(get_generated_articles_repo),
+    generated_posts_repo=Depends(get_generated_posts_repo),
 ):
     """ProcessUrlPipeline - same pipeline as automatic, starting from URL extraction."""
     from src.news.application.usecases.process_url_pipeline import ProcessUrlPipeline
 
     pipeline = ProcessUrlPipeline(
         content_extractor=content_extractor,
+        generated_articles_repo=generated_articles_repo,
+        generated_posts_repo=generated_posts_repo,
         metrics_repo=metrics_repo,
     )
     return pipeline.execute

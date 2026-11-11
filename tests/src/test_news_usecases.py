@@ -9,20 +9,33 @@ class TestNewsToNewsUseCase:
 
     def test_init(self):
         from src.news.application.usecases.news_to_news import NewsToNewsUseCase
+        from src.news.domain.ports import GeneratedArticlesRepository, GeneratedPostsRepository
 
         mock_extractor = Mock()
-        use_case = NewsToNewsUseCase(content_extractor=mock_extractor, use_ai=False)
+        mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
+        mock_posts_repo = Mock(spec=GeneratedPostsRepository)
+        use_case = NewsToNewsUseCase(
+            content_extractor=mock_extractor,
+            generated_articles_repo=mock_articles_repo,
+            generated_posts_repo=mock_posts_repo,
+            use_ai=False
+        )
         assert use_case.use_ai is False
         assert use_case.content_extractor is mock_extractor
 
     def test_init_with_video_generator(self):
         from src.news.application.usecases.news_to_news import NewsToNewsUseCase
         from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
+        from src.news.domain.ports import GeneratedArticlesRepository, GeneratedPostsRepository
 
         mock_extractor = Mock()
         mock_video_gen = Mock(spec=VideoGeneratorPort)
+        mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
+        mock_posts_repo = Mock(spec=GeneratedPostsRepository)
         use_case = NewsToNewsUseCase(
             content_extractor=mock_extractor,
+            generated_articles_repo=mock_articles_repo,
+            generated_posts_repo=mock_posts_repo,
             use_ai=False,
             video_generator=mock_video_gen,
         )
@@ -45,10 +58,18 @@ class TestNewsToNewsUseCase:
     @patch("src.shared.adapters.cache_manager.load_content_from_cache")
     def test_load_from_cache_hit(self, mock_load):
         from src.news.application.usecases.news_to_news import NewsToNewsUseCase
+        from src.news.domain.ports import GeneratedArticlesRepository, GeneratedPostsRepository
 
         mock_load.return_value = ("Cached content", "cache_hit")
         mock_extractor = Mock()
-        use_case = NewsToNewsUseCase(content_extractor=mock_extractor, use_ai=False)
+        mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
+        mock_posts_repo = Mock(spec=GeneratedPostsRepository)
+        use_case = NewsToNewsUseCase(
+            content_extractor=mock_extractor,
+            generated_articles_repo=mock_articles_repo,
+            generated_posts_repo=mock_posts_repo,
+            use_ai=False
+        )
 
         result = use_case._load_from_cache("https://example.com")
         assert result is not None
@@ -56,10 +77,18 @@ class TestNewsToNewsUseCase:
     @patch("src.shared.adapters.cache_manager.load_content_from_cache")
     def test_load_from_cache_miss(self, mock_load):
         from src.news.application.usecases.news_to_news import NewsToNewsUseCase
+        from src.news.domain.ports import GeneratedArticlesRepository, GeneratedPostsRepository
 
         mock_load.return_value = (None, "no_cache")
         mock_extractor = Mock()
-        use_case = NewsToNewsUseCase(content_extractor=mock_extractor, use_ai=False)
+        mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
+        mock_posts_repo = Mock(spec=GeneratedPostsRepository)
+        use_case = NewsToNewsUseCase(
+            content_extractor=mock_extractor,
+            generated_articles_repo=mock_articles_repo,
+            generated_posts_repo=mock_posts_repo,
+            use_ai=False
+        )
 
         result = use_case._load_from_cache("https://example.com")
         assert result is None
@@ -67,10 +96,18 @@ class TestNewsToNewsUseCase:
     @patch("src.shared.adapters.cache_manager.save_content_to_cache")
     def test_save_to_cache(self, mock_save):
         from src.news.application.usecases.news_to_news import NewsToNewsUseCase
+        from src.news.domain.ports import GeneratedArticlesRepository, GeneratedPostsRepository
 
         mock_save.return_value = True
         mock_extractor = Mock()
-        use_case = NewsToNewsUseCase(content_extractor=mock_extractor, use_ai=False)
+        mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
+        mock_posts_repo = Mock(spec=GeneratedPostsRepository)
+        use_case = NewsToNewsUseCase(
+            content_extractor=mock_extractor,
+            generated_articles_repo=mock_articles_repo,
+            generated_posts_repo=mock_posts_repo,
+            use_ai=False
+        )
 
         use_case._save_to_cache("https://example.com", "content")
         mock_save.assert_called_once()
