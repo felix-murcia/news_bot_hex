@@ -485,16 +485,18 @@ def run(
     model_provider: str = None,
 ) -> List[Dict]:
     from config.settings import Settings
-    from src.shared.adapters.mongo_db import get_database
-    from src.news.infrastructure.adapters import MongoVerifiedNewsRepository, MongoGeneratedPostsRepository, MongoGeneratedArticlesRepository
+    from src.shared.infrastructure.composition_root import (
+        create_generated_articles_repository,
+        create_generated_posts_repository,
+        create_verified_news_repository,
+    )
 
     provider = model_provider or Settings.AI_PROVIDER
     logger.info(f"[ARTICLE] Ejecutando (provider: {provider})")
-    db = get_database()
     use_case = ArticleUseCase(
-        verified_repo=MongoVerifiedNewsRepository(db),
-        generated_posts_repo=MongoGeneratedPostsRepository(db),
-        generated_articles_repo=MongoGeneratedArticlesRepository(db),
+        verified_repo=create_verified_news_repository(),
+        generated_posts_repo=create_generated_posts_repository(),
+        generated_articles_repo=create_generated_articles_repository(),
         use_ai=use_gemini,
         ai_config=ai_config,
         model_provider=provider,

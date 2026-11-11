@@ -208,15 +208,16 @@ def run_content(
 ) -> List[Dict]:
     """Función principal para generar tweets."""
     from config.settings import Settings
-    from src.shared.adapters.mongo_db import get_database
-    from src.news.infrastructure.adapters import MongoVerifiedNewsRepository, MongoGeneratedPostsRepository
+    from src.shared.infrastructure.composition_root import (
+        create_generated_posts_repository,
+        create_verified_news_repository,
+    )
 
     provider = model_provider or Settings.AI_PROVIDER
     logger.info(f"[CONTENT] Ejecutando (provider: {provider}, red: {network})")
-    db = get_database()
     use_case = ContentUseCase(
-        verified_repo=MongoVerifiedNewsRepository(db),
-        generated_posts_repo=MongoGeneratedPostsRepository(db),
+        verified_repo=create_verified_news_repository(),
+        generated_posts_repo=create_generated_posts_repository(),
         network=network,
         use_ai=use_gemini,
         ai_config=gemini_config,
