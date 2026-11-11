@@ -96,3 +96,36 @@ class SocialMediaPublisher:
                 results.append({"platform": "Mastodon", "status": "error", "error": str(e)})
 
         return results
+
+    def publish_all(self) -> List[Dict[str, Any]]:
+        """Publish all pending posts from DB to all configured platforms (batch)."""
+        results: List[Dict[str, Any]] = []
+
+        if self._facebook:
+            try:
+                res = self._facebook.publish_posts()
+                results.append({"platform": "Facebook", "status": "success", "detail": res})
+            except Exception as e:
+                logger.error(f"Facebook publish_all error: {e}")
+                results.append({"platform": "Facebook", "status": "error", "error": str(e)})
+                raise RuntimeError(f"Social publisher crítico falló (Facebook): {e}")
+
+        if self._bluesky:
+            try:
+                res = self._bluesky.publish_posts()
+                results.append({"platform": "Bluesky", "status": "success", "detail": res})
+            except Exception as e:
+                logger.error(f"Bluesky publish_all error: {e}")
+                results.append({"platform": "Bluesky", "status": "error", "error": str(e)})
+                raise RuntimeError(f"Social publisher crítico falló (Bluesky): {e}")
+
+        if self._mastodon:
+            try:
+                res = self._mastodon.publish_posts()
+                results.append({"platform": "Mastodon", "status": "success", "detail": res})
+            except Exception as e:
+                logger.error(f"Mastodon publish_all error: {e}")
+                results.append({"platform": "Mastodon", "status": "error", "error": str(e)})
+                raise RuntimeError(f"Social publisher crítico falló (Mastodon): {e}")
+
+        return results

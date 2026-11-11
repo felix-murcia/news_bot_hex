@@ -108,9 +108,13 @@ def record_step_metric(metrics_steps: list, step_name: str, status: str, duratio
 
 
 class PipelineRunner:
-    def __init__(self, generated_articles_repo, metrics_repo):
+    def __init__(self, generated_articles_repo, metrics_repo, social_publisher=None):
         self._generated_articles_repo = generated_articles_repo
         self._metrics_repo = metrics_repo
+        if social_publisher is None:
+            from src.shared.adapters.publishers.social import SocialMediaPublisher
+            social_publisher = SocialMediaPublisher()
+        self._social_publisher = social_publisher
 
     def run(self, ctx: PipelineContext) -> None:
         from src.news.application.usecases.pipeline_executor import update_job_status
@@ -263,19 +267,8 @@ class PipelineRunner:
 
                 # Step 10: Social Networks (CRITICAL)
                 def _run_social():
-                    from src.shared.infrastructure.composition_root import run_bluesky, run_facebook, run_mastodon
-                    social_ok = 0
-
-                    run_bluesky()
-                    social_ok += 1
-
-                    run_facebook()
-                    social_ok += 1
-
-                    run_mastodon()
-                    social_ok += 1
-
-                    logger.info(f"[PIPELINE-JOB] {ctx.job_id} Redes sociales completadas ({social_ok}/3)")
+                    self._social_publisher.publish_all()
+                    logger.info(f"[PIPELINE-JOB] {ctx.job_id} Redes sociales completadas (facade)")
 
                 success, error = _execute_step(
                     ctx.job_id,
