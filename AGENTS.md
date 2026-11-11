@@ -127,7 +127,7 @@ news_bot_hex/
 │       │   ├── jina_extractor.py / unsplash_fetcher.py / google_images_fetcher.py /
 │       │   │   wikimedia_fetcher.py / image_enricher.py / image_fetcher_composite.py / image_query_generator.py
 │       │   ├── wordpress_publisher.py / wordpress_publisher_adapter.py / wordpress_token_manager.py
-│       │   ├── publishers/          # social.py (Facade ⚠️ solo Bluesky + Mastodon; Facebook NO cableado),
+│       │   ├── publishers/          # social.py (Facade: Bluesky + Mastodon + Facebook; CLIs facebook usan vía directa),
 │       │   │                        #   bluesky_publisher_adapter.py, mastodon_publisher_adapter.py,
 │       │   │                        #   facebook_publisher_adapter.py
 │       │   ├── bluesky_publisher.py / mastodon_publisher.py / facebook_publisher.py  # ⚠️ raíz, NO en publishers/
@@ -155,8 +155,8 @@ news_bot_hex/
     → [GENERATE AUDIO TTS] → ffmpeg-api HTTP (/audio/post-process, /audio/apply-atempo, /audio/concatenate)
     → [GENERATE VIDEO FROM AUDIO]
     → [PUBLISH WORDPRESS]
-    → [PUBLISH SOCIAL] (pipeline llama a run_bluesky + run_mastodon + run_facebook;
-      el facade publishers/social.py solo orquesta Bluesky + Mastodon — B13)
+    → [PUBLISH SOCIAL] (pipelines automáticos usan facade publishers/social.py: Bluesky + Mastodon + Facebook;
+      CLIs `facebook` manuales usan vía directa — B13 cerrado)
 ```
 
 ### 4.2 Infraestructura crítica (no negociable)
@@ -250,7 +250,7 @@ news_bot_hex/
 | WordPress | `wordpress_publisher.py` / `wordpress_publisher_adapter.py` | `WP_USER`, `WP_PASSWORD`, `WP_HOSTING_API_BASE`, `WP_HOSTING_JWT_TOKEN` |
 | Bluesky | `publishers/bluesky_publisher_adapter.py` + raíz `bluesky_publisher.py` | `BLUESKY_HANDLE`, `BLUESKY_APP_PASSWORD` |
 | Mastodon | `publishers/mastodon_publisher_adapter.py` + raíz `mastodon_publisher.py` | `MASTODON_ACCESS_TOKEN`, `MASTODON_INSTANCE_URL` |
-| Facebook | `publishers/facebook_publisher_adapter.py` + raíz `facebook_publisher.py` | `FACEBOOK_PAGE_ID`, `FACEBOOK_PAGE_ACCESS_TOKEN` — ⚠️ **no cableado en el facade** (B13) |
+| Facebook | `publishers/facebook_publisher_adapter.py` + raíz `facebook_publisher.py` | `FACEBOOK_PAGE_ID`, `FACEBOOK_PAGE_ACCESS_TOKEN` — cableado en facade (pipelines auto); CLI manual vía directa (flujo separado) |
 | ~~X/Twitter~~ | ⚠️ **No implementado** | `X_API_KEY`, `X_API_SECRET` huérfanas (B16) |
 
 ### 7.3 Image enrichment (orden de prioridad)
@@ -477,6 +477,7 @@ systemctl --user status news-bot-pipeline.timer
 | B19 (tests bloqueados por .env con paths de Docker) | `.venv/bin/python -m pytest tests/test_settings.py tests/test_pipeline_status_partial.py -q` → 8+ passed; `.env` no debe contener `BASE_DIR=/app`, `DATA_DIR=/app/data`, `CACHE_DIR=/app/data/cache`, `MODELS_DIR=/app/models`, `IMAGES_DIR=/app/data/images`, `LOG_DIR=/app/logs` | Tras cambios en .env o docker-compose.yml |
 | B6 (guard tests imports inline) | `pytest tests/test_architecture.py -q` → 288 passed, 10 failed (solo `test_adapter_implements_port` preexistente); 158 imports allowlisteados con `# TODO B20` en 22 ficheros | Tras cambios en tests/test_architecture.py o imports en application/ + domain/ |
 | B21 (deuda PipelineRunner.run()) | `PipelineRunner.run()` mantiene 7 pasos como lambdas dentro de `run()` (RSS, Verify, Posts, Articles, Fetch Images, Enrich Images, WordPress); A3 de B2 pedía métodos privados (`_run_rss_fetch`, etc.). Solo `_run_audio`, `_run_video`, `_run_social` se extrajeron como funciones anidadas. Refactor A3 aplicado a medias, no un bug. | `pipeline_runner.py`: `run()` con 7 lambdas + 3 funciones anidadas; commits B2 `93cc5fb` |
+| **B13** (doble publicación Facebook / facade no unificado) | `grep -n "run_facebook\|run_bluesky\|run_mastodon" src/news/application/usecases/pipeline_runner.py src/news/application/usecases/process_url_pipeline.py` → vacío; `pytest tests/test_b13_social_single_publish.py -q` → 3 passed; CLIs `news facebook`/`video facebook` mantienen vía directa manual | Tras cambios en pipelines/facade social | **CERRADO** (2026-11-11: `14e5d13` cableó Facebook en facade; fix `e2b18d7`, `a1df729`, `5b06aee` migró pipelines auto a `SocialMediaPublisher.publish_all()`, eliminó doble publicación; CLI manual separado) |
 | **B11** (main() en application→cli) | `rg -n "^def main(" src/news/application/usecases/ src/audio/application/usecases/ src/video/application/usecases/` → vacío (main eliminado); `rg -n "def main_" src/*/entrypoints/cli/__init__.py` → `main_news_to_news` (188), `main_audio_to_news` (28), `main_video_to_news` (53) presentes | Tras cambios en entrypoints/cli/ | **CERRADO** (2026-11-11: commits `01e20b9`, `533d2ba`, `531a377`; `main()` movido a `entrypoints/cli/`, `_save_outputs` se queda en application/) |
 | **B11b** (_save_outputs en application/) | `rg -n "_save_outputs" src/*/application/` → `news_to_news.py:153,244`, `audio_to_news.py:245,282`, `video_to_news.py:254,296`; sigue en application/, debe moverse al repositorio o al use-case | Tras cambios en application/usecases/ | **ABIERTO** |
 | **B22** (45 tests fallando preexistente) | `pytest tests/ -q --tb=no 2>&1 | grep -E "^(FAILED|ERROR)" | sort | wc -l` → 45 (idéntico antes y después de B11) | Tras cualquier cambio | **ABIERTO** (verificar si son de entorno o código) |
