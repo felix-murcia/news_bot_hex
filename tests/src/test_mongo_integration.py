@@ -7,6 +7,8 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime, timezone, timedelta
 
+pytestmark = pytest.mark.integration
+
 
 # ============================================================
 # MongoDB Connection Tests

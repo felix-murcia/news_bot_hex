@@ -418,6 +418,7 @@ class TestGoogleImagesDetailed:
         ids = get_used_ids()
         assert isinstance(ids, set)
 
+    @pytest.mark.integration
     def test_add_used_id_error_handling(self):
         from src.shared.adapters.google_images_fetcher import add_used_id
 
@@ -445,6 +446,7 @@ class TestUnsplashDetailed:
         ids = get_used_ids()
         assert isinstance(ids, set)
 
+    @pytest.mark.integration
     def test_add_used_id_error_handling(self):
         from src.shared.adapters.unsplash_fetcher import add_used_id
 

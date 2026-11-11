@@ -15,6 +15,8 @@ import os
 import sys
 from typing import Optional
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.production
 class TestDatabaseConfiguration:
