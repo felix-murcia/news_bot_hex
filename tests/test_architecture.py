@@ -515,16 +515,16 @@ class TestAdapterPortCompliance:
     """Key adapters must inherit from their port ABC."""
 
     ADAPTER_PORT_PAIRS = [
-        ("shared/adapters/audio_converter.py", "AudioConverterPort"),
-        ("shared/adapters/audio_post_processor.py", "AudioPostProcessorPort"),
-        ("audio/infrastructure/adapters/audio_fetcher.py", "AudioFetcherPort"),
-        ("audio/infrastructure/adapters/audio_transcriber.py", "AudioTranscriberPort"),
-        ("video/infrastructure/adapters/video_fetcher.py", "VideoFetcherPort"),
-        ("video/infrastructure/adapters/video_transcriber.py", "VideoTranscriberPort"),
-        ("shared/adapters/ai/gemini_adapter.py", "AIModelPort"),
-        ("shared/adapters/ai/groq_adapter.py", "AIModelPort"),
-        ("shared/adapters/ai/openrouter_adapter.py", "AIModelPort"),
-        ("shared/adapters/ai/local_adapter.py", "AIModelPort"),
+        ("src/shared/adapters/audio_converter.py", "AudioConverterPort"),
+        ("src/shared/adapters/audio_post_processor.py", "AudioPostProcessorPort"),
+        ("src/audio/infrastructure/adapters/audio_fetcher.py", "AudioFetcherPort"),
+        ("src/audio/infrastructure/adapters/audio_transcriber.py", "AudioTranscriberPort"),
+        ("src/video/infrastructure/adapters/video_fetcher.py", "VideoFetcherPort"),
+        ("src/video/infrastructure/adapters/video_transcriber.py", "VideoTranscriberPort"),
+        ("src/shared/adapters/ai/gemini_adapter.py", "AIModelPort"),
+        ("src/shared/adapters/ai/groq_adapter.py", "AIModelPort"),
+        ("src/shared/adapters/ai/openrouter_adapter.py", "AIModelPort"),
+        ("src/shared/adapters/ai/local_adapter.py", "AIModelPort"),
     ]
 
     @pytest.mark.parametrize("adapter_path,port_name", ADAPTER_PORT_PAIRS,
