@@ -243,7 +243,7 @@ news_bot_hex/
 
 ### 7.2 Publishers
 
-> ⚠️ **No existe adaptador de X/Twitter.** `X_API_KEY`/`X_API_SECRET` existen en `settings.py:170-171` pero ningún adaptador los consume — credenciales huérfanas (B16).
+> **X/Twitter: no soportado.** No existe adaptador de X/Twitter.
 
 | Plataforma | Adaptador | Variables `.env` |
 |-----------|-----------|-----------------|
@@ -251,7 +251,9 @@ news_bot_hex/
 | Bluesky | `publishers/bluesky_publisher_adapter.py` + raíz `bluesky_publisher.py` | `BLUESKY_HANDLE`, `BLUESKY_APP_PASSWORD` |
 | Mastodon | `publishers/mastodon_publisher_adapter.py` + raíz `mastodon_publisher.py` | `MASTODON_ACCESS_TOKEN`, `MASTODON_INSTANCE_URL` |
 | Facebook | `publishers/facebook_publisher_adapter.py` + raíz `facebook_publisher.py` | `FACEBOOK_PAGE_ID`, `FACEBOOK_PAGE_ACCESS_TOKEN` — cableado en facade (pipelines auto); CLI manual vía directa (flujo separado) |
-| ~~X/Twitter~~ | ⚠️ **No implementado** | `X_API_KEY`, `X_API_SECRET` huérfanas (B16) |
+| ~~X/Twitter~~ | ⚠️ **No implementado** | — (B16 cerrado) |
+
+**X/Twitter: no soportado.** Las 5 credenciales (`X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_SECRET`, `X_BEARER_TOKEN`) fueron eliminadas en B16 (2026-11-11) por ser huérfanas sin adaptador. Si se quiere soportar X en el futuro, implementar `x_publisher_adapter.py`, cablearlo en `composition_root.py` (y en el facade si se decide incluirlo), y añadir las credenciales de nuevo.
 
 **Métodos del facade `SocialMediaPublisher` (`src/shared/adapters/publishers/social.py`):**
 - `publish(post)` — single-post: publica un post concreto en plataformas habilitadas.
@@ -454,7 +456,7 @@ systemctl --user status news-bot-pipeline.timer
 | `APP_API_KEY` | ✅ | — | API key — **obligatoria para todo excepto `/health`** |
 | `WP_*` | Cond. | — | WordPress |
 | `BLUESKY_*`, `FACEBOOK_*`, `MASTODON_*` | Cond. | — | Redes sociales |
-| `X_API_*` | — | — | ⚠️ **Huérfanas** (B16)
+| `X_API_*` | — | — | No soportado; 5 credenciales eliminadas (B16, 2026-11-11)
 
 ---
 
@@ -487,3 +489,6 @@ systemctl --user status news-bot-pipeline.timer
 | **B11** (main() en application→cli) | `rg -n "^def main(" src/news/application/usecases/ src/audio/application/usecases/ src/video/application/usecases/` → vacío (main eliminado); `rg -n "def main_" src/*/entrypoints/cli/__init__.py` → `main_news_to_news` (188), `main_audio_to_news` (28), `main_video_to_news` (53) presentes | Tras cambios en entrypoints/cli/ | **CERRADO** (2026-11-11: commits `01e20b9`, `533d2ba`, `531a377`; `main()` movido a `entrypoints/cli/`, `_save_outputs` se queda en application/) |
 | **B11b** (_save_outputs en application/) | `rg -n "_save_outputs" src/*/application/` → `news_to_news.py:153,244`, `audio_to_news.py:245,282`, `video_to_news.py:254,296`; sigue en application/, debe moverse al repositorio o al use-case | Tras cambios en application/usecases/ | **ABIERTO** |
 | **B22** (45 tests fallando preexistente) | `pytest tests/ -q --tb=no 2>&1 | grep -E "^(FAILED|ERROR)" | sort | wc -l` → 45 (idéntico antes y después de B11) | Tras cualquier cambio | **ABIERTO** (verificar si son de entorno o código). Incluye 6 en `tests/src/test_process_url_endpoint.py` (`TestNewsToNewsUseCaseForceExtractParameter`, `TestProcessNewsUrlFunction`) por firma `NewsToNewsUseCase`/`process_news_url` sin repos actualizados (preexistentes a B13-fix, verificados en `4852e41~1`). |
+| **B16** (5 credenciales X/Twitter huérfanas) | `grep -rn "X_API_KEY\|X_API_SECRET\|X_ACCESS_TOKEN\|X_ACCESS_SECRET\|X_BEARER_TOKEN" config/ .env.example src/` → vacío fuera de docs/histórico; no hay adaptador X | Tras cambios en settings/env | **CERRADO** (2026-11-11: eliminadas de `settings.API_KEYS` y `.env.example`; X no soportado, documentado en §7.2) |
+| **B16b** (`TWITTER_POST_LIMIT` + opción Twitter/X en UI) | `settings.py:91` (`"twitter": ...TWITTER_POST_LIMIT`), `frontend/src/features/news/NewsTab.tsx:30` | — | **ABIERTO** — decisión de producto: ¿ocultar de UI o mantener para futuro? |
+| **B16c** (`ALLOWED_VIDEO_DOMAINS` incluye `twitter.com`) | `settings.py:246`, `.env.example:244` | — | **ABIERTO** — decisión de producto: ¿mantener transcripción de vídeos externos o eliminar? |
