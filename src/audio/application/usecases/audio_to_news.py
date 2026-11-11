@@ -309,32 +309,4 @@ def process_audio_url(
     return processor.process_audio_url(url)
 
 
-def main():
-    import argparse
-    from config.settings import Settings
 
-    parser = argparse.ArgumentParser(description="Procesar audio y generar artículo")
-    parser.add_argument("url", help="URL del audio")
-    parser.add_argument(
-        "--model",
-        type=str,
-        default=Settings.AI_PROVIDER,
-        choices=Settings.SUPPORTED_AI_PROVIDERS,
-        help="Modelo de IA a usar",
-    )
-    parser.add_argument("--local", action="store_true", help="Usar solo modelo local")
-
-    args = parser.parse_args()
-
-    result = process_audio_url(
-        url=args.url,
-        model_provider=args.model,
-        use_ai=not args.local,
-    )
-    print(f"✅ Procesado: {args.url}")
-    print(f"📄 Artículo: {len(result['article'])} caracteres")
-    print(f"🐦 Tweet: {result['post'][:100]}...")
-
-
-if __name__ == "__main__":
-    main()

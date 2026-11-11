@@ -27,14 +27,39 @@ def main_fetch():
 
 def main_audio_to_news():
     """Punto de entrada para procesar audio y generar artículo."""
+    import argparse
     import sys
 
+    from config.settings import Settings
+
     if len(sys.argv) < 3:
-        print("Usage: python -m src.audio.entrypoints.cli process <audio_url>")
+        print(
+            "Uso: python -m src.audio.entrypoints.cli process <audio_url> "
+            "[--model X] [--local]"
+        )
         return
 
     url = sys.argv[2]
-    result = process_audio_url(url)
+
+    parser = argparse.ArgumentParser(
+        description="Procesar audio y generar artículo",
+        add_help=False,
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=Settings.AI_PROVIDER,
+        choices=Settings.SUPPORTED_AI_PROVIDERS,
+        help="Modelo de IA a usar",
+    )
+    parser.add_argument("--local", action="store_true", help="Usar solo modelo local")
+    args, _ = parser.parse_known_args(sys.argv[3:])
+
+    result = process_audio_url(
+        url=url,
+        model_provider=args.model,
+        use_ai=not args.local,
+    )
 
     logger.info(f"[AUDIO] Procesado: {url}")
     print(f"✅ Artículo: {len(result.get('article', ''))} caracteres")
