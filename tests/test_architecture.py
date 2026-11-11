@@ -9,8 +9,8 @@ These tests enforce that:
 6. No infrastructure.adapters imports in application/
 7. Inline imports inside try/except that catch ImportError are allowed (optional deps)
 
-Existing inline imports (109 in application/ + domain/) are allowlisted in
-ALLOWED_INLINE_IMPORTS with # TODO B20 until B20 removes them.
+Allowed imports (top-level + inline) in application/ + domain/ are allowlisted in
+ALLOWED_IMPORTS with # TODO B20 until B20 removes them.
 """
 
 import ast
@@ -46,7 +46,7 @@ INFRASTRUCTURE_PREFIXES = (
 # Cada entrada con comentario # TODO B20. No incluir imports dentro de try/except
 # que capturen ImportError/ModuleNotFoundError (están permitidos por el helper).
 # 129 imports inline existentes en application/ + domain/ allowlisteados hasta B20.
-ALLOWED_INLINE_IMPORTS: dict[str, set[tuple[int, str]]] = {
+ALLOWED_IMPORTS: dict[str, set[tuple[int, str]]] = {
     "audio/application/usecases/audio_pipeline.py": {
         (10, "config.logging_config"),  # TODO B20
         (47, "src.shared.infrastructure.composition_root"),  # TODO B20
@@ -390,7 +390,7 @@ class TestDomainLayerBoundary:
                 pytest.skip(f"Syntax error in {filepath}")
         inline = _get_inline_imports(tree)
         rel = _relative_path(filepath)
-        allowed = ALLOWED_INLINE_IMPORTS.get(rel, set())
+        allowed = ALLOWED_IMPORTS.get(rel, set())
         violations = [
             (line, mod) for line, mod in inline
             if (line, mod) not in allowed
@@ -412,7 +412,7 @@ class TestDomainLayerBoundary:
                 pytest.skip(f"Syntax error in {filepath}")
         all_imports = _get_all_imports(tree)
         rel = _relative_path(filepath)
-        allowed = ALLOWED_INLINE_IMPORTS.get(rel, set())
+        allowed = ALLOWED_IMPORTS.get(rel, set())
         violations = [
             (line, mod) for line, mod in all_imports
             if mod.startswith("config.")
@@ -452,7 +452,7 @@ class TestApplicationLayerBoundary:
                 pytest.skip(f"Syntax error in {filepath}")
         inline = _get_inline_imports(tree)
         rel = _relative_path(filepath)
-        allowed = ALLOWED_INLINE_IMPORTS.get(rel, set())
+        allowed = ALLOWED_IMPORTS.get(rel, set())
         violations = [
             (line, mod) for line, mod in inline
             if (line, mod) not in allowed
@@ -474,7 +474,7 @@ class TestApplicationLayerBoundary:
                 pytest.skip(f"Syntax error in {filepath}")
         all_imports = _get_all_imports(tree)
         rel = _relative_path(filepath)
-        allowed = ALLOWED_INLINE_IMPORTS.get(rel, set())
+        allowed = ALLOWED_IMPORTS.get(rel, set())
         violations = [
             (line, mod) for line, mod in all_imports
             if mod.startswith("config.")
@@ -497,7 +497,7 @@ class TestApplicationLayerBoundary:
                 pytest.skip(f"Syntax error in {filepath}")
         all_imports = _get_all_imports(tree)
         rel = _relative_path(filepath)
-        allowed = ALLOWED_INLINE_IMPORTS.get(rel, set())
+        allowed = ALLOWED_IMPORTS.get(rel, set())
         violations = [
             (line, mod) for line, mod in all_imports
             if (".infrastructure.adapters" in mod or ".adapters" in mod)
