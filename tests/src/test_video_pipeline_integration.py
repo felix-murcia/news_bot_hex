@@ -18,7 +18,7 @@ class TestVideoPipelineIntegration:
         """Test VideoToNewsUseCase with a mocked video."""
         from src.video.application.usecases import VideoToNewsUseCase
 
-        use_case = VideoToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], use_ai=False)
+        use_case = VideoToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_mp3=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), use_ai=False)
         assert use_case.use_ai is False
 
     def test_article_from_video_with_mock(self):
@@ -51,7 +51,7 @@ class TestVideoPipelineIntegration:
             cache_dir=Path("/tmp"),
             wp_site_url="https://test.example",
             copyright_domains=[],
-            use_ai=True,
+            download_mp3=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), use_ai=True,
             model_provider=Settings.AI_PROVIDER,
         )
         assert use_case.use_ai is True
@@ -79,7 +79,7 @@ class TestVideoPipelineWorkflow:
         from src.video.application.usecases import VideoToNewsUseCase
         from src.video.application.usecases import ArticleFromVideoUseCase
 
-        video_use_case = VideoToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], use_ai=False)
+        video_use_case = VideoToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_mp3=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), use_ai=False)
         article_use_case = ArticleFromVideoUseCase(llm_provider="mock")
 
         assert video_use_case is not None
@@ -132,7 +132,7 @@ class TestVideoAIProviders:
             cache_dir=Path("/tmp"),
             wp_site_url="https://test.example",
             copyright_domains=[],
-            model_provider=Settings.AI_PROVIDER,
+            download_mp3=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), model_provider=Settings.AI_PROVIDER,
             use_ai=True,
         )
         assert use_case.model_provider == Settings.AI_PROVIDER
@@ -149,7 +149,7 @@ class TestVideoAIProviders:
                 cache_dir=Path("/tmp"),
                 wp_site_url="https://test.example",
                 copyright_domains=[],
-                model_provider=provider,
+                download_mp3=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), model_provider=provider,
                 use_ai=use_ai,
             )
             assert use_case.model_provider == provider
@@ -164,7 +164,7 @@ class TestVideoAIProviders:
             cache_dir=Path("/tmp"),
             wp_site_url="https://test.example",
             copyright_domains=[],
-            model_provider="mock",
+            download_mp3=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), model_provider="mock",
             use_ai=False,
         )
         assert use_case.model_provider == "mock"
@@ -175,7 +175,7 @@ class TestVideoAIProviders:
         from src.video.application.usecases import VideoToNewsUseCase
 
         # Test default behavior uses Settings
-        use_case = VideoToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], use_ai=True)
+        use_case = VideoToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_mp3=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), use_ai=True)
         # If no model_provider passed, it should use Settings.AI_PROVIDER as default
         # (This depends on the implementation)
         assert use_case.use_ai is True

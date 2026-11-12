@@ -44,16 +44,21 @@ def audio_process(req: AudioRequest):
     try:
         from config.settings import Settings
         from src.audio.application.usecases.audio_to_news import AudioToNewsUseCase
+        from src.audio.infrastructure.adapters.audio_fetcher import download_audio, transcribe_audio
+        from src.shared.adapters.audio_converter import AudioConverter
         from src.shared.infrastructure.composition_root import create_debug_output_repository
 
         model_provider = req.get_model_provider()
         processor = AudioToNewsUseCase(
             debug_output_repo=create_debug_output_repository(),
             cache_dir=Settings.CACHE_DIR,
-            use_ai=True,
-            model_provider=model_provider,
             wp_site_url=Settings.WP_SITE_URL,
             copyright_domains=Settings.VIDEO_COPYRIGHT_DOMAINS,
+            download_audio=download_audio,
+            transcribe_audio=transcribe_audio,
+            has_audio_stream=AudioConverter().has_audio_stream,
+            use_ai=True,
+            model_provider=model_provider,
         )
         result = processor.process_audio_url(req.url)
         return PipelineResponse(

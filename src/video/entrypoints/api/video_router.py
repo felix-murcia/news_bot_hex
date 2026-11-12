@@ -43,17 +43,23 @@ def video_process(req: VideoRequest):
     """Process video URL and generate article + tweet."""
     try:
         from config.settings import Settings
-        from src.video.application.usecases.video_to_news import VideoToNewsUseCase
+        from src.shared.adapters.audio_converter import AudioConverter
         from src.shared.infrastructure.composition_root import create_debug_output_repository
+        from src.video.application.usecases.video_to_news import VideoToNewsUseCase
+        from src.video.infrastructure.adapters.video_fetcher import download_mp3
+        from src.video.infrastructure.adapters.video_transcriber import transcribe_audio
 
         model_provider = req.get_model_provider()
         processor = VideoToNewsUseCase(
             debug_output_repo=create_debug_output_repository(),
             cache_dir=Settings.CACHE_DIR,
-            use_ai=True,
-            model_provider=model_provider,
             wp_site_url=Settings.WP_SITE_URL,
             copyright_domains=Settings.VIDEO_COPYRIGHT_DOMAINS,
+            download_mp3=download_mp3,
+            transcribe_audio=transcribe_audio,
+            has_audio_stream=AudioConverter().has_audio_stream,
+            use_ai=True,
+            model_provider=model_provider,
         )
         result = processor.process_video_url(req.url)
         return PipelineResponse(

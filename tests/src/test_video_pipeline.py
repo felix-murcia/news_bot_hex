@@ -30,7 +30,7 @@ class TestVideoToNewsUseCase:
         from src.video.application.usecases import VideoToNewsUseCase
 
         use_case = VideoToNewsUseCase(
-            debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], use_ai=True, model_provider=Settings.AI_PROVIDER
+            debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_mp3=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), use_ai=True, model_provider=Settings.AI_PROVIDER
         )
         assert use_case.use_ai is True
         assert use_case.model_provider == Settings.AI_PROVIDER
@@ -85,7 +85,7 @@ class TestVideoPipeline:
         from src.video.application.usecases import VideoToNewsUseCase
         from src.video.application.usecases import ArticleFromVideoUseCase
 
-        use_case = VideoToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], use_ai=False)
+        use_case = VideoToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_mp3=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), use_ai=False)
         assert use_case is not None
 
         article_use_case = ArticleFromVideoUseCase(llm_provider="mock")

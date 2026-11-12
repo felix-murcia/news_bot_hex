@@ -2,7 +2,7 @@ import uuid
 import json
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Callable
 
 import logging
 from src.shared.domain.ports.debug_output_repository import DebugOutputRepository
@@ -21,23 +21,6 @@ def check_copyright(url: str, domains: List[str]) -> bool:
     return any(domain in url_lower for domain in domains)
 
 
-def validate_video(video_path: Path) -> bool:
-    """Valida que el video tiene audio."""
-    try:
-        if not video_path.exists():
-            logger.warning(f"[VIDEO] Video no encontrado: {video_path}")
-            return False
-        from src.video.infrastructure.adapters.video_transcriber import has_audio_stream
-
-        if not has_audio_stream(str(video_path)):
-            logger.warning(f"[VIDEO] El video no tiene pista de audio: {video_path}")
-            return False
-        return True
-    except Exception as e:
-        logger.error(f"[VIDEO] Error validando video {video_path}: {e}")
-        return False
-
-
 class VideoToNewsUseCase:
     """Caso de uso para procesar videos y generar artículos."""
 
@@ -47,6 +30,9 @@ class VideoToNewsUseCase:
         cache_dir: Path,
         wp_site_url: str,
         copyright_domains: List[str],
+        download_mp3: Callable[[str], Optional[str]],
+        transcribe_audio: Callable[[str], str],
+        has_audio_stream: Callable[[str], bool],
         use_ai: bool = True,
         model_provider: str = "gemini",
         ai_config: Optional[dict] = None,
@@ -60,6 +46,19 @@ class VideoToNewsUseCase:
         self._cache_dir = Path(cache_dir)
         self._wp_site_url = wp_site_url.rstrip("/")
         self._copyright_domains = list(copyright_domains)
+        self._download_mp3 = download_mp3
+        self._transcribe_audio = transcribe_audio
+        self._has_audio_stream = has_audio_stream
+
+    def _validate_video(self, video_path: Path) -> bool:
+        """Valida que el video tiene audio."""
+        if not video_path.exists():
+            logger.warning(f"[VIDEO] Video no encontrado: {video_path}")
+            return False
+        if not self._has_audio_stream(str(video_path)):
+            logger.warning(f"[VIDEO] El video no tiene pista de audio: {video_path}")
+            return False
+        return True
 
     def _generate_unique_slug(self, title: str, content: str, tema: str) -> str:
         """Generate a unique, SEO-friendly slug from title and content."""
@@ -159,17 +158,13 @@ class VideoToNewsUseCase:
             logger.info(f"[VIDEO] Reutilizando transcripción cacheada")
             return transcript_path.read_text(encoding="utf-8")
 
-        from src.video.infrastructure.adapters.video_fetcher import download_mp3
-
         logger.info(f"[VIDEO] Descargando audio MP3 del video: {url}")
-        audio_path = download_mp3(url)
+        audio_path = self._download_mp3(url)
         if not audio_path:
             raise ValueError(f"No se pudo descargar el audio del video: {url}")
 
         logger.info(f"[VIDEO] Transcribiendo audio MP3")
-        from src.video.infrastructure.adapters.video_transcriber import transcribe_audio
-
-        transcript = transcribe_audio(audio_path)
+        transcript = self._transcribe_audio(audio_path)
 
         transcript_path.write_text(transcript, encoding="utf-8")
         logger.info(f"[VIDEO] Transcripción guardada")

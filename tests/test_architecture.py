@@ -56,7 +56,6 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
     "audio/application/usecases/audio_to_news.py": {
         "config.settings",  # TODO B20
         "src.shared.adapters.ai.ai_factory",  # TODO B20
-        "src.audio.infrastructure.adapters.audio_fetcher",  # TODO B20
         "src.shared.adapters.ai.agents",  # TODO B20
         "src.shared.adapters.social_post_adapter",  # TODO B20
         "src.shared.adapters.content_post_editor",  # TODO B20
@@ -157,9 +156,7 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
     },
     "video/application/usecases/video_to_news.py": {
         "config.settings",  # TODO B20
-        "src.video.infrastructure.adapters.video_transcriber",  # TODO B20
         "src.shared.adapters.ai.ai_factory",  # TODO B20
-        "src.video.infrastructure.adapters.video_fetcher",  # TODO B20
         "src.shared.adapters.ai.agents",  # TODO B20
         "src.shared.adapters.social_post_adapter",  # TODO B20
         "src.shared.adapters.content_post_editor",  # TODO B20

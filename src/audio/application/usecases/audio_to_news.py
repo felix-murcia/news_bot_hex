@@ -2,7 +2,7 @@ import uuid
 import json
 import re
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Callable
 import logging
 from src.shared.domain.ports.debug_output_repository import DebugOutputRepository
 
@@ -29,6 +29,9 @@ class AudioToNewsUseCase:
         cache_dir: Path,
         wp_site_url: str,
         copyright_domains: List[str],
+        download_audio: Callable[[str], Optional[str]],
+        transcribe_audio: Callable[[str], str],
+        has_audio_stream: Callable[[str], bool],
         use_ai: bool = True,
         model_provider: str = "gemini",
         ai_config: Optional[dict] = None,
@@ -42,6 +45,9 @@ class AudioToNewsUseCase:
         self._cache_dir = Path(cache_dir)
         self._wp_site_url = wp_site_url.rstrip("/")
         self._copyright_domains = list(copyright_domains)
+        self._download_audio = download_audio
+        self._transcribe_audio = transcribe_audio
+        self._has_audio_stream = has_audio_stream
 
     def _generate_unique_slug(self, title: str, content: str, tema: str) -> str:
         """Generate a unique, SEO-friendly slug from title and content."""
@@ -141,25 +147,18 @@ class AudioToNewsUseCase:
             logger.info(f"[AUDIO] Reutilizando transcripción cacheada")
             return transcript_path.read_text(encoding="utf-8")
 
-        from src.audio.infrastructure.adapters.audio_fetcher import (
-            download_audio,
-            has_audio_stream,
-        )
-
         if not audio_path.exists():
             logger.info(f"[AUDIO] Descargando audio: {url}")
-            downloaded_path = download_audio(url)
+            downloaded_path = self._download_audio(url)
             if not downloaded_path:
                 raise ValueError(f"No se pudo descargar el audio: {url}")
             audio_path = Path(downloaded_path)
 
-        if not has_audio_stream(str(audio_path)):
+        if not self._has_audio_stream(str(audio_path)):
             raise ValueError("El audio no tiene pista válida. No se puede transcribir.")
 
         logger.info(f"[AUDIO] Transcribiendo audio")
-        from src.audio.infrastructure.adapters.audio_fetcher import transcribe_audio
-
-        transcript = transcribe_audio(str(audio_path))
+        transcript = self._transcribe_audio(str(audio_path))
 
         transcript_path.write_text(transcript, encoding="utf-8")
         logger.info(f"[AUDIO] Transcripción guardada")

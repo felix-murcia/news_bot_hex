@@ -32,6 +32,8 @@ def main_audio_to_news():
     import sys
 
     from config.settings import Settings
+    from src.audio.infrastructure.adapters.audio_fetcher import download_audio, transcribe_audio
+    from src.shared.adapters.audio_converter import AudioConverter
 
     if len(sys.argv) < 3:
         print(
@@ -59,10 +61,13 @@ def main_audio_to_news():
     processor = AudioToNewsUseCase(
         debug_output_repo=create_debug_output_repository(),
         cache_dir=Settings.CACHE_DIR,
-        use_ai=not args.local,
-        model_provider=args.model,
         wp_site_url=Settings.WP_SITE_URL,
         copyright_domains=Settings.VIDEO_COPYRIGHT_DOMAINS,
+        download_audio=download_audio,
+        transcribe_audio=transcribe_audio,
+        has_audio_stream=AudioConverter().has_audio_stream,
+        use_ai=not args.local,
+        model_provider=args.model,
     )
     result = processor.process_audio_url(url)
 
