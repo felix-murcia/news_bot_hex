@@ -367,6 +367,9 @@ def main_pipeline():
     post_editor = __import__(
         "src.shared.adapters.content_post_editor", fromlist=["post_edit_content"]
     ).post_edit_content
+    cache_loader = __import__(
+        "src.shared.adapters.cache_manager", fromlist=["load_content_from_cache"]
+    ).load_content_from_cache
     posts = run_content(
         use_gemini=True,
         mode="news",
@@ -375,6 +378,7 @@ def main_pipeline():
         verified_news_repo=verified_news_repo,
         social_truncator=social_truncator,
         post_editor=post_editor,
+        cache_loader=cache_loader,
     )
     logger.info(f"[CONTENT] Finalizada generación de {len(posts)} post(s).")
 

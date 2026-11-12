@@ -10,15 +10,18 @@ class TestNewsToNewsUseCase:
 
     @staticmethod
     def _n2n_kwargs(mock_extractor, mock_articles_repo, mock_posts_repo, **extra):
-        return dict(
+        kwargs = dict(
             content_extractor=mock_extractor,
             generated_articles_repo=mock_articles_repo,
             generated_posts_repo=mock_posts_repo,
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
-            **extra,
+            cache_loader=Mock(return_value=(None, "no_cache")),
+            cache_saver=Mock(return_value=True),
         )
+        kwargs.update(extra)
+        return kwargs
 
     def test_init(self):
         from src.news.application.usecases.news_to_news import NewsToNewsUseCase
@@ -62,47 +65,70 @@ class TestNewsToNewsUseCase:
         result = check_copyright("https://youtube.com/watch?v=test")
         assert isinstance(result, bool)
 
-    @patch("src.shared.adapters.cache_manager.load_content_from_cache")
-    def test_load_from_cache_hit(self, mock_load):
+    def test_load_from_cache_hit(self):
         from src.news.application.usecases.news_to_news import NewsToNewsUseCase
         from src.news.domain.ports import GeneratedArticlesRepository, GeneratedPostsRepository
 
-        mock_load.return_value = ("Cached content", "cache_hit")
+        mock_loader = Mock(return_value=("Cached content", "cache_hit"))
         mock_extractor = Mock()
         mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
         mock_posts_repo = Mock(spec=GeneratedPostsRepository)
-        use_case = NewsToNewsUseCase(**self._n2n_kwargs(mock_extractor, mock_articles_repo, mock_posts_repo, use_ai=False))
+        use_case = NewsToNewsUseCase(
+            **self._n2n_kwargs(
+                mock_extractor,
+                mock_articles_repo,
+                mock_posts_repo,
+                use_ai=False,
+                cache_loader=mock_loader,
+            )
+        )
 
         result = use_case._load_from_cache("https://example.com")
         assert result is not None
+        assert result[0] == "Cached content"
+        mock_loader.assert_called_once_with("https://example.com", max_age_hours=24)
 
-    @patch("src.shared.adapters.cache_manager.load_content_from_cache")
-    def test_load_from_cache_miss(self, mock_load):
+    def test_load_from_cache_miss(self):
         from src.news.application.usecases.news_to_news import NewsToNewsUseCase
         from src.news.domain.ports import GeneratedArticlesRepository, GeneratedPostsRepository
 
-        mock_load.return_value = (None, "no_cache")
+        mock_loader = Mock(return_value=(None, "no_cache"))
         mock_extractor = Mock()
         mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
         mock_posts_repo = Mock(spec=GeneratedPostsRepository)
-        use_case = NewsToNewsUseCase(**self._n2n_kwargs(mock_extractor, mock_articles_repo, mock_posts_repo, use_ai=False))
+        use_case = NewsToNewsUseCase(
+            **self._n2n_kwargs(
+                mock_extractor,
+                mock_articles_repo,
+                mock_posts_repo,
+                use_ai=False,
+                cache_loader=mock_loader,
+            )
+        )
 
         result = use_case._load_from_cache("https://example.com")
         assert result is None
 
-    @patch("src.shared.adapters.cache_manager.save_content_to_cache")
-    def test_save_to_cache(self, mock_save):
+    def test_save_to_cache(self):
         from src.news.application.usecases.news_to_news import NewsToNewsUseCase
         from src.news.domain.ports import GeneratedArticlesRepository, GeneratedPostsRepository
 
-        mock_save.return_value = True
+        mock_saver = Mock(return_value=True)
         mock_extractor = Mock()
         mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
         mock_posts_repo = Mock(spec=GeneratedPostsRepository)
-        use_case = NewsToNewsUseCase(**self._n2n_kwargs(mock_extractor, mock_articles_repo, mock_posts_repo, use_ai=False))
+        use_case = NewsToNewsUseCase(
+            **self._n2n_kwargs(
+                mock_extractor,
+                mock_articles_repo,
+                mock_posts_repo,
+                use_ai=False,
+                cache_saver=mock_saver,
+            )
+        )
 
         use_case._save_to_cache("https://example.com", "content")
-        mock_save.assert_called_once()
+        mock_saver.assert_called_once_with("https://example.com", "content", "news_to_news")
 
 
 class TestContentUseCase:
@@ -112,7 +138,7 @@ class TestContentUseCase:
         from src.news.application.usecases.content import ContentUseCase
         from unittest.mock import Mock
 
-        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, network="bluesky", use_ai=False)
+        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, cache_loader=Mock(return_value=(None, "no_cache")), network="bluesky", use_ai=False)
         assert use_case.network == "bluesky"
         assert use_case.use_ai is False
         assert use_case.MAX_CHARS == 300
@@ -121,21 +147,21 @@ class TestContentUseCase:
         from src.news.application.usecases.content import ContentUseCase
         from unittest.mock import Mock
 
-        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, network="twitter", use_ai=False)
+        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, cache_loader=Mock(return_value=(None, "no_cache")), network="twitter", use_ai=False)
         assert use_case.MAX_CHARS == 280
 
     def test_init_mastodon(self):
         from src.news.application.usecases.content import ContentUseCase
         from unittest.mock import Mock
 
-        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, network="mastodon", use_ai=False)
+        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, cache_loader=Mock(return_value=(None, "no_cache")), network="mastodon", use_ai=False)
         assert use_case.MAX_CHARS == 500
 
     def test_init_facebook(self):
         from src.news.application.usecases.content import ContentUseCase
         from unittest.mock import Mock
 
-        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, network="facebook", use_ai=False)
+        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, cache_loader=Mock(return_value=(None, "no_cache")), network="facebook", use_ai=False)
         assert use_case.MAX_CHARS == 63206
 
 

@@ -57,7 +57,7 @@ class TestContentUseCaseDetailed:
         from unittest.mock import Mock
 
         for network, limit in [("bluesky", 300), ("twitter", 280), ("mastodon", 500)]:
-            use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, network=network, use_ai=False)
+            use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, cache_loader=Mock(return_value=(None, "no_cache")), network=network, use_ai=False)
             assert use_case.MAX_CHARS == limit
 
 
@@ -77,6 +77,7 @@ class TestContentRefusalGuard:
             generated_posts_repo=Mock(),
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
+            cache_loader=Mock(return_value=(None, "no_cache")),
             network="mastodon",
             use_ai=True,
             ai_model=Mock(),
@@ -149,6 +150,7 @@ class TestContentRefusalGuard:
             generated_posts_repo=Mock(),
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
+            cache_loader=Mock(return_value=(None, "no_cache")),
             network="mastodon",
             use_ai=True,
             ai_model=Mock(),

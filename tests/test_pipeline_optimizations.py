@@ -245,6 +245,7 @@ class TestVideoPathPropagation:
             video_generator_factory=Mock(return_value=video_gen),
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
+            cache_loader=Mock(return_value=(None, "no_cache")),
         )
 
         with patch("src.news.application.usecases.content.run_content"), \
@@ -309,6 +310,7 @@ class TestVideoPathPropagation:
             video_generator_factory=Mock(return_value=video_gen),
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
+            cache_loader=Mock(return_value=(None, "no_cache")),
         )
 
         with patch("src.news.application.usecases.content.run_content"), \

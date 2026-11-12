@@ -21,6 +21,7 @@ class ContentUseCase:
         generated_posts_repo: GeneratedPostsRepository,
         social_truncator: Callable[..., str],
         post_editor: Callable[..., str],
+        cache_loader: Callable[..., tuple[Optional[str], str]],
         network: str = "bluesky",
         use_ai: bool = True,
         ai_config: Optional[dict] = None,
@@ -32,6 +33,7 @@ class ContentUseCase:
         self.generated_posts_repo = generated_posts_repo
         self._social_truncator = social_truncator
         self._post_editor = post_editor
+        self._cache_loader = cache_loader
         self.network = network
         self.mode = mode
         self.MAX_CHARS = POST_LIMITS.get(network, 280)
@@ -121,9 +123,7 @@ class ContentUseCase:
 
     def _load_content_from_cache(self, url: str) -> Optional[str]:
         try:
-            from src.shared.adapters.cache_manager import load_content_from_cache
-
-            content, status = load_content_from_cache(url, max_age_hours=24)
+            content, status = self._cache_loader(url, max_age_hours=24)
             if content and status == "cache_hit":
                 return content
             return None
@@ -185,6 +185,7 @@ class ContentGeminiUseCase(ContentUseCase):
         generated_posts_repo: GeneratedPostsRepository,
         social_truncator: Callable[..., str],
         post_editor: Callable[..., str],
+        cache_loader: Callable[..., tuple[Optional[str], str]],
         network: str = "bluesky",
         use_gemini: bool = True,
         gemini_config: Optional[dict] = None,
@@ -198,6 +199,7 @@ class ContentGeminiUseCase(ContentUseCase):
             generated_posts_repo=generated_posts_repo,
             social_truncator=social_truncator,
             post_editor=post_editor,
+            cache_loader=cache_loader,
             network=network,
             use_ai=use_gemini,
             ai_config=gemini_config,
@@ -219,6 +221,7 @@ def run_content(
     verified_news_repo: VerifiedNewsRepository,
     social_truncator: Callable[..., str],
     post_editor: Callable[..., str],
+    cache_loader: Callable[..., tuple[Optional[str], str]],
 ) -> List[Dict]:
     """Función principal para generar tweets."""
     provider = model_provider or "local"
@@ -228,6 +231,7 @@ def run_content(
         generated_posts_repo=generated_posts_repo,
         social_truncator=social_truncator,
         post_editor=post_editor,
+        cache_loader=cache_loader,
         network=network,
         use_ai=use_gemini,
         ai_config=gemini_config,
@@ -267,6 +271,9 @@ def main():
     post_editor = __import__(
         "src.shared.adapters.content_post_editor", fromlist=["post_edit_content"]
     ).post_edit_content
+    cache_loader = __import__(
+        "src.shared.adapters.cache_manager", fromlist=["load_content_from_cache"]
+    ).load_content_from_cache
 
     results = run_content(
         network=args.network,
@@ -277,6 +284,7 @@ def main():
         verified_news_repo=create_verified_news_repository(),
         social_truncator=social_truncator,
         post_editor=post_editor,
+        cache_loader=cache_loader,
     )
 
     if results:

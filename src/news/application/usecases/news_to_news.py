@@ -33,6 +33,8 @@ class NewsToNewsUseCase:
         social_truncator: Callable[..., str],
         post_editor: Callable[..., str],
         tts_text_processor: Any,
+        cache_loader: Callable[..., tuple[Optional[str], str]],
+        cache_saver: Callable[..., bool],
         tts_usecase: Any = None,
         use_ai: bool = True,
         model_provider: str = "gemini",
@@ -62,6 +64,8 @@ class NewsToNewsUseCase:
         self._social_truncator = social_truncator
         self._post_editor = post_editor
         self._tts_text_processor = tts_text_processor
+        self._cache_loader = cache_loader
+        self._cache_saver = cache_saver
         self._tts_usecase = tts_usecase
 
     def _get_article_generator(self):
@@ -83,9 +87,7 @@ class NewsToNewsUseCase:
 
     def _load_from_cache(self, url: str) -> Optional[tuple[str, Path]]:
         try:
-            from src.shared.adapters.cache_manager import load_content_from_cache
-
-            content, status = load_content_from_cache(url, max_age_hours=24)
+            content, status = self._cache_loader(url, max_age_hours=24)
             if content and status == "cache_hit":
                 cache_path = self._cache_dir / f"{hash(url)}.txt"
                 return content, cache_path
@@ -94,9 +96,7 @@ class NewsToNewsUseCase:
             return None
 
     def _save_to_cache(self, url: str, content: str):
-        from src.shared.adapters.cache_manager import save_content_to_cache
-
-        save_content_to_cache(url, content, "news_to_news")
+        self._cache_saver(url, content, "news_to_news")
 
     def _extract_content(self, url: str) -> tuple[str, Path]:
         """Extrae contenido de la URL."""
@@ -280,6 +280,8 @@ def process_news_url(
     social_truncator: Callable[..., str],
     post_editor: Callable[..., str],
     tts_text_processor: Any,
+    cache_loader: Callable[..., tuple[Optional[str], str]],
+    cache_saver: Callable[..., bool],
     tts_usecase: Any = None,
     model_provider: str = "gemini",
     use_ai: bool = True,
@@ -308,6 +310,8 @@ def process_news_url(
         social_truncator=social_truncator,
         post_editor=post_editor,
         tts_text_processor=tts_text_processor,
+        cache_loader=cache_loader,
+        cache_saver=cache_saver,
         tts_usecase=tts_usecase,
     )
     return processor.process_url(url)

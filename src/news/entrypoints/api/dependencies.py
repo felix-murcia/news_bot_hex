@@ -234,7 +234,14 @@ def get_soft_verify_usecase(
 ):
     """Use case para soft verify (seleccionar noticia para publicar)."""
     from src.news.application.usecases.soft_verify import SoftVerifyUseCase
-    return SoftVerifyUseCase(verified_repo, published_urls_repo, content_extractor)
+    from src.shared.adapters.cache_manager import clear_old_cache, load_content_from_cache
+    return SoftVerifyUseCase(
+        verified_repo,
+        published_urls_repo,
+        content_extractor,
+        cache_loader=load_content_from_cache,
+        cache_clearer=clear_old_cache,
+    )
 
 
 def get_cleanup_usecase(
@@ -323,6 +330,7 @@ def get_process_url_content_processor(
     """Content processor function for process_url (wraps NewsToNewsUseCase)."""
     from src.news.application.usecases.news_to_news import process_news_url
     from config.settings import Settings
+    from src.shared.adapters.cache_manager import load_content_from_cache, save_content_to_cache
     from src.shared.adapters.content_post_editor import post_edit_content
     from src.shared.adapters.social_post_adapter import truncate_social_post
     from src.shared.adapters.tts_text_processor import TTSTextProcessor
@@ -350,6 +358,8 @@ def get_process_url_content_processor(
             social_truncator=truncate_social_post,
             post_editor=post_edit_content,
             tts_text_processor=TTSTextProcessor(),
+            cache_loader=load_content_from_cache,
+            cache_saver=save_content_to_cache,
             tts_usecase=TTSFromArticleUseCase(
                 create_tts_adapter(), create_audio_converter(), TTSTextProcessor()
             ),
@@ -382,6 +392,7 @@ def get_process_url_usecase(
         run_wordpress,
     )
 
+    from src.shared.adapters.cache_manager import load_content_from_cache
     from src.shared.adapters.content_post_editor import post_edit_content
     from src.shared.adapters.social_post_adapter import truncate_social_post
 
@@ -405,6 +416,7 @@ def get_process_url_usecase(
         video_generator_factory=create_video_generator,
         social_truncator=truncate_social_post,
         post_editor=post_edit_content,
+        cache_loader=load_content_from_cache,
     )
     return pipeline.execute
 

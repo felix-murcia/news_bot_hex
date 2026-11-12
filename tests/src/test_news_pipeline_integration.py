@@ -115,6 +115,8 @@ class TestSoftVerifyUseCase:
             verified_repo=MongoVerifiedNewsRepository(),
             published_urls_repo=MongoPublishedUrlsRepository(),
             content_extractor=JinaContentExtractor(),
+            cache_loader=Mock(return_value=(None, "no_cache")),
+            cache_clearer=Mock(return_value=0),
         )
 
         assert use_case._verified_repo is not None
@@ -152,7 +154,7 @@ class TestContentGeminiUseCase:
         from src.news.application.usecases.content import ContentGeminiUseCase
 
         from unittest.mock import Mock
-        use_case = ContentGeminiUseCase(network="bluesky", use_gemini=True, verified_repo=Mock(), generated_posts_repo=Mock(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c)
+        use_case = ContentGeminiUseCase(network="bluesky", use_gemini=True, verified_repo=Mock(), generated_posts_repo=Mock(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, cache_loader=Mock(return_value=(None, "no_cache")))
 
         assert use_case is not None
 
@@ -182,6 +184,8 @@ class TestNewsToNewsUseCase:
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
+            cache_loader=Mock(return_value=(None, "no_cache")),
+            cache_saver=Mock(return_value=True),
         )
         assert use_case.use_ai == True
         assert use_case.model_provider == "local"
@@ -200,6 +204,8 @@ class TestNewsToNewsUseCase:
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
+            cache_loader=Mock(return_value=(None, "no_cache")),
+            cache_saver=Mock(return_value=True),
         )
         assert use_case.use_ai == False
 

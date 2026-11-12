@@ -196,6 +196,7 @@ def _run_pipeline(
         video_generator_factory,
         social_truncator=lambda t, limit=None: t,
         post_editor=lambda c, editor=None: c,
+        cache_loader=lambda url, max_age_hours=6: (None, "no_cache"),
     )
     assert started, "pipeline rejected: execution lock was still held"
 

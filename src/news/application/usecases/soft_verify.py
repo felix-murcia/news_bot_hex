@@ -7,10 +7,7 @@ from src.news.domain.ports import (
     PublishedUrlsRepository,
     ContentExtractor,
 )
-from src.shared.adapters.cache_manager import (
-    load_content_from_cache,
-    clear_old_cache,
-)
+from typing import Callable, Optional, Tuple
 
 import logging
 logger = logging.getLogger(__name__)
@@ -72,15 +69,19 @@ class SoftVerifyUseCase:
         verified_repo: VerifiedNewsRepository,
         published_urls_repo: PublishedUrlsRepository,
         content_extractor: ContentExtractor,
+        cache_loader: Callable[..., Tuple[Optional[str], str]],
+        cache_clearer: Callable[..., int],
     ):
         self._verified_repo = verified_repo
         self._published_urls_repo = published_urls_repo
         self._content_extractor = content_extractor
+        self._cache_loader = cache_loader
+        self._cache_clearer = cache_clearer
 
     def execute(self) -> dict:
         logger.info("[SOFT] ===== INICIANDO VERIFICADOR SOFT =====")
 
-        clear_old_cache(max_age_hours=72)
+        self._cache_clearer(max_age_hours=72)
 
         all_news = _load_verified_all(self._verified_repo)
         if not all_news:
@@ -172,7 +173,7 @@ class SoftVerifyUseCase:
     def _process_selected(self, selected_news: Dict, published_urls: Set[str]) -> dict:
         url = selected_news["url"]
 
-        cached_content, _ = load_content_from_cache(url)
+        cached_content, _ = self._cache_loader(url)
         if cached_content:
             selected_news["extracted_content"] = cached_content
             selected_news["extracted_content_length"] = len(cached_content)
@@ -221,11 +222,17 @@ def main():
         MongoPublishedUrlsRepository,
         MongoVerifiedNewsRepository,
     )
+    from src.shared.adapters.cache_manager import (  # TODO B11c (main/argparse)
+        clear_old_cache,
+        load_content_from_cache,
+    )
 
     use_case = SoftVerifyUseCase(
         verified_repo=MongoVerifiedNewsRepository(),
         published_urls_repo=MongoPublishedUrlsRepository(),
         content_extractor=JinaContentExtractor(),
+        cache_loader=load_content_from_cache,
+        cache_clearer=clear_old_cache,
     )
     return use_case.execute()
 

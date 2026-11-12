@@ -22,6 +22,8 @@ class TestNewsToNewsUseCaseForceExtractParameter:
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
+            cache_loader=Mock(return_value=(None, "no_cache")),
+            cache_saver=Mock(return_value=True),
         )
         assert use_case.force_extract is False
 
@@ -40,6 +42,8 @@ class TestNewsToNewsUseCaseForceExtractParameter:
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
+            cache_loader=Mock(return_value=(None, "no_cache")),
+            cache_saver=Mock(return_value=True),
         )
         assert use_case.force_extract is True
 
@@ -58,6 +62,8 @@ class TestNewsToNewsUseCaseForceExtractParameter:
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
+            cache_loader=Mock(return_value=(None, "no_cache")),
+            cache_saver=Mock(return_value=True),
         )
         assert use_case.force_extract is False
 
@@ -79,6 +85,8 @@ class TestNewsToNewsUseCaseForceExtractParameter:
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
+            cache_loader=Mock(return_value=(None, "no_cache")),
+            cache_saver=Mock(return_value=True),
         )
 
         with patch.object(NewsToNewsUseCase, "_load_from_cache") as mock_cache:
@@ -109,6 +117,8 @@ class TestNewsToNewsUseCaseForceExtractParameter:
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
+            cache_loader=Mock(return_value=(None, "no_cache")),
+            cache_saver=Mock(return_value=True),
         )
 
         with patch.object(
@@ -201,6 +211,8 @@ class TestProcessNewsUrlFunction:
                 social_truncator=lambda t, limit=None: t,
                 post_editor=lambda c, editor=None: c,
                 tts_text_processor=Mock(),
+                cache_loader=Mock(return_value=(None, "no_cache")),
+                cache_saver=Mock(return_value=True),
             )
 
             # Verify usecase was instantiated with force_extract=True
@@ -451,6 +463,7 @@ class ProcessUrlPipelineTestBase:
                 video_generator_factory=ctx["video_generator_factory"],
                 social_truncator=lambda t, limit=None: t,
                 post_editor=lambda c, editor=None: c,
+                cache_loader=Mock(return_value=(None, "no_cache")),
             )
             try:
                 pipeline.execute(self.PIPELINE_URL)

@@ -89,7 +89,6 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
         "src.shared.adapters.social_post_adapter",  # TODO B20
         "src.shared.adapters.content_post_editor",  # TODO B20
         "src.shared.adapters.ai.ai_factory",  # TODO B20
-        "src.shared.adapters.cache_manager",  # TODO B20
         "config.settings",  # TODO B11c (argparse)
         "src.shared.infrastructure.composition_root",  # TODO B11c (main/argparse)
         "argparse",  # TODO B20
@@ -97,7 +96,6 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
     "news/application/usecases/full_verify_usecase.py": set(),
     "news/application/usecases/news_to_news.py": {
         "src.news.application.usecases.article_from_news",  # TODO B20
-        "src.shared.adapters.cache_manager",  # TODO B20
         "src.shared.adapters.ai.agents",  # TODO B20
         "src.shared.adapters.social_post_adapter",  # TODO B20
         "src.shared.adapters.ai.ai_factory",  # TODO B20
@@ -120,7 +118,7 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
         "src.news.application.usecases.article",  # TODO B20
     },
     "news/application/usecases/soft_verify.py": {
-        "src.shared.adapters.cache_manager",  # TODO B20
+        "src.shared.adapters.cache_manager",  # TODO B11c (main/argparse)
         "src.news.infrastructure.adapters",  # TODO B11c (main/argparse repos)
     },
     "news/domain/services/template_renderer.py": {

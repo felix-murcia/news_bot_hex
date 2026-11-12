@@ -318,6 +318,7 @@ def news_content(
         from src.news.application.usecases.content import ContentUseCase
 
         model_provider = provider or Settings.AI_PROVIDER
+        from src.shared.adapters.cache_manager import load_content_from_cache
         from src.shared.adapters.content_post_editor import post_edit_content
         from src.shared.adapters.social_post_adapter import truncate_social_post
 
@@ -326,6 +327,7 @@ def news_content(
             generated_posts_repo=generated_posts_repo,
             social_truncator=truncate_social_post,
             post_editor=post_edit_content,
+            cache_loader=load_content_from_cache,
             network=network,
             model_provider=model_provider,
         )
@@ -384,6 +386,7 @@ def news_full_pipeline(
         tts_usecase = TTSFromArticleUseCase(
             create_tts_adapter(), create_audio_converter(), TTSTextProcessor()
         )
+        from src.shared.adapters.cache_manager import load_content_from_cache
         from src.shared.adapters.content_post_editor import post_edit_content
         from src.shared.adapters.social_post_adapter import truncate_social_post
 
@@ -404,6 +407,7 @@ def news_full_pipeline(
             create_video_generator,
             social_truncator=truncate_social_post,
             post_editor=post_edit_content,
+            cache_loader=load_content_from_cache,
         )
 
         if not started:

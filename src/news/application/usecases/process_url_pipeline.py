@@ -40,6 +40,7 @@ class ProcessUrlPipeline:
         video_generator_factory: Callable[[], VideoGeneratorPort],
         social_truncator: Callable[..., str],
         post_editor: Callable[..., str],
+        cache_loader: Callable[..., tuple[Optional[str], str]],
     ):
         self.content_extractor = content_extractor
         self.generated_articles_repo = generated_articles_repo
@@ -57,6 +58,7 @@ class ProcessUrlPipeline:
         self._video_generator_factory = video_generator_factory
         self._social_truncator = social_truncator
         self._post_editor = post_editor
+        self._cache_loader = cache_loader
 
     def execute(self, url: str, job_id: Optional[str] = None) -> dict:
         logger.info(f"[PROCESS_URL] Starting pipeline for: {url}")
@@ -149,6 +151,7 @@ class ProcessUrlPipeline:
                 verified_news_repo=self._verified_news_repo,
                 social_truncator=self._social_truncator,
                 post_editor=self._post_editor,
+                cache_loader=self._cache_loader,
             )
             # Fail-fast: run_content omite por-item las noticias cuya IA se
             # negó (baja calidad). En el pipeline automático eso es legítimo
