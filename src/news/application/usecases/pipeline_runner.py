@@ -130,6 +130,7 @@ class PipelineRunner:
         social_truncator: Callable[..., str],
         post_editor: Callable[..., str],
         cache_loader: Callable[..., tuple[Optional[str], str]],
+        seo_helpers,
     ):
         self._generated_articles_repo = generated_articles_repo
         self._generated_posts_repo = generated_posts_repo
@@ -147,6 +148,7 @@ class PipelineRunner:
         self._social_truncator = social_truncator
         self._post_editor = post_editor
         self._cache_loader = cache_loader
+        self._seo_helpers = seo_helpers
 
     def run(self, ctx: PipelineContext) -> None:
         from src.news.application.usecases.pipeline_executor import update_job_status
@@ -218,6 +220,7 @@ class PipelineRunner:
                         generated_articles_repo=self._generated_articles_repo,
                         generated_posts_repo=self._generated_posts_repo,
                         verified_news_repo=self._verified_news_repo,
+                        seo_helpers=self._seo_helpers,
                     ),
                     metrics_steps,
                     step_results,

@@ -17,6 +17,29 @@ import types
 from unittest.mock import patch
 
 from src.news.application.usecases import pipeline_executor
+
+
+from src.shared.adapters.seo_optimizer import (
+    slugify as seo_slugify,
+    extract_focus_keyphrase,
+    generate_meta_description,
+    generate_excerpt,
+    truncate_seo_title,
+    clean_title as seo_clean_title,
+)
+from src.shared.domain.services.seo_helpers import SeoHelpers
+
+
+def _seo_helpers():
+    return SeoHelpers(
+        slugify=seo_slugify,
+        extract_focus_keyphrase=extract_focus_keyphrase,
+        generate_meta_description=generate_meta_description,
+        truncate_seo_title=truncate_seo_title,
+        clean_title=seo_clean_title,
+        generate_excerpt=generate_excerpt,
+    )
+
 from src.news.domain.entities.pipeline_job import (
     JobStatus,
     ProcessingStepName,
@@ -197,6 +220,7 @@ def _run_pipeline(
         social_truncator=lambda t, limit=None: t,
         post_editor=lambda c, editor=None: c,
         cache_loader=lambda url, max_age_hours=6: (None, "no_cache"),
+        seo_helpers=_seo_helpers(),
     )
     assert started, "pipeline rejected: execution lock was still held"
 

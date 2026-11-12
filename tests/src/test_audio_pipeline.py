@@ -87,6 +87,7 @@ class TestArticleFromAudioUseCase:
             llm_provider=Settings.AI_PROVIDER,
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
+            context_enricher=lambda t, tema="": None,
         )
         assert use_case.llm_provider == Settings.AI_PROVIDER
 
@@ -117,6 +118,7 @@ class TestAudioPipeline:
             llm_provider=Settings.AI_PROVIDER,
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
+            context_enricher=lambda t, tema="": None,
         )
         assert article_use_case is not None
 
@@ -141,6 +143,7 @@ class TestAudioPipeline:
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
+            context_enricher=lambda t, tema="": None,
         )
         assert pipeline.video_generator is mock_generator
 
@@ -194,6 +197,7 @@ class TestAudioPipelineUseCase:
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
+            context_enricher=lambda t, tema="": None,
         )
         defaults.update(kwargs)
         return AudioPipelineUseCase(**defaults)

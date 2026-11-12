@@ -217,13 +217,31 @@ def get_article_usecase(
     """Use case para generar artículos."""
     from src.news.application.usecases.article import ArticleUseCase
     from config.settings import Settings
+    from src.shared.adapters.seo_optimizer import (
+        slugify as seo_slugify,
+        extract_focus_keyphrase,
+        generate_meta_description,
+        generate_excerpt,
+        truncate_seo_title,
+        clean_title as seo_clean_title,
+    )
+    from src.shared.domain.services.seo_helpers import SeoHelpers
 
+    seo_helpers = SeoHelpers(
+        slugify=seo_slugify,
+        extract_focus_keyphrase=extract_focus_keyphrase,
+        generate_meta_description=generate_meta_description,
+        truncate_seo_title=truncate_seo_title,
+        clean_title=seo_clean_title,
+        generate_excerpt=generate_excerpt,
+    )
     return ArticleUseCase(
         verified_repo=verified_repo,
         generated_posts_repo=generated_posts_repo,
         generated_articles_repo=generated_articles_repo,
         wp_site_url=Settings.WP_SITE_URL,
         wp_default_image_url=Settings.WP_DEFAULT_IMAGE_URL,
+        seo_helpers=seo_helpers,
     )
 
 
@@ -333,6 +351,7 @@ def get_process_url_content_processor(
     from src.shared.adapters.cache_manager import load_content_from_cache, save_content_to_cache
     from src.shared.adapters.content_post_editor import post_edit_content
     from src.shared.adapters.social_post_adapter import truncate_social_post
+    from src.shared.adapters.translator import translate_text
     from src.shared.adapters.tts_text_processor import TTSTextProcessor
     from src.shared.application.usecases.tts_from_article import TTSFromArticleUseCase
     from src.shared.infrastructure.composition_root import (
@@ -360,6 +379,7 @@ def get_process_url_content_processor(
             tts_text_processor=TTSTextProcessor(),
             cache_loader=load_content_from_cache,
             cache_saver=save_content_to_cache,
+            translator=translate_text,
             tts_usecase=TTSFromArticleUseCase(
                 create_tts_adapter(), create_audio_converter(), TTSTextProcessor()
             ),
@@ -394,8 +414,25 @@ def get_process_url_usecase(
 
     from src.shared.adapters.cache_manager import load_content_from_cache
     from src.shared.adapters.content_post_editor import post_edit_content
+    from src.shared.adapters.seo_optimizer import (
+        slugify as seo_slugify,
+        extract_focus_keyphrase,
+        generate_meta_description,
+        generate_excerpt,
+        truncate_seo_title,
+        clean_title as seo_clean_title,
+    )
     from src.shared.adapters.social_post_adapter import truncate_social_post
+    from src.shared.domain.services.seo_helpers import SeoHelpers
 
+    seo_helpers = SeoHelpers(
+        slugify=seo_slugify,
+        extract_focus_keyphrase=extract_focus_keyphrase,
+        generate_meta_description=generate_meta_description,
+        truncate_seo_title=truncate_seo_title,
+        clean_title=seo_clean_title,
+        generate_excerpt=generate_excerpt,
+    )
     tts_usecase = TTSFromArticleUseCase(
         create_tts_adapter(), create_audio_converter(), TTSTextProcessor()
     )
@@ -417,6 +454,7 @@ def get_process_url_usecase(
         social_truncator=truncate_social_post,
         post_editor=post_edit_content,
         cache_loader=load_content_from_cache,
+        seo_helpers=seo_helpers,
     )
     return pipeline.execute
 

@@ -389,6 +389,24 @@ def news_full_pipeline(
         from src.shared.adapters.cache_manager import load_content_from_cache
         from src.shared.adapters.content_post_editor import post_edit_content
         from src.shared.adapters.social_post_adapter import truncate_social_post
+        from src.shared.adapters.seo_optimizer import (
+            slugify as seo_slugify,
+            extract_focus_keyphrase,
+            generate_meta_description,
+            generate_excerpt,
+            truncate_seo_title,
+            clean_title as seo_clean_title,
+        )
+        from src.shared.domain.services.seo_helpers import SeoHelpers
+
+        seo_helpers = SeoHelpers(
+            slugify=seo_slugify,
+            extract_focus_keyphrase=extract_focus_keyphrase,
+            generate_meta_description=generate_meta_description,
+            truncate_seo_title=truncate_seo_title,
+            clean_title=seo_clean_title,
+            generate_excerpt=generate_excerpt,
+        )
 
         started = execute_pipeline_async(
             job_id,
@@ -408,6 +426,7 @@ def news_full_pipeline(
             social_truncator=truncate_social_post,
             post_editor=post_edit_content,
             cache_loader=load_content_from_cache,
+            seo_helpers=seo_helpers,
         )
 
         if not started:

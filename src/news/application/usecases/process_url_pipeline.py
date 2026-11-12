@@ -41,6 +41,7 @@ class ProcessUrlPipeline:
         social_truncator: Callable[..., str],
         post_editor: Callable[..., str],
         cache_loader: Callable[..., tuple[Optional[str], str]],
+        seo_helpers,
     ):
         self.content_extractor = content_extractor
         self.generated_articles_repo = generated_articles_repo
@@ -59,6 +60,7 @@ class ProcessUrlPipeline:
         self._social_truncator = social_truncator
         self._post_editor = post_editor
         self._cache_loader = cache_loader
+        self._seo_helpers = seo_helpers
 
     def execute(self, url: str, job_id: Optional[str] = None) -> dict:
         logger.info(f"[PROCESS_URL] Starting pipeline for: {url}")
@@ -182,6 +184,7 @@ class ProcessUrlPipeline:
                 generated_articles_repo=self.generated_articles_repo,
                 generated_posts_repo=self.generated_posts_repo,
                 verified_news_repo=self._verified_news_repo,
+                seo_helpers=self._seo_helpers,
             )
             # Fail-fast: si no se generó artículo para la url (p. ej. el post
             # no coincide con la URL verificada, o el LLM no devolvió cuerpo),

@@ -7,14 +7,7 @@ import logging
 from src.news.domain.ports import VerifiedNewsRepository, GeneratedPostsRepository, GeneratedArticlesRepository
 from src.shared.adapters.ai.agents import ArticleAgent
 from src.news.domain.services.template_renderer import TemplateRenderer
-from src.shared.adapters.seo_optimizer import (
-    slugify as seo_slugify,
-    extract_focus_keyphrase,
-    generate_meta_description,
-    generate_excerpt,
-    truncate_seo_title,
-    clean_title as seo_clean_title,
-)
+from src.shared.domain.services.seo_helpers import SeoHelpers
 
 logger = logging.getLogger(__name__)
 _TEMPLATE_PATH = (
@@ -83,14 +76,14 @@ def _limpiar_html(html: str) -> str:
     return html.strip()
 
 
-def _validar_titulo(titulo: str) -> str:
+def _validar_titulo(titulo: str, clean_title) -> str:
     if not titulo:
         return "Noticia de Última Hora"
     # Clean up AI output prefixes if any
     titulo = re.sub(r"(?i)^T[íi]tulo:\s*", "", titulo).strip()
     if len(titulo) < 10 or "un momento" in titulo.lower():
         return "Noticia de Última Hora"
-    return seo_clean_title(titulo)
+    return clean_title(titulo)
 
 
 def _extract_title_es(raw_html: str) -> str:
@@ -153,7 +146,10 @@ class ArticleUseCase:
         model_provider: str = "gemini",
         wp_site_url: str = "",
         wp_default_image_url: str = "",
+        seo_helpers: SeoHelpers = None,
     ):
+        if seo_helpers is None:
+            raise ValueError("seo_helpers es requerido")
         self.verified_repo = verified_repo
         self.generated_posts_repo = generated_posts_repo
         self.generated_articles_repo = generated_articles_repo
@@ -163,6 +159,7 @@ class ArticleUseCase:
         self.model_provider = model_provider
         self._wp_site_url = wp_site_url
         self._wp_default_image_url = wp_default_image_url
+        self._seo_helpers = seo_helpers
         self._template_renderer = None
 
     def _get_ai_model(self):
@@ -225,7 +222,7 @@ class ArticleUseCase:
             # for a professional 800+ word article
             content_limitado = raw_content[:10000] if raw_content else ""
 
-            keyphrase = extract_focus_keyphrase(raw_title)
+            keyphrase = self._seo_helpers.extract_focus_keyphrase(raw_title)
 
             agent = ArticleAgent(model)
             peticion = (
@@ -309,9 +306,9 @@ class ArticleUseCase:
         titulo = title_es_llm or news_item.get("title_es") or raw_title
 
         titulo_limpio = re.sub(r"<[^>]+>", "", titulo).strip()
-        titulo_limpio = _validar_titulo(titulo_limpio)
+        titulo_limpio = _validar_titulo(titulo_limpio, self._seo_helpers.clean_title)
 
-        slug = seo_slugify(titulo_limpio)
+        slug = self._seo_helpers.slugify(titulo_limpio)
 
         first_p = ""
         clean = re.sub(r"<[^>]+>", " ", article_body)
@@ -319,17 +316,17 @@ class ArticleUseCase:
         if paragraphs:
             first_p = paragraphs[0]
 
-        meta_description = generate_meta_description(titulo_limpio, first_p)
-        seo_title = truncate_seo_title(titulo_limpio)
-        focus_keyword = extract_focus_keyphrase(titulo_limpio)
+        meta_description = self._seo_helpers.generate_meta_description(titulo_limpio, first_p)
+        seo_title = self._seo_helpers.truncate_seo_title(titulo_limpio)
+        focus_keyword = self._seo_helpers.extract_focus_keyphrase(titulo_limpio)
 
         payload = {
             "title": titulo_limpio,
             "title_es": titulo_limpio,
             "slug": slug,
             "content": article_body,
-            "desc": generate_excerpt(first_p),
-            "excerpt": generate_excerpt(first_p),
+            "desc": self._seo_helpers.generate_excerpt(first_p),
+            "excerpt": self._seo_helpers.generate_excerpt(first_p),
             "meta_description": meta_description,
             "labels": [news_item.get("tema", "Noticias")],
             "source_type": news_item.get("source_type", "news_man"),
@@ -466,6 +463,7 @@ class ArticleGeminiUseCase(ArticleUseCase):
         gemini_config: Optional[dict] = None,
         ai_model=None,
         model_provider: str = "gemini",
+        seo_helpers: SeoHelpers = None,
         **kwargs,
     ):
         super().__init__(
@@ -473,6 +471,7 @@ class ArticleGeminiUseCase(ArticleUseCase):
             ai_config=gemini_config,
             ai_model=ai_model,
             model_provider=model_provider,
+            seo_helpers=seo_helpers,
             **kwargs,
         )
 
@@ -490,6 +489,7 @@ def run(
     generated_articles_repo: GeneratedArticlesRepository,
     generated_posts_repo: GeneratedPostsRepository,
     verified_news_repo: VerifiedNewsRepository,
+    seo_helpers: SeoHelpers,
 ) -> List[Dict]:
     provider = model_provider or "local"
     logger.info(f"[ARTICLE] Ejecutando (provider: {provider})")
@@ -502,6 +502,7 @@ def run(
         model_provider=provider,
         wp_site_url=wp_site_url,
         wp_default_image_url=wp_default_image_url,
+        seo_helpers=seo_helpers,
     )
     return use_case.execute(limit=limit, mode=mode)
 

@@ -25,7 +25,7 @@ class TestVideoPipelineIntegration:
         """Test ArticleFromVideoUseCase with mocked data."""
         from src.video.application.usecases import ArticleFromVideoUseCase
 
-        use_case = ArticleFromVideoUseCase(llm_provider="mock", social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c)
+        use_case = ArticleFromVideoUseCase(llm_provider="mock", social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, context_enricher=lambda t, tema="": None)
         assert use_case.llm_provider == "mock"
 
     def test_video_fetcher_can_be_instantiated(self):
@@ -66,7 +66,7 @@ class TestVideoPipelineIntegration:
         """Test ArticleFromVideoUseCase dependencies are available."""
         from src.video.application.usecases import ArticleFromVideoUseCase
 
-        use_case = ArticleFromVideoUseCase(llm_provider=Settings.AI_PROVIDER, social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c)
+        use_case = ArticleFromVideoUseCase(llm_provider=Settings.AI_PROVIDER, social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, context_enricher=lambda t, tema="": None)
         assert use_case.llm_provider == Settings.AI_PROVIDER
 
     def test_video_uses_ai_adapter(self):
@@ -85,7 +85,7 @@ class TestVideoPipelineWorkflow:
         from src.video.application.usecases import ArticleFromVideoUseCase
 
         video_use_case = VideoToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_mp3=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, use_ai=False)
-        article_use_case = ArticleFromVideoUseCase(llm_provider="mock", social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c)
+        article_use_case = ArticleFromVideoUseCase(llm_provider="mock", social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, context_enricher=lambda t, tema="": None)
 
         assert video_use_case is not None
         assert article_use_case is not None

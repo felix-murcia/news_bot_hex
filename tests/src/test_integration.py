@@ -261,6 +261,7 @@ class TestAudioPipeline:
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
+            context_enricher=lambda t, tema="": None,
         )
         defaults.update(kwargs)
         return AudioPipelineUseCase(**defaults)
@@ -277,6 +278,7 @@ class TestAudioPipeline:
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
+            context_enricher=lambda t, tema="": None,
         )
         defaults.update(kwargs)
         return VideoPipelineUseCase(**defaults)
@@ -320,6 +322,7 @@ class TestAudioPipeline:
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
+            context_enricher=lambda t, tema="": None,
         )
         with patch.object(pipeline, "_enrich_with_images", side_effect=lambda arts: arts), \
              patch.object(pipeline, "_track_temp_file"):
@@ -361,6 +364,7 @@ class TestVideoPipeline:
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
+            context_enricher=lambda t, tema="": None,
         )
         assert pipeline.no_publish is True
         assert pipeline.mode == "video"
@@ -529,6 +533,7 @@ class TestErrorHandling:
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
+            context_enricher=lambda t, tema="": None,
         )
 
         with pytest.raises(RuntimeError, match="Error in audio download"):
@@ -556,6 +561,7 @@ class TestErrorHandling:
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
+            context_enricher=lambda t, tema="": None,
         )
 
         with pytest.raises(RuntimeError, match="Error in audio download/transcription"):

@@ -175,12 +175,29 @@ def main_provider():
     args = parser.parse_args()
 
     from src.news.application.usecases.article import run
+    from src.shared.adapters.seo_optimizer import (
+        slugify as seo_slugify,
+        extract_focus_keyphrase,
+        generate_meta_description,
+        generate_excerpt,
+        truncate_seo_title,
+        clean_title as seo_clean_title,
+    )
+    from src.shared.domain.services.seo_helpers import SeoHelpers
     from src.shared.infrastructure.composition_root import (
         create_generated_articles_repository,
         create_generated_posts_repository,
         create_verified_news_repository,
     )
 
+    seo_helpers = SeoHelpers(
+        slugify=seo_slugify,
+        extract_focus_keyphrase=extract_focus_keyphrase,
+        generate_meta_description=generate_meta_description,
+        truncate_seo_title=truncate_seo_title,
+        clean_title=seo_clean_title,
+        generate_excerpt=generate_excerpt,
+    )
     results = run(
         limit=args.limit,
         use_gemini=not args.local,
@@ -190,6 +207,7 @@ def main_provider():
         generated_articles_repo=create_generated_articles_repository(),
         generated_posts_repo=create_generated_posts_repository(),
         verified_news_repo=create_verified_news_repository(),
+        seo_helpers=seo_helpers,
     )
 
     if results:
@@ -252,6 +270,11 @@ def main_news_to_news():
             create_generated_posts_repository,
         )
         from src.news.infrastructure.adapters import JinaContentExtractor
+        from src.shared.adapters.cache_manager import load_content_from_cache, save_content_to_cache
+        from src.shared.adapters.content_post_editor import post_edit_content
+        from src.shared.adapters.social_post_adapter import truncate_social_post
+        from src.shared.adapters.translator import translate_text
+        from src.shared.adapters.tts_text_processor import TTSTextProcessor
 
         content_extractor = JinaContentExtractor()
         generated_articles_repo = create_generated_articles_repository()
@@ -269,6 +292,12 @@ def main_news_to_news():
             copyright_domains=Settings.COPYRIGHT_DOMAINS,
             wp_site_url=Settings.WP_SITE_URL,
             wp_default_image_url=Settings.WP_DEFAULT_IMAGE_URL,
+            social_truncator=truncate_social_post,
+            post_editor=post_edit_content,
+            tts_text_processor=TTSTextProcessor(),
+            cache_loader=load_content_from_cache,
+            cache_saver=save_content_to_cache,
+            translator=translate_text,
         )
 
         print("✅ PROCESAMIENTO COMPLETADO")
@@ -387,7 +416,24 @@ def main_pipeline():
         "[ARTICLE] Iniciando generación de artículos profesionales en español..."
     )
     from src.news.application.usecases.article import run as run_article_gemini
+    from src.shared.adapters.seo_optimizer import (
+        slugify as seo_slugify,
+        extract_focus_keyphrase,
+        generate_meta_description,
+        generate_excerpt,
+        truncate_seo_title,
+        clean_title as seo_clean_title,
+    )
+    from src.shared.domain.services.seo_helpers import SeoHelpers
 
+    seo_helpers = SeoHelpers(
+        slugify=seo_slugify,
+        extract_focus_keyphrase=extract_focus_keyphrase,
+        generate_meta_description=generate_meta_description,
+        truncate_seo_title=truncate_seo_title,
+        clean_title=seo_clean_title,
+        generate_excerpt=generate_excerpt,
+    )
     articles = run_article_gemini(
         use_gemini=True,
         model_provider=Settings.AI_PROVIDER,
@@ -396,6 +442,7 @@ def main_pipeline():
         generated_articles_repo=generated_articles_repo,
         generated_posts_repo=generated_posts_repo,
         verified_news_repo=verified_news_repo,
+        seo_helpers=seo_helpers,
     )
     logger.info(f"[ARTICLE] Finalizada generación de {len(articles)} artículo(s).")
 

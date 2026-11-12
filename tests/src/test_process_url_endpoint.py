@@ -5,6 +5,28 @@ from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
 
 
+from src.shared.adapters.seo_optimizer import (
+    slugify as seo_slugify,
+    extract_focus_keyphrase,
+    generate_meta_description,
+    generate_excerpt,
+    truncate_seo_title,
+    clean_title as seo_clean_title,
+)
+from src.shared.domain.services.seo_helpers import SeoHelpers
+
+
+def _seo_helpers():
+    return SeoHelpers(
+        slugify=seo_slugify,
+        extract_focus_keyphrase=extract_focus_keyphrase,
+        generate_meta_description=generate_meta_description,
+        truncate_seo_title=truncate_seo_title,
+        clean_title=seo_clean_title,
+        generate_excerpt=generate_excerpt,
+    )
+
+
 class TestNewsToNewsUseCaseForceExtractParameter:
     """Test force_extract parameter in NewsToNewsUseCase."""
 
@@ -24,6 +46,7 @@ class TestNewsToNewsUseCaseForceExtractParameter:
             tts_text_processor=Mock(),
             cache_loader=Mock(return_value=(None, "no_cache")),
             cache_saver=Mock(return_value=True),
+            translator=lambda text, target_lang="es": text,
         )
         assert use_case.force_extract is False
 
@@ -44,6 +67,7 @@ class TestNewsToNewsUseCaseForceExtractParameter:
             tts_text_processor=Mock(),
             cache_loader=Mock(return_value=(None, "no_cache")),
             cache_saver=Mock(return_value=True),
+            translator=lambda text, target_lang="es": text,
         )
         assert use_case.force_extract is True
 
@@ -64,6 +88,7 @@ class TestNewsToNewsUseCaseForceExtractParameter:
             tts_text_processor=Mock(),
             cache_loader=Mock(return_value=(None, "no_cache")),
             cache_saver=Mock(return_value=True),
+            translator=lambda text, target_lang="es": text,
         )
         assert use_case.force_extract is False
 
@@ -87,6 +112,7 @@ class TestNewsToNewsUseCaseForceExtractParameter:
             tts_text_processor=Mock(),
             cache_loader=Mock(return_value=(None, "no_cache")),
             cache_saver=Mock(return_value=True),
+            translator=lambda text, target_lang="es": text,
         )
 
         with patch.object(NewsToNewsUseCase, "_load_from_cache") as mock_cache:
@@ -119,6 +145,7 @@ class TestNewsToNewsUseCaseForceExtractParameter:
             tts_text_processor=Mock(),
             cache_loader=Mock(return_value=(None, "no_cache")),
             cache_saver=Mock(return_value=True),
+            translator=lambda text, target_lang="es": text,
         )
 
         with patch.object(
@@ -213,6 +240,7 @@ class TestProcessNewsUrlFunction:
                 tts_text_processor=Mock(),
                 cache_loader=Mock(return_value=(None, "no_cache")),
                 cache_saver=Mock(return_value=True),
+                translator=lambda text, target_lang="es": text,
             )
 
             # Verify usecase was instantiated with force_extract=True
@@ -464,6 +492,7 @@ class ProcessUrlPipelineTestBase:
                 social_truncator=lambda t, limit=None: t,
                 post_editor=lambda c, editor=None: c,
                 cache_loader=Mock(return_value=(None, "no_cache")),
+                seo_helpers=_seo_helpers(),
             )
             try:
                 pipeline.execute(self.PIPELINE_URL)

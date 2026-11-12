@@ -35,6 +35,7 @@ def execute_pipeline_async(
     social_truncator,
     post_editor,
     cache_loader,
+    seo_helpers,
 ) -> bool:
     """
     Execute pipeline in background thread with job tracking and metrics collection.
@@ -85,6 +86,7 @@ def execute_pipeline_async(
         social_truncator=social_truncator,
         post_editor=post_editor,
         cache_loader=cache_loader,
+        seo_helpers=seo_helpers,
     )
 
     def _target():

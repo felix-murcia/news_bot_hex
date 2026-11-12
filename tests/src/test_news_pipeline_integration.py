@@ -132,7 +132,7 @@ class TestArticleFromNewsUseCase:
             ArticleFromNewsUseCase,
         )
 
-        use_case = ArticleFromNewsUseCase(use_ai=True, model_provider="local", social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c)
+        use_case = ArticleFromNewsUseCase(use_ai=True, model_provider="local", social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, translator=lambda text, target_lang="es": text)
         assert use_case.use_ai == True
         assert use_case.model_provider == "local"
 
@@ -142,7 +142,7 @@ class TestArticleFromNewsUseCase:
             ArticleFromNewsUseCase,
         )
 
-        use_case = ArticleFromNewsUseCase(use_ai=False, social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c)
+        use_case = ArticleFromNewsUseCase(use_ai=False, social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, translator=lambda text, target_lang="es": text)
         assert use_case.use_ai == False
 
 
@@ -186,6 +186,7 @@ class TestNewsToNewsUseCase:
             tts_text_processor=Mock(),
             cache_loader=Mock(return_value=(None, "no_cache")),
             cache_saver=Mock(return_value=True),
+            translator=lambda text, target_lang="es": text,
         )
         assert use_case.use_ai == True
         assert use_case.model_provider == "local"
@@ -206,6 +207,7 @@ class TestNewsToNewsUseCase:
             tts_text_processor=Mock(),
             cache_loader=Mock(return_value=(None, "no_cache")),
             cache_saver=Mock(return_value=True),
+            translator=lambda text, target_lang="es": text,
         )
         assert use_case.use_ai == False
 
@@ -216,20 +218,38 @@ class TestArticleGeminiUseCase:
     def test_article_gemini_init(self):
         """Test ArticleGeminiUseCase initialization."""
         from src.news.application.usecases.article import ArticleGeminiUseCase
+        from src.shared.adapters.seo_optimizer import (
+            slugify as seo_slugify,
+            extract_focus_keyphrase,
+            generate_meta_description,
+            generate_excerpt,
+            truncate_seo_title,
+            clean_title as seo_clean_title,
+        )
+        from src.shared.domain.services.seo_helpers import SeoHelpers
 
         from unittest.mock import Mock
+        seo_helpers = SeoHelpers(
+            slugify=seo_slugify,
+            extract_focus_keyphrase=extract_focus_keyphrase,
+            generate_meta_description=generate_meta_description,
+            truncate_seo_title=truncate_seo_title,
+            clean_title=seo_clean_title,
+            generate_excerpt=generate_excerpt,
+        )
         use_case = ArticleGeminiUseCase(
             use_gemini=True,
             verified_repo=Mock(),
             generated_articles_repo=Mock(),
             generated_posts_repo=Mock(),
+            seo_helpers=seo_helpers,
         )
 
         assert use_case is not None
 
     def test_seo_slugify(self):
-        """Test the SEO slugify consumed by article.py (seo_optimizer.slugify)."""
-        from src.news.application.usecases.article import seo_slugify
+        """Test SEO slugify (seo_optimizer.slugify)."""
+        from src.shared.adapters.seo_optimizer import slugify as seo_slugify
 
         assert seo_slugify("Test Title") == "test-title"
         assert seo_slugify("Test Multiple Spaces") == "test-multiple-spaces"

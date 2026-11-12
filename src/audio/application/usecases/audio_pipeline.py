@@ -38,6 +38,7 @@ class AudioPipelineUseCase(BasePipelineUseCase):
         social_truncator: Callable[..., str],
         post_editor: Callable[..., str],
         tts_text_processor: Any,
+        context_enricher: Callable[[str, str], Optional[str]],
         metrics_repo: Optional[MetricsRepositoryPort] = None,
         ai_provider: str = "local",
         tts_voice: str = "",
@@ -83,6 +84,7 @@ class AudioPipelineUseCase(BasePipelineUseCase):
         self._social_truncator = social_truncator
         self._post_editor = post_editor
         self._tts_text_processor = tts_text_processor
+        self._context_enricher = context_enricher
 
     def run(self, url: str, tema: str, job_id: Optional[str] = None) -> Dict[str, Any]:
         audio_fetcher = self._audio_fetcher_factory()
@@ -155,6 +157,7 @@ class AudioPipelineUseCase(BasePipelineUseCase):
                     ai_adapter_factory=self._ai_adapter_factory,
                     social_truncator=self._social_truncator,
                     post_editor=self._post_editor,
+                    context_enricher=self._context_enricher,
                 ).execute(transcript, url, tema)
                 step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
                 logger.info(f"[2/4] Artículo generado en {step_duration_ms}ms")

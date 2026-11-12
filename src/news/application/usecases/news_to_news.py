@@ -35,6 +35,7 @@ class NewsToNewsUseCase:
         tts_text_processor: Any,
         cache_loader: Callable[..., tuple[Optional[str], str]],
         cache_saver: Callable[..., bool],
+        translator: Callable[[str, str], str],
         tts_usecase: Any = None,
         use_ai: bool = True,
         model_provider: str = "gemini",
@@ -66,6 +67,7 @@ class NewsToNewsUseCase:
         self._tts_text_processor = tts_text_processor
         self._cache_loader = cache_loader
         self._cache_saver = cache_saver
+        self._translator = translator
         self._tts_usecase = tts_usecase
 
     def _get_article_generator(self):
@@ -82,6 +84,7 @@ class NewsToNewsUseCase:
                 wp_default_image_url=self._wp_default_image_url,
                 social_truncator=self._social_truncator,
                 post_editor=self._post_editor,
+                translator=self._translator,
             )
         return self.article_generator
 
@@ -282,6 +285,7 @@ def process_news_url(
     tts_text_processor: Any,
     cache_loader: Callable[..., tuple[Optional[str], str]],
     cache_saver: Callable[..., bool],
+    translator: Callable[[str, str], str],
     tts_usecase: Any = None,
     model_provider: str = "gemini",
     use_ai: bool = True,
@@ -312,6 +316,7 @@ def process_news_url(
         tts_text_processor=tts_text_processor,
         cache_loader=cache_loader,
         cache_saver=cache_saver,
+        translator=translator,
         tts_usecase=tts_usecase,
     )
     return processor.process_url(url)

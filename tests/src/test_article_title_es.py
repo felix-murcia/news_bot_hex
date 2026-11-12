@@ -10,6 +10,26 @@ from src.news.application.usecases.article import (
     ArticleUseCase,
     _extract_title_es,
 )
+from src.shared.adapters.seo_optimizer import (
+    slugify as seo_slugify,
+    extract_focus_keyphrase,
+    generate_meta_description,
+    generate_excerpt,
+    truncate_seo_title,
+    clean_title as seo_clean_title,
+)
+from src.shared.domain.services.seo_helpers import SeoHelpers
+
+
+def _seo_helpers():
+    return SeoHelpers(
+        slugify=seo_slugify,
+        extract_focus_keyphrase=extract_focus_keyphrase,
+        generate_meta_description=generate_meta_description,
+        truncate_seo_title=truncate_seo_title,
+        clean_title=seo_clean_title,
+        generate_excerpt=generate_excerpt,
+    )
 
 LONG_BODY = "<h2>Sección uno</h2><p>" + " ".join(["palabra"] * 850) + "</p>"
 
@@ -26,6 +46,7 @@ def _use_case(ai_model):
         generated_articles_repo=arts_repo,
         use_ai=True,
         ai_model=ai_model,
+        seo_helpers=_seo_helpers(),
     )
     return uc, posts_repo, arts_repo, verified
 

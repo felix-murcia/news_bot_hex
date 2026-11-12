@@ -113,6 +113,7 @@ def video_pipeline(
         from src.shared.adapters.content_post_editor import post_edit_content
         from src.shared.adapters.social_post_adapter import truncate_social_post
         from src.shared.adapters.tts_text_processor import TTSTextProcessor
+        from src.shared.adapters.web_search import enriquecer_con_contexto
         from src.shared.infrastructure.composition_root import (
             create_ai_adapter,
             create_audio_converter,
@@ -133,6 +134,7 @@ def video_pipeline(
             social_truncator=truncate_social_post,
             post_editor=post_edit_content,
             tts_text_processor=TTSTextProcessor(),
+            context_enricher=enriquecer_con_contexto,
             metrics_repo=metrics_repo,
             ai_provider=Settings.AI_PROVIDER,
             tts_voice=Settings.TTS_VOICE,

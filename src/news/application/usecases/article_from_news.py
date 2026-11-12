@@ -1,7 +1,6 @@
 import os
 from typing import Any, Callable, Dict, Optional
 
-from src.shared.adapters.translator import translate_text
 import logging
 logger = logging.getLogger(__name__)
 def limpiar(texto: str) -> str:
@@ -34,9 +33,12 @@ class ArticleFromNewsUseCase:
         wp_default_image_url: str = "",
         social_truncator: Callable[..., str] = None,
         post_editor: Callable[..., str] = None,
+        translator: Callable[[str, str], str] = None,
     ):
         if social_truncator is None or post_editor is None:
             raise ValueError("social_truncator y post_editor son requeridos")
+        if translator is None:
+            raise ValueError("translator es requerido")
         self.use_ai = use_ai
         self.model_provider = model_provider
         self.ai_config = ai_config or {}
@@ -45,6 +47,7 @@ class ArticleFromNewsUseCase:
         self._wp_default_image_url = wp_default_image_url
         self._social_truncator = social_truncator
         self._post_editor = post_editor
+        self._translator = translator
 
     def _get_ai_model(self):
         """Obtiene el modelo de IA (lazy loading)."""
@@ -64,7 +67,7 @@ class ArticleFromNewsUseCase:
             f"[ARTICLE_NEWS] Iniciando generación desde noticia para tema: {tema}"
         )
 
-        content_es = translate_text(content, "es")
+        content_es = self._translator(content, "es")
         logger.info(f"[ARTICLE_NEWS] Contenido traducido: {len(content_es)} caracteres")
 
         resumen = limpiar(content_es[:500])
@@ -244,6 +247,7 @@ def run_from_news(
     *,
     social_truncator: Callable[..., str],
     post_editor: Callable[..., str],
+    translator: Callable[[str, str], str],
 ) -> Dict[str, Any]:
     """Función de compatibilidad para pipeline existente."""
     logger.info(
@@ -257,6 +261,7 @@ def run_from_news(
         wp_default_image_url=wp_default_image_url,
         social_truncator=social_truncator,
         post_editor=post_editor,
+        translator=translator,
     )
     return use_case.execute(content, url, tema)
 

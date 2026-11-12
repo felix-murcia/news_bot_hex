@@ -75,6 +75,7 @@ class TestArticleFromVideoUseCase:
             llm_provider="gemini",
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
+            context_enricher=lambda t, tema="": None,
         )
 
         assert use_case.llm_provider == "gemini"
@@ -106,6 +107,7 @@ class TestVideoPipeline:
             llm_provider="mock",
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
+            context_enricher=lambda t, tema="": None,
         )
         assert article_use_case is not None
 
@@ -129,6 +131,7 @@ class TestVideoPipeline:
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
+            context_enricher=lambda t, tema="": None,
         )
         assert pipeline.video_generator is mock_generator
 

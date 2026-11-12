@@ -9,23 +9,16 @@ class TestArticleUseCase:
     """Test ArticleUseCase (article.py) - large file."""
 
     def test_seo_slugify(self):
-        """article.py consumes seo_optimizer.slugify (aliased seo_slugify).
-
-        Introduced by commit 159a627 "optimizar SEO Wordpress": slugs are built
-        from significant words only (stop-words dropped, max 6 words) and
-        accents are stripped so WordPress URLs stay ASCII.
-        """
-        from src.news.application.usecases.article import seo_slugify
+        """seo_optimizer.slugify: significant words only (stop-words dropped, max 6 words)."""
+        from src.shared.adapters.seo_optimizer import slugify as seo_slugify
 
         assert seo_slugify("Hello World!") == "hello-world"
         assert seo_slugify("  spaces  ") == "spaces"
-        # Accents are normalised away (NFD + drop combining marks)
         assert seo_slugify("Cláusula fundacional del PLAN") == "clausula-fundacional-plan"
-        # Stop-words ("de", "la", ...) are dropped from the slug
         assert seo_slugify("Crisis de la energía en la región") == "crisis-energia-region"
 
     def test_seo_slugify_respects_max_words(self):
-        from src.news.application.usecases.article import seo_slugify
+        from src.shared.adapters.seo_optimizer import slugify as seo_slugify
 
         title = "alpha beta gamma delta epsilon zeta eta theta"
         slug = seo_slugify(title, max_words=3)
@@ -33,12 +26,12 @@ class TestArticleUseCase:
 
     def test_seo_slugify_falls_back_when_only_stop_words(self):
         """If every word is a stop-word the raw words are used instead of ""."""
-        from src.news.application.usecases.article import seo_slugify
+        from src.shared.adapters.seo_optimizer import slugify as seo_slugify
 
         assert seo_slugify("de la el") == "de-la-el"
 
     def test_seo_slugify_empty(self):
-        from src.news.application.usecases.article import seo_slugify
+        from src.shared.adapters.seo_optimizer import slugify as seo_slugify
         assert seo_slugify("") == ""
 
 
@@ -346,7 +339,7 @@ class TestArticleFromAudioDetailed:
     def test_slugify_audio(self):
         from src.audio.application.usecases import ArticleFromAudioUseCase
 
-        use_case = ArticleFromAudioUseCase(llm_provider="mock", social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c)
+        use_case = ArticleFromAudioUseCase(llm_provider="mock", social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, context_enricher=lambda t, tema="": None)
         slug = use_case._generate_unique_slug(
             "Audio Podcast Title",
             "<p>Some content for the podcast</p>",

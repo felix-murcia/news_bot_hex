@@ -108,6 +108,7 @@ def main_article_from_audio():
 
     from src.shared.adapters.content_post_editor import post_edit_content
     from src.shared.adapters.social_post_adapter import truncate_social_post
+    from src.shared.adapters.web_search import enriquecer_con_contexto
 
     result = run_from_transcript(
         transcript=transcript,
@@ -117,6 +118,7 @@ def main_article_from_audio():
         source_type="audio",
         social_truncator=truncate_social_post,
         post_editor=post_edit_content,
+        context_enricher=enriquecer_con_contexto,
     )
 
     logger.info(f"[ARTICLE_AUDIO] Artículo generado")

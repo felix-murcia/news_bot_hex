@@ -19,6 +19,7 @@ class TestNewsToNewsUseCase:
             tts_text_processor=Mock(),
             cache_loader=Mock(return_value=(None, "no_cache")),
             cache_saver=Mock(return_value=True),
+            translator=lambda text, target_lang="es": text,
         )
         kwargs.update(extra)
         return kwargs
@@ -182,12 +183,12 @@ class TestArticleFromNewsUseCase:
             ArticleFromNewsUseCase,
         )
 
-        use_case = ArticleFromNewsUseCase(use_ai=False, social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c)
+        use_case = ArticleFromNewsUseCase(use_ai=False, social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, translator=lambda text, target_lang="es": text)
         assert use_case.use_ai is False
 
     def test_seo_slugify_from_article(self):
-        """article.py consumes seo_optimizer.slugify (aliased seo_slugify)."""
-        from src.news.application.usecases.article import seo_slugify
+        """seo_optimizer.slugify (used by article pipeline)."""
+        from src.shared.adapters.seo_optimizer import slugify as seo_slugify
 
         assert seo_slugify("Test Article Title") == "test-article-title"
 
@@ -222,7 +223,7 @@ class TestArticleFromAudioUseCase:
     def test_init(self):
         from src.audio.application.usecases import ArticleFromAudioUseCase
 
-        use_case = ArticleFromAudioUseCase(llm_provider="mock", social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c)
+        use_case = ArticleFromAudioUseCase(llm_provider="mock", social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, context_enricher=lambda t, tema="": None)
         assert use_case.llm_provider == "mock"
 
     def test_slugify(self):
@@ -261,6 +262,7 @@ class TestAudioPipelineUseCase:
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
+            context_enricher=lambda t, tema="": None,
         )
         with patch.object(pipeline, "_enrich_with_images", side_effect=lambda arts: arts), \
              patch.object(pipeline, "_track_temp_file"):
@@ -287,6 +289,7 @@ class TestAudioPipelineUseCase:
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
+            context_enricher=lambda t, tema="": None,
         )
         with pytest.raises(RuntimeError, match="Error in audio download"):
             pipeline.run("https://example.com/audio", "Test")

@@ -63,9 +63,12 @@ class ArticleFromTranscriptUseCase:
         ai_adapter_factory: Callable[[str], Any] = None,
         social_truncator: Callable[..., str] = None,
         post_editor: Callable[..., str] = None,
+        context_enricher: Callable[[str, str], Optional[str]] = None,
     ):
         if social_truncator is None or post_editor is None:
             raise ValueError("social_truncator y post_editor son requeridos")
+        if context_enricher is None:
+            raise ValueError("context_enricher es requerido")
         self.llm_provider = llm_provider
         self.llm_config = llm_config or {}
         self.source_type = source_type
@@ -74,6 +77,7 @@ class ArticleFromTranscriptUseCase:
         self._ai_adapter_factory = ai_adapter_factory
         self._social_truncator = social_truncator
         self._post_editor = post_editor
+        self._context_enricher = context_enricher
         self._ai_model = None
 
     def _get_ai_model(self):
@@ -104,10 +108,9 @@ class ArticleFromTranscriptUseCase:
     ) -> Dict[str, Any]:
         """Core article generation logic."""
         from src.shared.adapters.ai.agents import ArticleFromContentAgent
-        from src.shared.adapters.web_search import enriquecer_con_contexto
 
         # Enrich with web context
-        web_context = enriquecer_con_contexto(transcript, tema)
+        web_context = self._context_enricher(transcript, tema)
         if web_context:
             logger.info(
                 f"[ARTICLE_TRANSCRIPT] Contexto web añadido: {len(web_context)} chars"
@@ -299,6 +302,7 @@ def run_from_transcript(
     *,
     social_truncator: Callable[..., str],
     post_editor: Callable[..., str],
+    context_enricher: Callable[[str, str], Optional[str]],
 ) -> Dict[str, Any]:
     """Convenience function for generating article from transcript.
 
@@ -314,6 +318,7 @@ def run_from_transcript(
         ai_adapter_factory: Factory de adaptador IA por proveedor.
         social_truncator: Callable de truncado de posts sociales.
         post_editor: Callable de post-edición.
+        context_enricher: Callable de enriquecimiento con contexto web.
 
     Returns:
         Dict with article, tweet, mode, and stats.
@@ -330,5 +335,6 @@ def run_from_transcript(
         ai_adapter_factory=ai_adapter_factory,
         social_truncator=social_truncator,
         post_editor=post_editor,
+        context_enricher=context_enricher,
     )
     return usecase.execute(transcript, url, tema)
