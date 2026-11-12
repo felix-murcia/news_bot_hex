@@ -5,12 +5,11 @@ This file contains the default validation rules that can be seeded into MongoDB.
 These rules replace the hardcoded values in classic_news_validator.py.
 """
 
+import logging
 import re
 from typing import Optional
 
-from config.logging_config import get_logger
-
-logger = get_logger("news_bot")
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_VALIDATION_RULES = {

@@ -157,9 +157,6 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
     "news/domain/services/template_renderer.py": {
         "urllib.parse",  # TODO B20
     },
-    "news/domain/services/validation_rules.py": {
-        "config.logging_config",  # TODO B20
-    },
     "shared/application/usecases/article_from_transcript.py": {
         "config.logging_config",  # TODO B20
         "unicodedata",  # TODO B20
