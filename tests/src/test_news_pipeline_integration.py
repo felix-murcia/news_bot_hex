@@ -257,7 +257,7 @@ class TestUtilityFunctions:
 
     def test_parse_date_flexible(self):
         """Test parse_date_flexible function."""
-        from src.news.infrastructure.adapters import parse_date_flexible
+        from src.news.domain.services.date_utils import parse_date_flexible
         from datetime import datetime
 
         result = parse_date_flexible("2024-01-01")
@@ -266,14 +266,14 @@ class TestUtilityFunctions:
 
     def test_parse_date_flexible_with_none(self):
         """Test parse_date_flexible with None input."""
-        from src.news.infrastructure.adapters import parse_date_flexible
+        from src.news.domain.services.date_utils import parse_date_flexible
 
         result = parse_date_flexible(None)
         assert result is None
 
     def test_is_today_or_yesterday(self):
         """Test is_today_or_yesterday function."""
-        from src.news.infrastructure.adapters import is_today_or_yesterday
+        from src.news.domain.services.date_utils import is_today_or_yesterday
         from datetime import datetime, timedelta
 
         now = datetime.now()
@@ -287,7 +287,7 @@ class TestUtilityFunctions:
 
     def test_compute_score(self):
         """Test compute_score function."""
-        from src.news.infrastructure.adapters import compute_score
+        from src.news.domain.services.scoring import compute_score
 
         scoring_rules = {"Technology": 5, "Noticias": 3}
         source_prioritarias = set()

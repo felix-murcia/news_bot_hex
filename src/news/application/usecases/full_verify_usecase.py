@@ -15,20 +15,25 @@ from src.news.domain.ports import (
 )
 
 import logging
-from src.news.infrastructure.adapters import (
-    parse_date_flexible,
-    is_today_or_yesterday,
+from src.news.domain.services.date_utils import (
     get_article_date,
-    compute_score,
-    categorizar_noticia,
-    check_breaking_keywords,
-    is_valid_score,
-    sort_verified_news,
-    resumir_noticia,
-    deduplicate_by_similarity,
+    is_today_or_yesterday,
+    parse_date_flexible,
+)
+from src.news.domain.services.scoring import (
     apply_diversity_penalty,
-    extract_frozen_terms,
     apply_frozen_terms_penalty,
+    check_breaking_keywords,
+    compute_score,
+    deduplicate_by_similarity,
+    is_valid_score,
+    resumir_noticia,
+    sort_verified_news,
+)
+# TODO B20.3b1b: extract_frozen_terms y categorizar_noticia dependen de adapters/AI
+from src.news.infrastructure.adapters import (  # TODO B20.3b1b
+    categorizar_noticia,
+    extract_frozen_terms,
 )
 
 logger = logging.getLogger(__name__)

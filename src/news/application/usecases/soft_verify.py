@@ -216,10 +216,10 @@ def _parse_iso_date(date_str: str) -> datetime:
 
 
 def main():
-    from src.news.infrastructure.adapters import (
-        MongoVerifiedNewsRepository,
-        MongoPublishedUrlsRepository,
+    from src.news.infrastructure.adapters import (  # TODO B11c (main/argparse)
         JinaContentExtractor,
+        MongoPublishedUrlsRepository,
+        MongoVerifiedNewsRepository,
     )
 
     use_case = SoftVerifyUseCase(
