@@ -15,11 +15,10 @@ def slugify(text: str) -> str:
     return text.strip("-")
 
 
-def check_copyright(url: str) -> bool:
+def check_copyright(url: str, domains: Optional[list[str]] = None) -> bool:
     """Check copyright risk for a URL."""
-    from config.settings import Settings
     url_lower = url.lower()
-    return any(domain.lower() in url_lower for domain in Settings.COPYRIGHT_DOMAINS)
+    return any(domain.lower() in url_lower for domain in (domains or []))
 
 
 class NewsToNewsUseCase:
@@ -36,6 +35,10 @@ class NewsToNewsUseCase:
         ai_model=None,
         video_generator: Optional[VideoGeneratorPort] = None,
         force_extract: bool = False,
+        cache_dir: Optional[Path] = None,
+        copyright_domains: Optional[list[str]] = None,
+        wp_site_url: str = "",
+        wp_default_image_url: str = "",
     ):
         self.content_extractor = content_extractor
         self.generated_articles_repo = generated_articles_repo
@@ -47,6 +50,10 @@ class NewsToNewsUseCase:
         self.article_generator = None
         self.video_generator = video_generator
         self.force_extract = force_extract
+        self._cache_dir = cache_dir or Path(".")
+        self._copyright_domains = copyright_domains or []
+        self._wp_site_url = wp_site_url
+        self._wp_default_image_url = wp_default_image_url
 
     def _get_article_generator(self):
         if self.article_generator is None:
@@ -58,17 +65,18 @@ class NewsToNewsUseCase:
                 use_ai=self.use_ai,
                 model_provider=self.model_provider,
                 ai_config=self.ai_config,
+                wp_site_url=self._wp_site_url,
+                wp_default_image_url=self._wp_default_image_url,
             )
         return self.article_generator
 
     def _load_from_cache(self, url: str) -> Optional[tuple[str, Path]]:
         try:
             from src.shared.adapters.cache_manager import load_content_from_cache
-            from config.settings import Settings
 
             content, status = load_content_from_cache(url, max_age_hours=24)
             if content and status == "cache_hit":
-                cache_path = Settings.CACHE_DIR / f"{hash(url)}.txt"
+                cache_path = self._cache_dir / f"{hash(url)}.txt"
                 return content, cache_path
             return None
         except Exception:
@@ -96,8 +104,7 @@ class NewsToNewsUseCase:
         if content:
             self._save_to_cache(url, content)
 
-        from config.settings import Settings
-        cache_path = Settings.CACHE_DIR / f"{hash(url)}.txt"
+        cache_path = self._cache_dir / f"{hash(url)}.txt"
         return content or "", cache_path
 
     def _generate_article(
@@ -109,12 +116,11 @@ class NewsToNewsUseCase:
 
     def _generate_tweet(self, article_data: Dict) -> str:
         """Genera tweet a partir del artículo."""
-        from config.settings import Settings
         from src.shared.adapters.ai.agents import TweetGeopoliticsAgent
         from src.shared.adapters.social_post_adapter import truncate_social_post
 
         title = article_data.get("article", {}).get("title", "")
-        url = article_data.get("article", {}).get("url", Settings.WP_SITE_URL)
+        url = article_data.get("article", {}).get("url", self._wp_site_url)
         tema = article_data.get("news_item", {}).get("tema", "Noticias")
         desc = article_data.get("article", {}).get("desc", "")[:200]
 
@@ -179,7 +185,7 @@ class NewsToNewsUseCase:
         """Procesa una URL de noticia y genera artículo completo."""
         logger.info(f"[NEWS_TO_NEWS] Iniciando procesamiento de: {url}")
 
-        if check_copyright(url):
+        if check_copyright(url, self._copyright_domains):
             logger.warning(f"[NEWS_TO_NEWS] ⚠️ Posible riesgo de copyright: {url}")
 
         content, content_path = self._extract_content(url)
@@ -266,6 +272,10 @@ def process_news_url(
     ai_config: Optional[dict] = None,
     video_generator: Optional[VideoGeneratorPort] = None,
     force_extract: bool = False,
+    cache_dir: Optional[Path] = None,
+    copyright_domains: Optional[list[str]] = None,
+    wp_site_url: str = "",
+    wp_default_image_url: str = "",
 ) -> Dict[str, Any]:
     """Función principal para procesar URL de noticia."""
     processor = NewsToNewsUseCase(
@@ -277,6 +287,10 @@ def process_news_url(
         ai_config=ai_config,
         video_generator=video_generator,
         force_extract=force_extract,
+        cache_dir=cache_dir,
+        copyright_domains=copyright_domains,
+        wp_site_url=wp_site_url,
+        wp_default_image_url=wp_default_image_url,
     )
     return processor.process_url(url)
 

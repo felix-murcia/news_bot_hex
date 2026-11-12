@@ -87,14 +87,14 @@ class VerifyNewsUseCase:
         verified_repo: VerifiedNewsRepository,
         generated_articles_repo: GeneratedArticlesRepository,
         content_extractor: ContentExtractor = None,
+        wp_site_url: str = "",
     ):
         self._verified_repo = verified_repo
         self._generated_articles_repo = generated_articles_repo
         self._content_extractor = content_extractor
+        self._wp_site_url = wp_site_url
 
     def execute(self) -> dict:
-        from config.settings import Settings
-
         new_articles = self._generated_articles_repo.load_all()
         if not new_articles:
             return {"status": "error", "message": "No hay artículos en generated_articles"}
@@ -111,12 +111,15 @@ class VerifyNewsUseCase:
             # de Google (ver src/shared/adapters/translator.py).
             title_es = ""
 
+            base_url = self._wp_site_url or ""
+            article_url = f"{base_url}/{slug}" if base_url else slug
+
             verified_article = VerifiedArticle(
                 title=title,
                 desc=content,
                 source=art.get("source", "NBES"),
                 origin="Noticias Web",
-                url=f"{Settings.WP_SITE_URL}/{slug}",
+                url=article_url,
                 publishedAt=datetime.now(),
                 tema=art.get("tema", "Noticias"),
                 resumen=resumir_noticia(title, content),
@@ -133,7 +136,7 @@ class VerifyNewsUseCase:
                 focus_keyword=art.get("focus_keyword", ""),
                 image_credit=art.get("image_credit", ""),
                 is_draft=art.get("is_draft", False),
-                source_url=art.get("source_url", f"{Settings.WP_SITE_URL}/{slug}"),
+                source_url=art.get("source_url", article_url),
                 alt_text=art.get("alt_text", title),
                 source_type="news_man",
                 original_url=art.get("original_url", ""),

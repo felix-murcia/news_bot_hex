@@ -151,6 +151,8 @@ class ArticleUseCase:
         ai_config: Optional[dict] = None,
         ai_model=None,
         model_provider: str = "gemini",
+        wp_site_url: str = "",
+        wp_default_image_url: str = "",
     ):
         self.verified_repo = verified_repo
         self.generated_posts_repo = generated_posts_repo
@@ -159,6 +161,8 @@ class ArticleUseCase:
         self.ai_config = ai_config or {}
         self.ai_model = ai_model
         self.model_provider = model_provider
+        self._wp_site_url = wp_site_url
+        self._wp_default_image_url = wp_default_image_url
         self._template_renderer = None
 
     def _get_ai_model(self):
@@ -298,8 +302,6 @@ class ArticleUseCase:
     def make_payload(
         self, news_item: Dict, article_body: str, title_es_llm: str = ""
     ) -> Dict:
-        from config.settings import Settings
-
         raw_title = news_item.get("title", "Noticia de Última Hora")
         # Prioridad: título en español generado por el LLM (mismo contexto del
         # artículo) > title_es ya guardado en el post > título original.
@@ -331,10 +333,10 @@ class ArticleUseCase:
             "meta_description": meta_description,
             "labels": [news_item.get("tema", "Noticias")],
             "source_type": news_item.get("source_type", "news_man"),
-            "image_url": news_item.get("image_url", Settings.WP_DEFAULT_IMAGE_URL),
+            "image_url": news_item.get("image_url", self._wp_default_image_url),
             "image_credit": "NBES",
             "alt_text": titulo_limpio,
-            "url": f"{Settings.WP_SITE_URL}/{slug}",
+            "url": f"{self._wp_site_url}/{slug}" if self._wp_site_url else slug,
             "original_url": news_item.get("url", ""),
             "seo_title": seo_title,
             "focus_keyword": focus_keyword,
@@ -482,15 +484,16 @@ def run(
     ai_config: Optional[dict] = None,
     mode: str = "news",
     model_provider: str = None,
+    wp_site_url: str = "",
+    wp_default_image_url: str = "",
 ) -> List[Dict]:
-    from config.settings import Settings
     from src.shared.infrastructure.composition_root import (
         create_generated_articles_repository,
         create_generated_posts_repository,
         create_verified_news_repository,
     )
 
-    provider = model_provider or Settings.AI_PROVIDER
+    provider = model_provider or "local"
     logger.info(f"[ARTICLE] Ejecutando (provider: {provider})")
     use_case = ArticleUseCase(
         verified_repo=create_verified_news_repository(),
@@ -499,6 +502,8 @@ def run(
         use_ai=use_gemini,
         ai_config=ai_config,
         model_provider=provider,
+        wp_site_url=wp_site_url,
+        wp_default_image_url=wp_default_image_url,
     )
     return use_case.execute(limit=limit, mode=mode)
 
@@ -521,7 +526,11 @@ def main():
     args = parser.parse_args()
 
     results = run(
-        limit=args.limit, use_gemini=not args.local, model_provider=args.model
+        limit=args.limit,
+        use_gemini=not args.local,
+        model_provider=args.model,
+        wp_site_url=Settings.WP_SITE_URL,
+        wp_default_image_url=Settings.WP_DEFAULT_IMAGE_URL,
     )
 
     if results:

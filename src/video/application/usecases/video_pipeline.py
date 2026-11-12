@@ -28,6 +28,11 @@ class VideoPipelineUseCase(BasePipelineUseCase):
         no_publish: bool = False,
         video_generator: Optional[VideoGeneratorPort] = None,
         metrics_repo: Optional[MetricsRepositoryPort] = None,
+        ai_provider: str = "local",
+        tts_voice: str = "",
+        tts_model: str = "",
+        wp_site_url: str = "",
+        wp_default_image_url: str = "",
     ):
         """
         Inicializa el pipeline de video.
@@ -38,10 +43,19 @@ class VideoPipelineUseCase(BasePipelineUseCase):
                            Si None, se usa la instancia global por defecto.
             metrics_repo: Repositorio para persistir métricas (inyección de dependencia).
                          Si None, las métricas no se registran.
+            ai_provider: Proveedor de IA para generación de contenido.
+            tts_voice: Voz TTS.
+            tts_model: Modelo TTS.
+            wp_site_url: URL base del sitio WordPress.
+            wp_default_image_url: URL de imagen por defecto.
         """
-        super().__init__(mode="video", no_publish=no_publish)
+        super().__init__(mode="video", no_publish=no_publish, wp_site_url=wp_site_url)
         self.video_generator = video_generator or self._create_video_generator()
         self.metrics_repo = metrics_repo
+        self._ai_provider = ai_provider
+        self._tts_voice = tts_voice
+        self._tts_model = tts_model
+        self._wp_default_image_url = wp_default_image_url
 
     @staticmethod
     def _create_video_generator() -> VideoGeneratorPort:
@@ -49,7 +63,6 @@ class VideoPipelineUseCase(BasePipelineUseCase):
         return create_video_generator()
 
     def run(self, url: str, tema: str, job_id: Optional[str] = None) -> Dict[str, Any]:
-        from config.settings import Settings
 
         # Initialize metrics collector
         metrics = None
@@ -106,8 +119,10 @@ class VideoPipelineUseCase(BasePipelineUseCase):
                 transcript=transcript,
                 url=url,
                 tema=tema,
-                llm_provider=Settings.AI_PROVIDER,
+                llm_provider=self._ai_provider,
                 source_type="video",
+                wp_site_url=self._wp_site_url,
+                wp_default_image_url=self._wp_default_image_url,
             )
             step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
             logger.info(f"[2/4] Artículo generado en {step_duration_ms}ms")
@@ -159,8 +174,8 @@ class VideoPipelineUseCase(BasePipelineUseCase):
                 cleaned_text = TTSTextProcessor.process(article_text)
                 tts_audio_path = tts.text_to_speech(
                     text=cleaned_text,
-                    voice=Settings.TTS_VOICE,
-                    model=Settings.TTS_MODEL,
+                    voice=self._tts_voice,
+                    model=self._tts_model,
                 )
                 enriched_article["tts_audio_path"] = tts_audio_path
                 logger.info(

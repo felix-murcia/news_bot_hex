@@ -28,12 +28,16 @@ class ProcessUrlPipeline:
         metrics_repo: Optional[MetricsRepositoryPort] = None,
         *,
         social_publisher,
+        wp_site_url: str = "",
+        wp_default_image_url: str = "",
     ):
         self.content_extractor = content_extractor
         self.generated_articles_repo = generated_articles_repo
         self.generated_posts_repo = generated_posts_repo
         self.metrics_repo = metrics_repo
         self._social_publisher = social_publisher
+        self._wp_site_url = wp_site_url
+        self._wp_default_image_url = wp_default_image_url
 
     def execute(self, url: str, job_id: Optional[str] = None) -> dict:
         logger.info(f"[PROCESS_URL] Starting pipeline for: {url}")
@@ -143,7 +147,12 @@ class ProcessUrlPipeline:
         # Enrich Images. Both are critical: exceptions propagate via .result().
         def generate_articles():
             from src.news.application.usecases.article import run as run_article
-            generated = run_article(use_gemini=True)
+
+            generated = run_article(
+                use_gemini=True,
+                wp_site_url=self._wp_site_url,
+                wp_default_image_url=self._wp_default_image_url,
+            )
             # Fail-fast: si no se generó artículo para la url (p. ej. el post
             # no coincide con la URL verificada, o el LLM no devolvió cuerpo),
             # no hay nada que leer en audio/vídeo/publicación. Termina aquí.

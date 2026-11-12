@@ -31,6 +31,7 @@ class BasePipelineUseCase(ABC):
         enable_bluesky: bool = True,
         enable_mastodon: bool = True,
         enable_facebook: bool = True,
+        wp_site_url: str = "",
     ):
         self.mode = mode
         self.no_publish = no_publish
@@ -39,6 +40,7 @@ class BasePipelineUseCase(ABC):
         self._enable_bluesky = enable_bluesky
         self._enable_mastodon = enable_mastodon
         self._enable_facebook = enable_facebook
+        self._wp_site_url = wp_site_url
         self._temp_files: List[str] = []
         self._wp_validated = False
 
@@ -153,7 +155,6 @@ class BasePipelineUseCase(ABC):
         self, article: Dict[str, Any], tema: str
     ) -> Optional[str]:
         """Publish an article to WordPress."""
-        from config.settings import Settings
 
         if self.no_publish:
             logger.info("WordPress publishing skipped (no-publish mode)")
@@ -204,7 +205,7 @@ class BasePipelineUseCase(ABC):
             # Upload featured image
             image_url = article.get("image_url")
             featured_image_id = None
-            if image_url and Settings.WP_SITE_URL not in image_url:
+            if image_url and self._wp_site_url and self._wp_site_url not in image_url:
                 try:
                     featured_image_id = upload_image_from_url(
                         image_url,

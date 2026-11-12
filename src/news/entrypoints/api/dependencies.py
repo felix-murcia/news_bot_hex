@@ -206,10 +206,19 @@ def get_full_verify_usecase(
 def get_article_usecase(
     verified_repo: VerifiedNewsRepository = Depends(get_verified_news_repo),
     generated_articles_repo=Depends(get_generated_articles_repo),
+    generated_posts_repo=Depends(get_generated_posts_repo),
 ):
     """Use case para generar artículos."""
     from src.news.application.usecases.article import ArticleUseCase
-    return ArticleUseCase(verified_repo=verified_repo, generated_articles_repo=generated_articles_repo)
+    from config.settings import Settings
+
+    return ArticleUseCase(
+        verified_repo=verified_repo,
+        generated_posts_repo=generated_posts_repo,
+        generated_articles_repo=generated_articles_repo,
+        wp_site_url=Settings.WP_SITE_URL,
+        wp_default_image_url=Settings.WP_DEFAULT_IMAGE_URL,
+    )
 
 
 def get_soft_verify_usecase(
@@ -320,6 +329,10 @@ def get_process_url_content_processor(
             use_ai=True,
             ai_config={},
             force_extract=True,
+            cache_dir=Settings.CACHE_DIR,
+            copyright_domains=Settings.COPYRIGHT_DOMAINS,
+            wp_site_url=Settings.WP_SITE_URL,
+            wp_default_image_url=Settings.WP_DEFAULT_IMAGE_URL,
         )
 
     return process_url
@@ -335,6 +348,7 @@ def get_process_url_usecase(
     from src.news.application.usecases.process_url_pipeline import ProcessUrlPipeline
 
     from src.shared.infrastructure.composition_root import create_social_publisher
+    from config.settings import Settings
 
     pipeline = ProcessUrlPipeline(
         content_extractor=content_extractor,
@@ -342,6 +356,8 @@ def get_process_url_usecase(
         generated_posts_repo=generated_posts_repo,
         metrics_repo=metrics_repo,
         social_publisher=create_social_publisher(),
+        wp_site_url=Settings.WP_SITE_URL,
+        wp_default_image_url=Settings.WP_DEFAULT_IMAGE_URL,
     )
     return pipeline.execute
 

@@ -14,6 +14,7 @@ import sys
 import time
 
 from config.logging_config import setup_logging, get_logger
+from config.settings import Settings
 
 setup_logging()
 logger = get_logger("audio_bot.pipeline")
@@ -49,7 +50,14 @@ def main(argv: list = None):
     logger.info(f"Publish: {not args.no_publish}")
     logger.info("=" * 60)
 
-    usecase = AudioPipelineUseCase(no_publish=args.no_publish)
+    usecase = AudioPipelineUseCase(
+        no_publish=args.no_publish,
+        ai_provider=Settings.AI_PROVIDER,
+        tts_voice=Settings.TTS_VOICE,
+        tts_model=Settings.TTS_MODEL,
+        wp_site_url=Settings.WP_SITE_URL,
+        wp_default_image_url=Settings.WP_DEFAULT_IMAGE_URL,
+    )
     try:
         result = usecase.run(url=args.url, tema=args.tema)
     except Exception as e:

@@ -171,7 +171,11 @@ def main_provider():
     from src.news.application.usecases.article import run
 
     results = run(
-        limit=args.limit, use_gemini=not args.local, model_provider=args.model
+        limit=args.limit,
+        use_gemini=not args.local,
+        model_provider=args.model,
+        wp_site_url=Settings.WP_SITE_URL,
+        wp_default_image_url=Settings.WP_DEFAULT_IMAGE_URL,
     )
 
     if results:
@@ -247,6 +251,10 @@ def main_news_to_news():
             model_provider=args.model,
             use_ai=not args.local,
             force_extract=args.force_extract,
+            cache_dir=Settings.CACHE_DIR,
+            copyright_domains=Settings.COPYRIGHT_DOMAINS,
+            wp_site_url=Settings.WP_SITE_URL,
+            wp_default_image_url=Settings.WP_DEFAULT_IMAGE_URL,
         )
 
         print("✅ PROCESAMIENTO COMPLETADO")
@@ -330,7 +338,7 @@ def main_pipeline():
     )
     from src.news.application.usecases.content import run_content
 
-    posts = run_content(use_gemini=True, mode="news")
+    posts = run_content(use_gemini=True, mode="news", model_provider=Settings.AI_PROVIDER)
     logger.info(f"[CONTENT] Finalizada generación de {len(posts)} post(s).")
 
     # Step 4: Generate articles
@@ -339,7 +347,12 @@ def main_pipeline():
     )
     from src.news.application.usecases.article import run as run_article_gemini
 
-    articles = run_article_gemini(use_gemini=True)
+    articles = run_article_gemini(
+        use_gemini=True,
+        model_provider=Settings.AI_PROVIDER,
+        wp_site_url=Settings.WP_SITE_URL,
+        wp_default_image_url=Settings.WP_DEFAULT_IMAGE_URL,
+    )
     logger.info(f"[ARTICLE] Finalizada generación de {len(articles)} artículo(s).")
 
     # Step 5: Unsplash images

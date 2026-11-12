@@ -30,11 +30,15 @@ class ArticleFromNewsUseCase:
         model_provider: str = "gemini",
         ai_config: Optional[dict] = None,
         ai_model=None,
+        wp_site_url: str = "",
+        wp_default_image_url: str = "",
     ):
         self.use_ai = use_ai
         self.model_provider = model_provider
         self.ai_config = ai_config or {}
         self.ai_model = ai_model
+        self._wp_site_url = wp_site_url
+        self._wp_default_image_url = wp_default_image_url
 
     def _get_ai_model(self):
         """Obtiene el modelo de IA (lazy loading)."""
@@ -49,7 +53,6 @@ class ArticleFromNewsUseCase:
     def execute(
         self, content: str, url: str = "", tema: str = "Noticias"
     ) -> Dict[str, Any]:
-        from config.settings import Settings
 
         logger.info(
             f"[ARTICLE_NEWS] Iniciando generación desde noticia para tema: {tema}"
@@ -63,7 +66,7 @@ class ArticleFromNewsUseCase:
         news_item = {
             "resumen": resumen,
             "source_url": url,
-            "url": Settings.WP_SITE_URL,
+            "url": self._wp_site_url,
             "source": "web",
             "source_type": "news_man",
             "tema": tema,
@@ -111,7 +114,7 @@ class ArticleFromNewsUseCase:
             "slug": self._generate_slug(title),
             "labels": [tema],
             "source_type": "news_man",
-            "image_url": Settings.WP_DEFAULT_IMAGE_URL,
+            "image_url": self._wp_default_image_url,
             "image_credit": "NBES",
             "alt_text": "Logo NBES",
             "original_url": url,
@@ -196,10 +199,8 @@ Requisitos:
         return response.strip()
 
     def _generate_tweet(self, news_item: Dict) -> str:
-        from config.settings import Settings
-
         title = news_item.get("title", "Nueva noticia")
-        url = news_item.get("url", Settings.WP_SITE_URL)
+        url = news_item.get("url", self._wp_site_url)
         tweet = f"📰 {title[:200]}\n\nLeer más: {url}"
 
         from src.shared.adapters.social_post_adapter import truncate_social_post
@@ -235,6 +236,8 @@ def run_from_news(
     use_gemini: bool = True,
     model_provider: str = "gemini",
     ai_config: Optional[dict] = None,
+    wp_site_url: str = "",
+    wp_default_image_url: str = "",
 ) -> Dict[str, Any]:
     """Función de compatibilidad para pipeline existente."""
     logger.info(
@@ -244,6 +247,8 @@ def run_from_news(
         use_ai=use_gemini,
         model_provider=model_provider,
         ai_config=ai_config,
+        wp_site_url=wp_site_url,
+        wp_default_image_url=wp_default_image_url,
     )
     return use_case.execute(content, url, tema)
 
@@ -293,6 +298,8 @@ def main():
             tema=args.tema,
             use_gemini=not args.local,
             model_provider=args.model,
+            wp_site_url=Settings.WP_SITE_URL,
+            wp_default_image_url=Settings.WP_DEFAULT_IMAGE_URL,
         )
         elapsed = time.time() - start_time
 

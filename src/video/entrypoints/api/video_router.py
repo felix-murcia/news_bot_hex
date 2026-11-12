@@ -99,7 +99,17 @@ def video_pipeline(
         import uuid
         job_id = str(uuid.uuid4())
 
-        usecase = VideoPipelineUseCase(no_publish=req.no_publish, metrics_repo=metrics_repo)
+        from config.settings import Settings
+
+        usecase = VideoPipelineUseCase(
+            no_publish=req.no_publish,
+            metrics_repo=metrics_repo,
+            ai_provider=Settings.AI_PROVIDER,
+            tts_voice=Settings.TTS_VOICE,
+            tts_model=Settings.TTS_MODEL,
+            wp_site_url=Settings.WP_SITE_URL,
+            wp_default_image_url=Settings.WP_DEFAULT_IMAGE_URL,
+        )
         result = usecase.run(url=req.url, tema=req.tema, job_id=job_id)
 
         return PipelineResponse(

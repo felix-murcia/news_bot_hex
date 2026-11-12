@@ -46,7 +46,7 @@ class ArticleFromTranscriptUseCase:
 
     Usage:
         usecase = ArticleFromTranscriptUseCase(
-            llm_provider=Settings.AI_PROVIDER,
+            llm_provider="gemini",
             source_type="audio",  # or "video"
         )
         result = usecase.execute(transcript, url, tema)
@@ -57,10 +57,14 @@ class ArticleFromTranscriptUseCase:
         llm_provider: str = "gemini",
         llm_config: Optional[dict] = None,
         source_type: str = "audio",
+        wp_site_url: str = "",
+        wp_default_image_url: str = "",
     ):
         self.llm_provider = llm_provider
         self.llm_config = llm_config or {}
         self.source_type = source_type
+        self._wp_site_url = wp_site_url
+        self._wp_default_image_url = wp_default_image_url
         self._ai_model = None
 
     def _get_ai_model(self):
@@ -89,7 +93,6 @@ class ArticleFromTranscriptUseCase:
         self, transcript: str, url: str, tema: str
     ) -> Dict[str, Any]:
         """Core article generation logic."""
-        from config.settings import Settings
         from src.shared.adapters.ai.agents import ArticleFromContentAgent
         from src.shared.adapters.web_search import enriquecer_con_contexto
 
@@ -157,10 +160,10 @@ class ArticleFromTranscriptUseCase:
             "excerpt": first_p,
             "labels": [tema],
             "source_type": f"{self.source_type}_man",
-            "image_url": Settings.WP_DEFAULT_IMAGE_URL,
+            "image_url": self._wp_default_image_url,
             "image_credit": "NBES",
             "alt_text": title,
-            "url": f"{Settings.WP_SITE_URL}/{slug}",
+            "url": f"{self._wp_site_url}/{slug}" if self._wp_site_url else slug,
             "original_url": url,
         }
 
@@ -283,6 +286,8 @@ def run_from_transcript(
     llm_provider: str = "gemini",
     llm_config: Optional[dict] = None,
     source_type: str = "audio",
+    wp_site_url: str = "",
+    wp_default_image_url: str = "",
 ) -> Dict[str, Any]:
     """Convenience function for generating article from transcript.
 
@@ -293,6 +298,8 @@ def run_from_transcript(
         llm_provider: AI provider to use.
         llm_config: Provider-specific config.
         source_type: "audio" or "video".
+        wp_site_url: WordPress site base URL for article URLs.
+        wp_default_image_url: Default image URL when none is available.
 
     Returns:
         Dict with article, tweet, mode, and stats.
@@ -304,5 +311,7 @@ def run_from_transcript(
         llm_provider=llm_provider,
         llm_config=llm_config,
         source_type=source_type,
+        wp_site_url=wp_site_url,
+        wp_default_image_url=wp_default_image_url,
     )
     return usecase.execute(transcript, url, tema)

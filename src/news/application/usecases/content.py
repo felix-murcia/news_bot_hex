@@ -183,15 +183,15 @@ class ContentGeminiUseCase(ContentUseCase):
         use_gemini: bool = True,
         gemini_config: Optional[dict] = None,
         mode: str = "news",
+        model_provider: Optional[str] = None,
         **kwargs,
     ):
-        from config.settings import Settings
-        model_provider = Settings.AI_PROVIDER if use_gemini else "mock"
+        resolved_provider = model_provider or ("local" if use_gemini else "mock")
         super().__init__(
             network=network,
             use_ai=use_gemini,
             ai_config=gemini_config,
-            model_provider=model_provider,
+            model_provider=resolved_provider,
             mode=mode,
             **kwargs,
         )
@@ -206,13 +206,12 @@ def run_content(
     model_provider: str = None,
 ) -> List[Dict]:
     """Función principal para generar tweets."""
-    from config.settings import Settings
     from src.shared.infrastructure.composition_root import (
         create_generated_posts_repository,
         create_verified_news_repository,
     )
 
-    provider = model_provider or Settings.AI_PROVIDER
+    provider = model_provider or "local"
     logger.info(f"[CONTENT] Ejecutando (provider: {provider}, red: {network})")
     use_case = ContentUseCase(
         verified_repo=create_verified_news_repository(),
