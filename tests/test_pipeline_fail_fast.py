@@ -66,15 +66,11 @@ class _FakeDb(dict):
 def _audio_fails():
     """Steps 1-6 succeed; step 7 (audio) raises. Pipeline should continue to video."""
     with contextlib.ExitStack() as stack:
-        stack.enter_context(_stub_cli_package())
         p = lambda *a, **k: stack.enter_context(patch(*a, **k))  # noqa: E731
 
-        p("src.news.application.usecases.content.run_content")
-        p("src.news.application.usecases.article.run")
-        p("src.shared.infrastructure.composition_root.run_image_unsplash")
-        p("src.shared.infrastructure.composition_root.run_image_google")
-        p("src.shared.infrastructure.composition_root.run_image_enricher")
-        # Patch video, WordPress and social to avoid real DB access
+        p("src.news.application.usecases.pipeline_runner.run_content")
+        p("src.news.application.usecases.pipeline_runner.run_articles")
+        # Patch WordPress and social to avoid real DB access
         p(
             "src.shared.infrastructure.composition_root.create_video_generator",
             return_value=types.SimpleNamespace(
@@ -93,14 +89,10 @@ def _audio_fails():
 def _video_fails():
     """Steps 1-7 succeed; step 8 (video) raises. Pipeline should continue to WordPress."""
     with contextlib.ExitStack() as stack:
-        stack.enter_context(_stub_cli_package())
         p = lambda *a, **k: stack.enter_context(patch(*a, **k))  # noqa: E731
 
-        p("src.news.application.usecases.content.run_content")
-        p("src.news.application.usecases.article.run")
-        p("src.shared.infrastructure.composition_root.run_image_unsplash")
-        p("src.shared.infrastructure.composition_root.run_image_google")
-        p("src.shared.infrastructure.composition_root.run_image_enricher")
+        p("src.news.application.usecases.pipeline_runner.run_content")
+        p("src.news.application.usecases.pipeline_runner.run_articles")
         # Patch os.path.exists to return True so the video step attempts generation
         p("os.path.exists", return_value=True)
         # Patch WordPress and social to avoid real DB access
@@ -116,6 +108,8 @@ def _run_pipeline(
     articles_repo=None,
     posts_repo=None,
     verified_repo=None,
+    rss_fetch_runner=None,
+    full_verify_runner=None,
     metrics_repo=None,
     tts_usecase=None,
     social_publisher=None,
@@ -153,6 +147,11 @@ def _run_pipeline(
     else:
         mock_verified_repo = verified_repo
 
+    if rss_fetch_runner is None:
+        rss_fetch_runner = Mock(return_value={})
+    if full_verify_runner is None:
+        full_verify_runner = Mock(return_value={})
+
     if metrics_repo is None:
         mock_metrics_repo = Mock(spec=MetricsRepositoryPort)
         mock_metrics_repo.save.return_value = None
@@ -185,6 +184,8 @@ def _run_pipeline(
         mock_articles_repo,
         mock_posts_repo,
         mock_verified_repo,
+        rss_fetch_runner,
+        full_verify_runner,
         mock_metrics_repo,
         social_publisher,
         tts_usecase,
@@ -218,7 +219,13 @@ def _failing_video_factory():
     return Mock(return_value=_Gen())
 
 
-def _capture_steps(job_id, scenario, video_scenario=False):
+def _capture_steps(
+    job_id,
+    scenario,
+    video_scenario=False,
+    rss_fetch_runner=None,
+    full_verify_runner=None,
+):
     """Run the pipeline recording every (step_name, status) pair."""
     from unittest.mock import Mock
     from src.news.domain.ports import GeneratedArticlesRepository, MetricsRepositoryPort
@@ -251,6 +258,8 @@ def _capture_steps(job_id, scenario, video_scenario=False):
         _run_pipeline(
             job_id,
             articles_repo=mock_articles_repo,
+            rss_fetch_runner=rss_fetch_runner,
+            full_verify_runner=full_verify_runner,
             metrics_repo=mock_metrics_repo,
             tts_usecase=tts_usecase,
             video_generator_factory=video_generator_factory,
@@ -462,24 +471,24 @@ class TestCriticalFailureAborts:
         mock_metrics_repo = Mock(spec=MetricsRepositoryPort)
         mock_metrics_repo.save.return_value = None
 
-        with contextlib.ExitStack() as stack:
-            stack.enter_context(_stub_cli_package())
-            p = lambda *a, **k: stack.enter_context(patch(*a, **k))
-            p("src.news.entrypoints.cli.main_rss", side_effect=_Boom("RSS exploded"))
+        steps = _capture_steps(
+            "job-rss-1",
+            contextlib.nullcontext(),
+            rss_fetch_runner=Mock(side_effect=_Boom("RSS exploded")),
+        )
+        names = [n for n, _ in steps]
+        assert ProcessingStepName.FULL_VERIFICATION not in names, (
+            "pipeline should abort after RSS failure"
+        )
 
-            steps = _capture_steps("job-rss-1", contextlib.nullcontext())
-            names = [n for n, _ in steps]
-            assert ProcessingStepName.FULL_VERIFICATION not in names, (
-                "pipeline should abort after RSS failure"
+        with patch.object(pipeline_executor, "update_job_status") as update_status:
+            _run_pipeline(
+                "job-rss-2",
+                articles_repo=mock_articles_repo,
+                rss_fetch_runner=Mock(side_effect=_Boom("RSS exploded")),
+                metrics_repo=mock_metrics_repo,
             )
 
-        with patch.object(pipeline_executor, "update_job_status") as update_status, \
-             contextlib.ExitStack() as stack:
-            stack.enter_context(_stub_cli_package())
-            p = lambda *a, **k: stack.enter_context(patch(*a, **k))
-            p("src.news.entrypoints.cli.main_rss", side_effect=_Boom("RSS exploded"))
-            _run_pipeline("job-rss-2", articles_repo=mock_articles_repo, metrics_repo=mock_metrics_repo)
-
-            calls = update_status.call_args_list
-            final_call = calls[-1]
-            assert final_call[0][1] == JobStatus.FAILED
+        calls = update_status.call_args_list
+        final_call = calls[-1]
+        assert final_call[0][1] == JobStatus.FAILED

@@ -16,6 +16,8 @@ from src.news.application.usecases.pipeline_log_handler import (
     setup_pipeline_logging,
     teardown_pipeline_logging,
 )
+from src.news.application.usecases.content import run_content
+from src.news.application.usecases.article import run as run_articles
 from src.news.domain.entities.pipeline_job import (
     JobStatus,
     PipelineStepResult,
@@ -114,6 +116,8 @@ class PipelineRunner:
         generated_articles_repo,
         generated_posts_repo,
         verified_news_repo,
+        rss_fetch_runner: Callable[[], dict],
+        full_verify_runner: Callable[[], dict],
         metrics_repo,
         social_publisher,
         tts_usecase,
@@ -126,6 +130,8 @@ class PipelineRunner:
         self._generated_articles_repo = generated_articles_repo
         self._generated_posts_repo = generated_posts_repo
         self._verified_news_repo = verified_news_repo
+        self._rss_fetch_runner = rss_fetch_runner
+        self._full_verify_runner = full_verify_runner
         self._metrics_repo = metrics_repo
         self._social_publisher = social_publisher
         self._tts_usecase = tts_usecase
@@ -159,7 +165,7 @@ class PipelineRunner:
                 success, error = _execute_step(
                     ctx.job_id,
                     ProcessingStepName.RSS_FETCH,
-                    lambda: __import__('src.news.entrypoints.cli', fromlist=['main_rss']).main_rss(),
+                    self._rss_fetch_runner,
                     metrics_steps,
                     step_results,
                 )
@@ -170,7 +176,7 @@ class PipelineRunner:
                 success, error = _execute_step(
                     ctx.job_id,
                     ProcessingStepName.FULL_VERIFICATION,
-                    lambda: __import__('src.news.entrypoints.cli', fromlist=['main_full_verify']).main_full_verify(),
+                    self._full_verify_runner,
                     metrics_steps,
                     step_results,
                 )
@@ -181,7 +187,7 @@ class PipelineRunner:
                 success, error = _execute_step(
                     ctx.job_id,
                     ProcessingStepName.GENERATE_POSTS,
-                    lambda: __import__('src.news.application.usecases.content', fromlist=['run_content']).run_content(
+                    lambda: run_content(
                         use_gemini=True,
                         mode="news",
                         generated_posts_repo=self._generated_posts_repo,
@@ -197,7 +203,7 @@ class PipelineRunner:
                 success, error = _execute_step(
                     ctx.job_id,
                     ProcessingStepName.GENERATE_ARTICLES,
-                    lambda: __import__('src.news.application.usecases.article', fromlist=['run']).run(
+                    lambda: run_articles(
                         use_gemini=True,
                         generated_articles_repo=self._generated_articles_repo,
                         generated_posts_repo=self._generated_posts_repo,

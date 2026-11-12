@@ -21,6 +21,8 @@ def execute_pipeline_async(
     generated_articles_repo,
     generated_posts_repo,
     verified_news_repo,
+    rss_fetch_runner,
+    full_verify_runner,
     metrics_repo,
     social_publisher,
     tts_usecase,
@@ -41,6 +43,8 @@ def execute_pipeline_async(
         generated_articles_repo: Repository for generated articles (injected)
         generated_posts_repo: Repository for generated posts (injected)
         verified_news_repo: Repository for verified news (injected)
+        rss_fetch_runner: Callable para fetch RSS (inyectado)
+        full_verify_runner: Callable para verificación completa (inyectado)
         metrics_repo: Repository for metrics (injected)
         social_publisher: Publisher social inyectado
         tts_usecase: Caso de uso TTS inyectado
@@ -64,6 +68,8 @@ def execute_pipeline_async(
         generated_articles_repo,
         generated_posts_repo,
         verified_news_repo,
+        rss_fetch_runner,
+        full_verify_runner,
         metrics_repo,
         social_publisher,
         tts_usecase,
