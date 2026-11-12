@@ -121,7 +121,6 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
     },
     "news/application/usecases/process_url_pipeline.py": {
         "src.news.domain.entities.verified_article",  # TODO B20
-        "src.news.infrastructure.adapters",  # TODO B20
         "src.news.application.usecases.content",  # TODO B20
         "src.news.application.usecases.article",  # TODO B20
     },
