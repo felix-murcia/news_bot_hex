@@ -130,7 +130,7 @@ class TestArticleFromNewsUseCase:
             ArticleFromNewsUseCase,
         )
 
-        use_case = ArticleFromNewsUseCase(use_ai=True, model_provider="local")
+        use_case = ArticleFromNewsUseCase(use_ai=True, model_provider="local", social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c)
         assert use_case.use_ai == True
         assert use_case.model_provider == "local"
 
@@ -140,7 +140,7 @@ class TestArticleFromNewsUseCase:
             ArticleFromNewsUseCase,
         )
 
-        use_case = ArticleFromNewsUseCase(use_ai=False)
+        use_case = ArticleFromNewsUseCase(use_ai=False, social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c)
         assert use_case.use_ai == False
 
 
@@ -152,7 +152,7 @@ class TestContentGeminiUseCase:
         from src.news.application.usecases.content import ContentGeminiUseCase
 
         from unittest.mock import Mock
-        use_case = ContentGeminiUseCase(network="bluesky", use_gemini=True, verified_repo=Mock(), generated_posts_repo=Mock())
+        use_case = ContentGeminiUseCase(network="bluesky", use_gemini=True, verified_repo=Mock(), generated_posts_repo=Mock(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c)
 
         assert use_case is not None
 
@@ -179,6 +179,9 @@ class TestNewsToNewsUseCase:
             generated_posts_repo=Mock(),
             use_ai=True,
             model_provider="local",
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+            tts_text_processor=Mock(),
         )
         assert use_case.use_ai == True
         assert use_case.model_provider == "local"
@@ -194,6 +197,9 @@ class TestNewsToNewsUseCase:
             generated_articles_repo=Mock(),
             generated_posts_repo=Mock(),
             use_ai=False,
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+            tts_text_processor=Mock(),
         )
         assert use_case.use_ai == False
 
@@ -206,7 +212,12 @@ class TestArticleGeminiUseCase:
         from src.news.application.usecases.article import ArticleGeminiUseCase
 
         from unittest.mock import Mock
-        use_case = ArticleGeminiUseCase(use_gemini=True, verified_repo=Mock(), generated_articles_repo=Mock(), generated_posts_repo=Mock())
+        use_case = ArticleGeminiUseCase(
+            use_gemini=True,
+            verified_repo=Mock(),
+            generated_articles_repo=Mock(),
+            generated_posts_repo=Mock(),
+        )
 
         assert use_case is not None
 

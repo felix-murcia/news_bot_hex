@@ -3,12 +3,12 @@
 import re
 import requests
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 import logging
 from src.shared.domain.ports.tts_port import TTSPort
 from src.shared.domain.ports.audio_converter_port import AudioConverterPort
-from src.shared.adapters.tts_text_processor import TTSTextProcessor
+
 
 logger = logging.getLogger(__name__)
 COQUI_TTS_CHAR_LIMIT = 239
@@ -106,9 +106,15 @@ def concatenate_audio_files(audio_paths: List[str], output_path: str, ffmpeg_bas
 class TTSFromArticleUseCase:
     """Caso de uso para generar audio TTS desde artículos."""
 
-    def __init__(self, tts_adapter: TTSPort, audio_converter: AudioConverterPort):
+    def __init__(
+        self,
+        tts_adapter: TTSPort,
+        audio_converter: AudioConverterPort,
+        tts_text_processor: Any,
+    ):
         self._tts = tts_adapter
         self._converter = audio_converter
+        self._tts_text_processor = tts_text_processor
 
     def execute(self, article: Dict[str, Any]) -> Dict[str, Any]:
         """Genera audio TTS para un artículo, dividiendo en fragmentos si es necesario."""
@@ -121,7 +127,7 @@ class TTSFromArticleUseCase:
             logger.warning("[TTS] Artículo sin contenido, saltando generación de audio")
             return article
 
-        cleaned_content = TTSTextProcessor.process(content)
+        cleaned_content = self._tts_text_processor.process(content)
         if not cleaned_content:
             logger.warning("[TTS] Contenido vacío después de limpieza, saltando generación de audio")
             return article

@@ -57,7 +57,7 @@ class TestContentUseCaseDetailed:
         from unittest.mock import Mock
 
         for network, limit in [("bluesky", 300), ("twitter", 280), ("mastodon", 500)]:
-            use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), network=network, use_ai=False)
+            use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, network=network, use_ai=False)
             assert use_case.MAX_CHARS == limit
 
 
@@ -75,6 +75,8 @@ class TestContentRefusalGuard:
         return ContentUseCase(
             verified_repo=Mock(),
             generated_posts_repo=Mock(),
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
             network="mastodon",
             use_ai=True,
             ai_model=Mock(),
@@ -145,6 +147,8 @@ class TestContentRefusalGuard:
         use_case = ContentUseCase(
             verified_repo=verified_repo,
             generated_posts_repo=Mock(),
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
             network="mastodon",
             use_ai=True,
             ai_model=Mock(),
@@ -271,7 +275,7 @@ class TestAudioToNewsDetailed:
         mock_model.provider = "local"
         mock_get_model.return_value = mock_model
 
-        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_audio=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), use_ai=True)
+        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_audio=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, use_ai=True)
 
         with patch('src.shared.adapters.ai.agents.ArticleFromContentAgent') as mock_agent:
             mock_agent_instance = Mock()
@@ -289,7 +293,7 @@ class TestAudioToNewsDetailed:
     def test_generate_article_fallback(self):
         from src.audio.application.usecases.audio_to_news import AudioToNewsUseCase
 
-        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_audio=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), use_ai=True)
+        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_audio=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, use_ai=True)
         # Force exception in AI path by using invalid state
         use_case.ai_model = Mock()
         use_case.ai_model.generate.side_effect = Exception("AI error")
@@ -310,7 +314,7 @@ class TestAudioToNewsDetailed:
         mock_model.provider = "local"
         mock_get_model.return_value = mock_model
 
-        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_audio=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), use_ai=True)
+        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_audio=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, use_ai=True)
 
         with patch('src.shared.adapters.ai.agents.TweetAgent') as mock_agent:
             mock_agent_instance = Mock()
@@ -324,7 +328,7 @@ class TestAudioToNewsDetailed:
     def test_generate_unique_slug(self):
         from src.audio.application.usecases.audio_to_news import AudioToNewsUseCase
 
-        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_audio=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), use_ai=False)
+        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_audio=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, use_ai=False)
         slug = use_case._generate_unique_slug(
             title="Test Audio Title",
             content="<p>Some content here</p>",
@@ -340,7 +344,7 @@ class TestArticleFromAudioDetailed:
     def test_slugify_audio(self):
         from src.audio.application.usecases import ArticleFromAudioUseCase
 
-        use_case = ArticleFromAudioUseCase(llm_provider="mock")
+        use_case = ArticleFromAudioUseCase(llm_provider="mock", social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c)
         slug = use_case._generate_unique_slug(
             "Audio Podcast Title",
             "<p>Some content for the podcast</p>",

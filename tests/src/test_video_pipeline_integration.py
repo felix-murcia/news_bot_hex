@@ -18,14 +18,14 @@ class TestVideoPipelineIntegration:
         """Test VideoToNewsUseCase with a mocked video."""
         from src.video.application.usecases import VideoToNewsUseCase
 
-        use_case = VideoToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_mp3=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), use_ai=False)
+        use_case = VideoToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_mp3=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, use_ai=False)
         assert use_case.use_ai is False
 
     def test_article_from_video_with_mock(self):
         """Test ArticleFromVideoUseCase with mocked data."""
         from src.video.application.usecases import ArticleFromVideoUseCase
 
-        use_case = ArticleFromVideoUseCase(llm_provider="mock")
+        use_case = ArticleFromVideoUseCase(llm_provider="mock", social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c)
         assert use_case.llm_provider == "mock"
 
     def test_video_fetcher_can_be_instantiated(self):
@@ -51,7 +51,12 @@ class TestVideoPipelineIntegration:
             cache_dir=Path("/tmp"),
             wp_site_url="https://test.example",
             copyright_domains=[],
-            download_mp3=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), use_ai=True,
+            download_mp3=Mock(return_value="/tmp/fake.mp3"),
+            transcribe_audio=Mock(return_value="transcript"),
+            has_audio_stream=Mock(return_value=True),
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+            use_ai=True,
             model_provider=Settings.AI_PROVIDER,
         )
         assert use_case.use_ai is True
@@ -61,7 +66,7 @@ class TestVideoPipelineIntegration:
         """Test ArticleFromVideoUseCase dependencies are available."""
         from src.video.application.usecases import ArticleFromVideoUseCase
 
-        use_case = ArticleFromVideoUseCase(llm_provider=Settings.AI_PROVIDER)
+        use_case = ArticleFromVideoUseCase(llm_provider=Settings.AI_PROVIDER, social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c)
         assert use_case.llm_provider == Settings.AI_PROVIDER
 
     def test_video_uses_ai_adapter(self):
@@ -79,8 +84,8 @@ class TestVideoPipelineWorkflow:
         from src.video.application.usecases import VideoToNewsUseCase
         from src.video.application.usecases import ArticleFromVideoUseCase
 
-        video_use_case = VideoToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_mp3=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), use_ai=False)
-        article_use_case = ArticleFromVideoUseCase(llm_provider="mock")
+        video_use_case = VideoToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_mp3=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, use_ai=False)
+        article_use_case = ArticleFromVideoUseCase(llm_provider="mock", social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c)
 
         assert video_use_case is not None
         assert article_use_case is not None
@@ -132,7 +137,12 @@ class TestVideoAIProviders:
             cache_dir=Path("/tmp"),
             wp_site_url="https://test.example",
             copyright_domains=[],
-            download_mp3=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), model_provider=Settings.AI_PROVIDER,
+            download_mp3=Mock(return_value="/tmp/fake.mp3"),
+            transcribe_audio=Mock(return_value="transcript"),
+            has_audio_stream=Mock(return_value=True),
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+            model_provider=Settings.AI_PROVIDER,
             use_ai=True,
         )
         assert use_case.model_provider == Settings.AI_PROVIDER
@@ -149,7 +159,12 @@ class TestVideoAIProviders:
                 cache_dir=Path("/tmp"),
                 wp_site_url="https://test.example",
                 copyright_domains=[],
-                download_mp3=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), model_provider=provider,
+                download_mp3=Mock(return_value="/tmp/fake.mp3"),
+                transcribe_audio=Mock(return_value="transcript"),
+                has_audio_stream=Mock(return_value=True),
+                social_truncator=lambda t, limit=None: t,
+                post_editor=lambda c, editor=None: c,
+                model_provider=provider,
                 use_ai=use_ai,
             )
             assert use_case.model_provider == provider
@@ -164,7 +179,12 @@ class TestVideoAIProviders:
             cache_dir=Path("/tmp"),
             wp_site_url="https://test.example",
             copyright_domains=[],
-            download_mp3=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), model_provider="mock",
+            download_mp3=Mock(return_value="/tmp/fake.mp3"),
+            transcribe_audio=Mock(return_value="transcript"),
+            has_audio_stream=Mock(return_value=True),
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+            model_provider="mock",
             use_ai=False,
         )
         assert use_case.model_provider == "mock"
@@ -175,7 +195,7 @@ class TestVideoAIProviders:
         from src.video.application.usecases import VideoToNewsUseCase
 
         # Test default behavior uses Settings
-        use_case = VideoToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_mp3=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), use_ai=True)
+        use_case = VideoToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_mp3=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, use_ai=True)
         # If no model_provider passed, it should use Settings.AI_PROVIDER as default
         # (This depends on the implementation)
         assert use_case.use_ai is True

@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Any, Optional
+from typing import Any, Callable, Dict, Optional
 
 from src.shared.adapters.translator import translate_text
 import logging
@@ -32,13 +32,19 @@ class ArticleFromNewsUseCase:
         ai_model=None,
         wp_site_url: str = "",
         wp_default_image_url: str = "",
+        social_truncator: Callable[..., str] = None,
+        post_editor: Callable[..., str] = None,
     ):
+        if social_truncator is None or post_editor is None:
+            raise ValueError("social_truncator y post_editor son requeridos")
         self.use_ai = use_ai
         self.model_provider = model_provider
         self.ai_config = ai_config or {}
         self.ai_model = ai_model
         self._wp_site_url = wp_site_url
         self._wp_default_image_url = wp_default_image_url
+        self._social_truncator = social_truncator
+        self._post_editor = post_editor
 
     def _get_ai_model(self):
         """Obtiene el modelo de IA (lazy loading)."""
@@ -82,8 +88,7 @@ class ArticleFromNewsUseCase:
             raise RuntimeError("No se pudo generar el artículo desde noticia")
 
         # Aplicar post-edición automática al artículo
-        from src.shared.adapters.content_post_editor import post_edit_content
-        article_body = post_edit_content(article_body)
+        article_body = self._post_editor(article_body)
 
         parrafos = article_body.count("<p>")
         subtitulos = article_body.count("<h2>")
@@ -129,7 +134,7 @@ class ArticleFromNewsUseCase:
         logger.info(f"[ARTICLE_NEWS] Tweet generado: {tweet_text[:100]}...")
 
         # Aplicar post-edición automática al tweet
-        tweet_text = post_edit_content(tweet_text)
+        tweet_text = self._post_editor(tweet_text)
 
         post = build_article_post(news_item, payload, tweet_text, "news_man")
 
@@ -203,9 +208,7 @@ Requisitos:
         url = news_item.get("url", self._wp_site_url)
         tweet = f"📰 {title[:200]}\n\nLeer más: {url}"
 
-        from src.shared.adapters.social_post_adapter import truncate_social_post
-
-        tweet = truncate_social_post(tweet)
+        tweet = self._social_truncator(tweet)
         return tweet
 
     def _extract_title_from_html(self, html: str) -> str:
@@ -238,6 +241,9 @@ def run_from_news(
     ai_config: Optional[dict] = None,
     wp_site_url: str = "",
     wp_default_image_url: str = "",
+    *,
+    social_truncator: Callable[..., str],
+    post_editor: Callable[..., str],
 ) -> Dict[str, Any]:
     """Función de compatibilidad para pipeline existente."""
     logger.info(
@@ -249,6 +255,8 @@ def run_from_news(
         ai_config=ai_config,
         wp_site_url=wp_site_url,
         wp_default_image_url=wp_default_image_url,
+        social_truncator=social_truncator,
+        post_editor=post_editor,
     )
     return use_case.execute(content, url, tema)
 
@@ -292,6 +300,12 @@ def main():
     start_time = time.time()
 
     try:
+        social_truncator = __import__(
+            "src.shared.adapters.social_post_adapter", fromlist=["truncate_social_post"]
+        ).truncate_social_post
+        post_editor = __import__(
+            "src.shared.adapters.content_post_editor", fromlist=["post_edit_content"]
+        ).post_edit_content
         results = run_from_news(
             content=content,
             url=args.url,
@@ -300,6 +314,8 @@ def main():
             model_provider=args.model,
             wp_site_url=Settings.WP_SITE_URL,
             wp_default_image_url=Settings.WP_DEFAULT_IMAGE_URL,
+            social_truncator=social_truncator,
+            post_editor=post_editor,
         )
         elapsed = time.time() - start_time
 

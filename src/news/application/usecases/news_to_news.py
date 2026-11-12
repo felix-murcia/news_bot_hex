@@ -1,7 +1,7 @@
 import os
 import re
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Callable, Dict, Optional
 
 from src.news.domain.ports import ContentExtractor, GeneratedArticlesRepository, GeneratedPostsRepository
 import logging
@@ -29,6 +29,11 @@ class NewsToNewsUseCase:
         content_extractor: ContentExtractor,
         generated_articles_repo: GeneratedArticlesRepository,
         generated_posts_repo: GeneratedPostsRepository,
+        *,
+        social_truncator: Callable[..., str],
+        post_editor: Callable[..., str],
+        tts_text_processor: Any,
+        tts_usecase: Any = None,
         use_ai: bool = True,
         model_provider: str = "gemini",
         ai_config: Optional[dict] = None,
@@ -54,6 +59,10 @@ class NewsToNewsUseCase:
         self._copyright_domains = copyright_domains or []
         self._wp_site_url = wp_site_url
         self._wp_default_image_url = wp_default_image_url
+        self._social_truncator = social_truncator
+        self._post_editor = post_editor
+        self._tts_text_processor = tts_text_processor
+        self._tts_usecase = tts_usecase
 
     def _get_article_generator(self):
         if self.article_generator is None:
@@ -67,6 +76,8 @@ class NewsToNewsUseCase:
                 ai_config=self.ai_config,
                 wp_site_url=self._wp_site_url,
                 wp_default_image_url=self._wp_default_image_url,
+                social_truncator=self._social_truncator,
+                post_editor=self._post_editor,
             )
         return self.article_generator
 
@@ -117,7 +128,6 @@ class NewsToNewsUseCase:
     def _generate_tweet(self, article_data: Dict) -> str:
         """Genera tweet a partir del artículo."""
         from src.shared.adapters.ai.agents import TweetGeopoliticsAgent
-        from src.shared.adapters.social_post_adapter import truncate_social_post
 
         title = article_data.get("article", {}).get("title", "")
         url = article_data.get("article", {}).get("url", self._wp_site_url)
@@ -136,7 +146,7 @@ class NewsToNewsUseCase:
             respuesta = agent.generate(title=title, tema=tema, context=desc)
 
             if respuesta.publishable:
-                tweet = truncate_social_post(respuesta.text)
+                tweet = self._social_truncator(respuesta.text)
                 if tweet:
                     logger.info(f"[NEWS_TO_NEWS] Tweet generado: {tweet[:80]}...")
                     return tweet
@@ -150,7 +160,7 @@ class NewsToNewsUseCase:
 
         # Fallback: usar título + URL
         fallback_tweet = f"📰 {title[:150]}\n\nLeer más: {url}"
-        tweet = truncate_social_post(fallback_tweet)
+        tweet = self._social_truncator(fallback_tweet)
         logger.info(f"[NEWS_TO_NEWS] Tweet fallback generado: {tweet[:80]}...")
         return tweet
 
@@ -200,20 +210,19 @@ class NewsToNewsUseCase:
         # Step 5: Text-to-Speech (inserted after article generation)
         logger.info("[NEWS_TO_NEWS] Generando audio TTS del artículo...")
         try:
-            from src.shared.application.usecases.tts_from_article import (
-                TTSFromArticleUseCase,
-            )
+            if self._tts_usecase is not None:
+                article = article_data.get("article", {})
+                article = self._tts_usecase.execute(article)
+                article_data["article"] = article
 
-            article = article_data.get("article", {})
-            article = TTSFromArticleUseCase().execute(article)
-            article_data["article"] = article
-
-            if article.get("tts_audio_path"):
-                logger.info(
-                    f"[NEWS_TO_NEWS] Audio TTS generado: {article['tts_audio_path']}"
-                )
+                if article.get("tts_audio_path"):
+                    logger.info(
+                        f"[NEWS_TO_NEWS] Audio TTS generado: {article['tts_audio_path']}"
+                    )
+                else:
+                    logger.warning("[NEWS_TO_NEWS] No se generó audio TTS")
             else:
-                logger.warning("[NEWS_TO_NEWS] No se generó audio TTS")
+                logger.info("[NEWS_TO_NEWS] TTS omitido (tts_usecase no inyectado)")
         except Exception as e:
             logger.warning(f"[NEWS_TO_NEWS] Error en generación TTS (no bloquea): {e}")
 
@@ -267,6 +276,11 @@ def process_news_url(
     content_extractor: ContentExtractor,
     generated_articles_repo: GeneratedArticlesRepository,
     generated_posts_repo: GeneratedPostsRepository,
+    *,
+    social_truncator: Callable[..., str],
+    post_editor: Callable[..., str],
+    tts_text_processor: Any,
+    tts_usecase: Any = None,
     model_provider: str = "gemini",
     use_ai: bool = True,
     ai_config: Optional[dict] = None,
@@ -291,6 +305,10 @@ def process_news_url(
         copyright_domains=copyright_domains,
         wp_site_url=wp_site_url,
         wp_default_image_url=wp_default_image_url,
+        social_truncator=social_truncator,
+        post_editor=post_editor,
+        tts_text_processor=tts_text_processor,
+        tts_usecase=tts_usecase,
     )
     return processor.process_url(url)
 

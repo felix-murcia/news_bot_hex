@@ -31,6 +31,9 @@ def execute_pipeline_async(
     image_enricher_runner,
     wordpress_runner,
     video_generator_factory,
+    *,
+    social_truncator,
+    post_editor,
 ) -> bool:
     """
     Execute pipeline in background thread with job tracking and metrics collection.
@@ -78,6 +81,8 @@ def execute_pipeline_async(
         image_enricher_runner,
         wordpress_runner,
         video_generator_factory,
+        social_truncator=social_truncator,
+        post_editor=post_editor,
     )
 
     def _target():

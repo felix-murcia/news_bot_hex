@@ -58,6 +58,9 @@ def main_audio_to_news():
     parser.add_argument("--local", action="store_true", help="Usar solo modelo local")
     args, _ = parser.parse_known_args(sys.argv[3:])
 
+    from src.shared.adapters.content_post_editor import post_edit_content
+    from src.shared.adapters.social_post_adapter import truncate_social_post
+
     processor = AudioToNewsUseCase(
         debug_output_repo=create_debug_output_repository(),
         cache_dir=Settings.CACHE_DIR,
@@ -66,6 +69,8 @@ def main_audio_to_news():
         download_audio=download_audio,
         transcribe_audio=transcribe_audio,
         has_audio_stream=AudioConverter().has_audio_stream,
+        social_truncator=truncate_social_post,
+        post_editor=post_edit_content,
         use_ai=not args.local,
         model_provider=args.model,
     )
@@ -101,12 +106,17 @@ def main_article_from_audio():
     with open(args.transcript_file, "r", encoding="utf-8") as f:
         transcript = f.read()
 
+    from src.shared.adapters.content_post_editor import post_edit_content
+    from src.shared.adapters.social_post_adapter import truncate_social_post
+
     result = run_from_transcript(
         transcript=transcript,
         url=args.url,
         tema=args.tema,
         llm_provider=args.model,
         source_type="audio",
+        social_truncator=truncate_social_post,
+        post_editor=post_edit_content,
     )
 
     logger.info(f"[ARTICLE_AUDIO] Artículo generado")

@@ -361,12 +361,20 @@ def main_pipeline():
     generated_posts_repo = create_generated_posts_repository()
     verified_news_repo = create_verified_news_repository()
 
+    social_truncator = __import__(
+        "src.shared.adapters.social_post_adapter", fromlist=["truncate_social_post"]
+    ).truncate_social_post
+    post_editor = __import__(
+        "src.shared.adapters.content_post_editor", fromlist=["post_edit_content"]
+    ).post_edit_content
     posts = run_content(
         use_gemini=True,
         mode="news",
         model_provider=Settings.AI_PROVIDER,
         generated_posts_repo=generated_posts_repo,
         verified_news_repo=verified_news_repo,
+        social_truncator=social_truncator,
+        post_editor=post_editor,
     )
     logger.info(f"[CONTENT] Finalizada generación de {len(posts)} post(s).")
 
@@ -412,6 +420,7 @@ def main_pipeline():
     logger.info("[TTS] Iniciando generación de audio TTS para artículos...")
     from src.shared.adapters.mongo_db import get_database
     from src.shared.application.usecases.tts_from_article import TTSFromArticleUseCase
+    from src.shared.adapters.tts_text_processor import TTSTextProcessor
     from src.shared.infrastructure.composition_root import (
         create_audio_converter,
         create_tts_adapter,
@@ -422,7 +431,9 @@ def main_pipeline():
     articles = list(articles_coll.find({}))
     updated_articles_tts = None
     if articles:
-        tts_usecase = TTSFromArticleUseCase(create_tts_adapter(), create_audio_converter())
+        tts_usecase = TTSFromArticleUseCase(
+            create_tts_adapter(), create_audio_converter(), TTSTextProcessor()
+        )
         updated_articles_tts = tts_usecase.execute_batch(articles)
         for article in updated_articles_tts:
             if article.get("tts_audio_path"):

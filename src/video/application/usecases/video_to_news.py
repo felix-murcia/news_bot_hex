@@ -33,6 +33,8 @@ class VideoToNewsUseCase:
         download_mp3: Callable[[str], Optional[str]],
         transcribe_audio: Callable[[str], str],
         has_audio_stream: Callable[[str], bool],
+        social_truncator: Callable[..., str],
+        post_editor: Callable[..., str],
         use_ai: bool = True,
         model_provider: str = "gemini",
         ai_config: Optional[dict] = None,
@@ -49,6 +51,8 @@ class VideoToNewsUseCase:
         self._download_mp3 = download_mp3
         self._transcribe_audio = transcribe_audio
         self._has_audio_stream = has_audio_stream
+        self._social_truncator = social_truncator
+        self._post_editor = post_editor
 
     def _validate_video(self, video_path: Path) -> bool:
         """Valida que el video tiene audio."""
@@ -232,14 +236,10 @@ class VideoToNewsUseCase:
         agent = TweetAgent(model)
         tweet = agent.generate(f"Video: {title[:100]}")
 
-        from src.shared.adapters.social_post_adapter import truncate_social_post
-
-        tweet = truncate_social_post(tweet)
+        tweet = self._social_truncator(tweet)
 
         # Aplicar post-edición automática
-        from src.shared.adapters.content_post_editor import post_edit_content
-
-        tweet = post_edit_content(tweet)
+        tweet = self._post_editor(tweet)
 
         if not tweet:
             logger.error(

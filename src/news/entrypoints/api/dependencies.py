@@ -323,6 +323,14 @@ def get_process_url_content_processor(
     """Content processor function for process_url (wraps NewsToNewsUseCase)."""
     from src.news.application.usecases.news_to_news import process_news_url
     from config.settings import Settings
+    from src.shared.adapters.content_post_editor import post_edit_content
+    from src.shared.adapters.social_post_adapter import truncate_social_post
+    from src.shared.adapters.tts_text_processor import TTSTextProcessor
+    from src.shared.application.usecases.tts_from_article import TTSFromArticleUseCase
+    from src.shared.infrastructure.composition_root import (
+        create_audio_converter,
+        create_tts_adapter,
+    )
 
     def process_url(url: str):
         """Process URL → extract content + generate article/tweet/TTS/video"""
@@ -339,6 +347,12 @@ def get_process_url_content_processor(
             copyright_domains=Settings.COPYRIGHT_DOMAINS,
             wp_site_url=Settings.WP_SITE_URL,
             wp_default_image_url=Settings.WP_DEFAULT_IMAGE_URL,
+            social_truncator=truncate_social_post,
+            post_editor=post_edit_content,
+            tts_text_processor=TTSTextProcessor(),
+            tts_usecase=TTSFromArticleUseCase(
+                create_tts_adapter(), create_audio_converter(), TTSTextProcessor()
+            ),
         )
 
     return process_url
@@ -356,6 +370,7 @@ def get_process_url_usecase(
 
     from config.settings import Settings
     from src.shared.application.usecases.tts_from_article import TTSFromArticleUseCase
+    from src.shared.adapters.tts_text_processor import TTSTextProcessor
     from src.shared.infrastructure.composition_root import (
         create_audio_converter,
         create_social_publisher,
@@ -367,7 +382,12 @@ def get_process_url_usecase(
         run_wordpress,
     )
 
-    tts_usecase = TTSFromArticleUseCase(create_tts_adapter(), create_audio_converter())
+    from src.shared.adapters.content_post_editor import post_edit_content
+    from src.shared.adapters.social_post_adapter import truncate_social_post
+
+    tts_usecase = TTSFromArticleUseCase(
+        create_tts_adapter(), create_audio_converter(), TTSTextProcessor()
+    )
     pipeline = ProcessUrlPipeline(
         content_extractor=content_extractor,
         generated_articles_repo=generated_articles_repo,
@@ -383,6 +403,8 @@ def get_process_url_usecase(
         image_enricher_runner=run_image_enricher,
         wordpress_runner=run_wordpress,
         video_generator_factory=create_video_generator,
+        social_truncator=truncate_social_post,
+        post_editor=post_edit_content,
     )
     return pipeline.execute
 

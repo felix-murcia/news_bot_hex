@@ -19,6 +19,9 @@ class TestNewsToNewsUseCaseForceExtractParameter:
             content_extractor=mock_extractor,
             generated_articles_repo=mock_articles_repo,
             generated_posts_repo=mock_posts_repo,
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+            tts_text_processor=Mock(),
         )
         assert use_case.force_extract is False
 
@@ -34,6 +37,9 @@ class TestNewsToNewsUseCaseForceExtractParameter:
             generated_articles_repo=mock_articles_repo,
             generated_posts_repo=mock_posts_repo,
             force_extract=True,
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+            tts_text_processor=Mock(),
         )
         assert use_case.force_extract is True
 
@@ -49,6 +55,9 @@ class TestNewsToNewsUseCaseForceExtractParameter:
             generated_articles_repo=mock_articles_repo,
             generated_posts_repo=mock_posts_repo,
             force_extract=False,
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+            tts_text_processor=Mock(),
         )
         assert use_case.force_extract is False
 
@@ -67,6 +76,9 @@ class TestNewsToNewsUseCaseForceExtractParameter:
             generated_articles_repo=mock_articles_repo,
             generated_posts_repo=mock_posts_repo,
             force_extract=True,
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+            tts_text_processor=Mock(),
         )
 
         with patch.object(NewsToNewsUseCase, "_load_from_cache") as mock_cache:
@@ -94,6 +106,9 @@ class TestNewsToNewsUseCaseForceExtractParameter:
             generated_articles_repo=mock_articles_repo,
             generated_posts_repo=mock_posts_repo,
             force_extract=False,
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+            tts_text_processor=Mock(),
         )
 
         with patch.object(
@@ -183,6 +198,9 @@ class TestProcessNewsUrlFunction:
                 generated_articles_repo=Mock(),
                 generated_posts_repo=Mock(),
                 force_extract=True,
+                social_truncator=lambda t, limit=None: t,
+                post_editor=lambda c, editor=None: c,
+                tts_text_processor=Mock(),
             )
 
             # Verify usecase was instantiated with force_extract=True
@@ -431,6 +449,8 @@ class ProcessUrlPipelineTestBase:
                 image_enricher_runner=ctx["image_enricher"],
                 wordpress_runner=ctx["wordpress"],
                 video_generator_factory=ctx["video_generator_factory"],
+                social_truncator=lambda t, limit=None: t,
+                post_editor=lambda c, editor=None: c,
             )
             try:
                 pipeline.execute(self.PIPELINE_URL)

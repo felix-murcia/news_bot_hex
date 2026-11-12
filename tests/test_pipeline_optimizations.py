@@ -243,6 +243,8 @@ class TestVideoPathPropagation:
             image_enricher_runner=Mock(),
             wordpress_runner=Mock(),
             video_generator_factory=Mock(return_value=video_gen),
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
         )
 
         with patch("src.news.application.usecases.content.run_content"), \
@@ -305,6 +307,8 @@ class TestVideoPathPropagation:
             image_enricher_runner=Mock(),
             wordpress_runner=Mock(),
             video_generator_factory=Mock(return_value=video_gen),
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
         )
 
         with patch("src.news.application.usecases.content.run_content"), \

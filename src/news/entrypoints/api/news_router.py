@@ -318,9 +318,14 @@ def news_content(
         from src.news.application.usecases.content import ContentUseCase
 
         model_provider = provider or Settings.AI_PROVIDER
+        from src.shared.adapters.content_post_editor import post_edit_content
+        from src.shared.adapters.social_post_adapter import truncate_social_post
+
         content_usecase = ContentUseCase(
             verified_repo=verified_repo,
             generated_posts_repo=generated_posts_repo,
+            social_truncator=truncate_social_post,
+            post_editor=post_edit_content,
             network=network,
             model_provider=model_provider,
         )
@@ -363,6 +368,7 @@ def news_full_pipeline(
         from src.news.application.usecases.pipeline_executor import execute_pipeline_async
         from src.news.entrypoints.cli import main_rss, main_full_verify
         from src.shared.application.usecases.tts_from_article import TTSFromArticleUseCase
+        from src.shared.adapters.tts_text_processor import TTSTextProcessor
         from src.shared.infrastructure.composition_root import (
             create_audio_converter,
             create_social_publisher,
@@ -375,7 +381,12 @@ def news_full_pipeline(
         )
 
         job_id = create_job()
-        tts_usecase = TTSFromArticleUseCase(create_tts_adapter(), create_audio_converter())
+        tts_usecase = TTSFromArticleUseCase(
+            create_tts_adapter(), create_audio_converter(), TTSTextProcessor()
+        )
+        from src.shared.adapters.content_post_editor import post_edit_content
+        from src.shared.adapters.social_post_adapter import truncate_social_post
+
         started = execute_pipeline_async(
             job_id,
             generated_articles_repo,
@@ -391,6 +402,8 @@ def news_full_pipeline(
             run_image_enricher,
             run_wordpress,
             create_video_generator,
+            social_truncator=truncate_social_post,
+            post_editor=post_edit_content,
         )
 
         if not started:

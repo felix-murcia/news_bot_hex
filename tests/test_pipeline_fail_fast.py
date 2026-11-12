@@ -194,6 +194,8 @@ def _run_pipeline(
         image_enricher_runner,
         wordpress_runner,
         video_generator_factory,
+        social_truncator=lambda t, limit=None: t,
+        post_editor=lambda c, editor=None: c,
     )
     assert started, "pipeline rejected: execution lock was still held"
 

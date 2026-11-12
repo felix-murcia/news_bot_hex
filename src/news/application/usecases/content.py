@@ -1,10 +1,8 @@
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 import logging
 from src.news.domain.ports import VerifiedNewsRepository, GeneratedPostsRepository
 from src.shared.adapters.ai.agents import TweetGeopoliticsAgent
-from src.shared.adapters.social_post_adapter import truncate_social_post
-from src.shared.adapters.content_post_editor import post_edit_content
 
 logger = logging.getLogger(__name__)
 POST_LIMITS = {
@@ -21,6 +19,8 @@ class ContentUseCase:
         self,
         verified_repo: VerifiedNewsRepository,
         generated_posts_repo: GeneratedPostsRepository,
+        social_truncator: Callable[..., str],
+        post_editor: Callable[..., str],
         network: str = "bluesky",
         use_ai: bool = True,
         ai_config: Optional[dict] = None,
@@ -30,6 +30,8 @@ class ContentUseCase:
     ):
         self.verified_repo = verified_repo
         self.generated_posts_repo = generated_posts_repo
+        self._social_truncator = social_truncator
+        self._post_editor = post_editor
         self.network = network
         self.mode = mode
         self.MAX_CHARS = POST_LIMITS.get(network, 280)
@@ -100,11 +102,11 @@ class ContentUseCase:
                 f"{respuesta.reason}. No se publica contenido de baja calidad."
             )
 
-        tweet = truncate_social_post(respuesta.text, limit=self.MAX_CHARS)
+        tweet = self._social_truncator(respuesta.text, limit=self.MAX_CHARS)
         tweet = tweet.strip()
 
         # Aplicar post-edición automática
-        tweet = post_edit_content(tweet)
+        tweet = self._post_editor(tweet)
 
         if not tweet:
             logger.error(
@@ -179,6 +181,10 @@ class ContentGeminiUseCase(ContentUseCase):
 
     def __init__(
         self,
+        verified_repo: VerifiedNewsRepository,
+        generated_posts_repo: GeneratedPostsRepository,
+        social_truncator: Callable[..., str],
+        post_editor: Callable[..., str],
         network: str = "bluesky",
         use_gemini: bool = True,
         gemini_config: Optional[dict] = None,
@@ -188,6 +194,10 @@ class ContentGeminiUseCase(ContentUseCase):
     ):
         resolved_provider = model_provider or ("local" if use_gemini else "mock")
         super().__init__(
+            verified_repo=verified_repo,
+            generated_posts_repo=generated_posts_repo,
+            social_truncator=social_truncator,
+            post_editor=post_editor,
             network=network,
             use_ai=use_gemini,
             ai_config=gemini_config,
@@ -207,6 +217,8 @@ def run_content(
     *,
     generated_posts_repo: GeneratedPostsRepository,
     verified_news_repo: VerifiedNewsRepository,
+    social_truncator: Callable[..., str],
+    post_editor: Callable[..., str],
 ) -> List[Dict]:
     """Función principal para generar tweets."""
     provider = model_provider or "local"
@@ -214,6 +226,8 @@ def run_content(
     use_case = ContentUseCase(
         verified_repo=verified_news_repo,
         generated_posts_repo=generated_posts_repo,
+        social_truncator=social_truncator,
+        post_editor=post_editor,
         network=network,
         use_ai=use_gemini,
         ai_config=gemini_config,
@@ -247,6 +261,13 @@ def main():
 
     args = parser.parse_args()
 
+    social_truncator = __import__(
+        "src.shared.adapters.social_post_adapter", fromlist=["truncate_social_post"]
+    ).truncate_social_post
+    post_editor = __import__(
+        "src.shared.adapters.content_post_editor", fromlist=["post_edit_content"]
+    ).post_edit_content
+
     results = run_content(
         network=args.network,
         use_gemini=not args.local,
@@ -254,6 +275,8 @@ def main():
         model_provider=args.model,
         generated_posts_repo=create_generated_posts_repository(),
         verified_news_repo=create_verified_news_repository(),
+        social_truncator=social_truncator,
+        post_editor=post_editor,
     )
 
     if results:

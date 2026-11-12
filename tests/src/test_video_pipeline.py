@@ -30,7 +30,17 @@ class TestVideoToNewsUseCase:
         from src.video.application.usecases import VideoToNewsUseCase
 
         use_case = VideoToNewsUseCase(
-            debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_mp3=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), use_ai=True, model_provider=Settings.AI_PROVIDER
+            debug_output_repo=Mock(),
+            cache_dir=Path("/tmp"),
+            wp_site_url="https://test.example",
+            copyright_domains=[],
+            download_mp3=Mock(return_value="/tmp/fake.mp3"),
+            transcribe_audio=Mock(return_value="transcript"),
+            has_audio_stream=Mock(return_value=True),
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+            use_ai=True,
+            model_provider=Settings.AI_PROVIDER,
         )
         assert use_case.use_ai is True
         assert use_case.model_provider == Settings.AI_PROVIDER
@@ -61,7 +71,11 @@ class TestArticleFromVideoUseCase:
         """Test ArticleFromVideoUseCase initialization."""
         from src.video.application.usecases import ArticleFromVideoUseCase
 
-        use_case = ArticleFromVideoUseCase(llm_provider="gemini")
+        use_case = ArticleFromVideoUseCase(
+            llm_provider="gemini",
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+        )
 
         assert use_case.llm_provider == "gemini"
 
@@ -85,10 +99,14 @@ class TestVideoPipeline:
         from src.video.application.usecases import VideoToNewsUseCase
         from src.video.application.usecases import ArticleFromVideoUseCase
 
-        use_case = VideoToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_mp3=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), use_ai=False)
+        use_case = VideoToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_mp3=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, use_ai=False)
         assert use_case is not None
 
-        article_use_case = ArticleFromVideoUseCase(llm_provider="mock")
+        article_use_case = ArticleFromVideoUseCase(
+            llm_provider="mock",
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+        )
         assert article_use_case is not None
 
     def test_video_pipeline_accepts_video_generator(self):
@@ -108,6 +126,9 @@ class TestVideoPipeline:
             tts_adapter_factory=lambda: Mock(),
             audio_converter=Mock(),
             ai_adapter_factory=lambda p: Mock(),
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+            tts_text_processor=Mock(),
         )
         assert pipeline.video_generator is mock_generator
 

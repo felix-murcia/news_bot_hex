@@ -8,6 +8,18 @@ from unittest.mock import Mock, patch, MagicMock
 class TestNewsToNewsUseCase:
     """Test NewsToNewsUseCase."""
 
+    @staticmethod
+    def _n2n_kwargs(mock_extractor, mock_articles_repo, mock_posts_repo, **extra):
+        return dict(
+            content_extractor=mock_extractor,
+            generated_articles_repo=mock_articles_repo,
+            generated_posts_repo=mock_posts_repo,
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+            tts_text_processor=Mock(),
+            **extra,
+        )
+
     def test_init(self):
         from src.news.application.usecases.news_to_news import NewsToNewsUseCase
         from src.news.domain.ports import GeneratedArticlesRepository, GeneratedPostsRepository
@@ -15,12 +27,7 @@ class TestNewsToNewsUseCase:
         mock_extractor = Mock()
         mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
         mock_posts_repo = Mock(spec=GeneratedPostsRepository)
-        use_case = NewsToNewsUseCase(
-            content_extractor=mock_extractor,
-            generated_articles_repo=mock_articles_repo,
-            generated_posts_repo=mock_posts_repo,
-            use_ai=False
-        )
+        use_case = NewsToNewsUseCase(**self._n2n_kwargs(mock_extractor, mock_articles_repo, mock_posts_repo, use_ai=False))
         assert use_case.use_ai is False
         assert use_case.content_extractor is mock_extractor
 
@@ -34,11 +41,10 @@ class TestNewsToNewsUseCase:
         mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
         mock_posts_repo = Mock(spec=GeneratedPostsRepository)
         use_case = NewsToNewsUseCase(
-            content_extractor=mock_extractor,
-            generated_articles_repo=mock_articles_repo,
-            generated_posts_repo=mock_posts_repo,
-            use_ai=False,
-            video_generator=mock_video_gen,
+            **self._n2n_kwargs(
+                mock_extractor, mock_articles_repo, mock_posts_repo,
+                use_ai=False, video_generator=mock_video_gen,
+            )
         )
         assert use_case.video_generator is mock_video_gen
 
@@ -65,12 +71,7 @@ class TestNewsToNewsUseCase:
         mock_extractor = Mock()
         mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
         mock_posts_repo = Mock(spec=GeneratedPostsRepository)
-        use_case = NewsToNewsUseCase(
-            content_extractor=mock_extractor,
-            generated_articles_repo=mock_articles_repo,
-            generated_posts_repo=mock_posts_repo,
-            use_ai=False
-        )
+        use_case = NewsToNewsUseCase(**self._n2n_kwargs(mock_extractor, mock_articles_repo, mock_posts_repo, use_ai=False))
 
         result = use_case._load_from_cache("https://example.com")
         assert result is not None
@@ -84,12 +85,7 @@ class TestNewsToNewsUseCase:
         mock_extractor = Mock()
         mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
         mock_posts_repo = Mock(spec=GeneratedPostsRepository)
-        use_case = NewsToNewsUseCase(
-            content_extractor=mock_extractor,
-            generated_articles_repo=mock_articles_repo,
-            generated_posts_repo=mock_posts_repo,
-            use_ai=False
-        )
+        use_case = NewsToNewsUseCase(**self._n2n_kwargs(mock_extractor, mock_articles_repo, mock_posts_repo, use_ai=False))
 
         result = use_case._load_from_cache("https://example.com")
         assert result is None
@@ -103,12 +99,7 @@ class TestNewsToNewsUseCase:
         mock_extractor = Mock()
         mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
         mock_posts_repo = Mock(spec=GeneratedPostsRepository)
-        use_case = NewsToNewsUseCase(
-            content_extractor=mock_extractor,
-            generated_articles_repo=mock_articles_repo,
-            generated_posts_repo=mock_posts_repo,
-            use_ai=False
-        )
+        use_case = NewsToNewsUseCase(**self._n2n_kwargs(mock_extractor, mock_articles_repo, mock_posts_repo, use_ai=False))
 
         use_case._save_to_cache("https://example.com", "content")
         mock_save.assert_called_once()
@@ -121,7 +112,7 @@ class TestContentUseCase:
         from src.news.application.usecases.content import ContentUseCase
         from unittest.mock import Mock
 
-        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), network="bluesky", use_ai=False)
+        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, network="bluesky", use_ai=False)
         assert use_case.network == "bluesky"
         assert use_case.use_ai is False
         assert use_case.MAX_CHARS == 300
@@ -130,21 +121,21 @@ class TestContentUseCase:
         from src.news.application.usecases.content import ContentUseCase
         from unittest.mock import Mock
 
-        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), network="twitter", use_ai=False)
+        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, network="twitter", use_ai=False)
         assert use_case.MAX_CHARS == 280
 
     def test_init_mastodon(self):
         from src.news.application.usecases.content import ContentUseCase
         from unittest.mock import Mock
 
-        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), network="mastodon", use_ai=False)
+        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, network="mastodon", use_ai=False)
         assert use_case.MAX_CHARS == 500
 
     def test_init_facebook(self):
         from src.news.application.usecases.content import ContentUseCase
         from unittest.mock import Mock
 
-        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), network="facebook", use_ai=False)
+        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, network="facebook", use_ai=False)
         assert use_case.MAX_CHARS == 63206
 
 
@@ -165,7 +156,7 @@ class TestArticleFromNewsUseCase:
             ArticleFromNewsUseCase,
         )
 
-        use_case = ArticleFromNewsUseCase(use_ai=False)
+        use_case = ArticleFromNewsUseCase(use_ai=False, social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c)
         assert use_case.use_ai is False
 
     def test_seo_slugify_from_article(self):
@@ -181,7 +172,7 @@ class TestAudioToNewsUseCase:
     def test_init(self):
         from src.audio.application.usecases.audio_to_news import AudioToNewsUseCase
 
-        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_audio=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), use_ai=False)
+        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_audio=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, use_ai=False)
         assert use_case.use_ai is False
 
     def test_slugify(self):
@@ -205,7 +196,7 @@ class TestArticleFromAudioUseCase:
     def test_init(self):
         from src.audio.application.usecases import ArticleFromAudioUseCase
 
-        use_case = ArticleFromAudioUseCase(llm_provider="mock")
+        use_case = ArticleFromAudioUseCase(llm_provider="mock", social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c)
         assert use_case.llm_provider == "mock"
 
     def test_slugify(self):
@@ -241,6 +232,9 @@ class TestAudioPipelineUseCase:
             tts_adapter_factory=lambda: Mock(text_to_speech=Mock(return_value=None), is_available=Mock(return_value=True)),
             audio_converter=Mock(),
             ai_adapter_factory=lambda p: Mock(),
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+            tts_text_processor=Mock(),
         )
         with patch.object(pipeline, "_enrich_with_images", side_effect=lambda arts: arts), \
              patch.object(pipeline, "_track_temp_file"):
@@ -264,6 +258,9 @@ class TestAudioPipelineUseCase:
             tts_adapter_factory=lambda: Mock(),
             audio_converter=Mock(),
             ai_adapter_factory=lambda p: Mock(),
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+            tts_text_processor=Mock(),
         )
         with pytest.raises(RuntimeError, match="Error in audio download"):
             pipeline.run("https://example.com/audio", "Test")

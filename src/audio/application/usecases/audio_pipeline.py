@@ -4,6 +4,7 @@ This use-case orchestrates the complete audio-to-article processing pipeline.
 """
 
 import os
+import re
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -34,6 +35,9 @@ class AudioPipelineUseCase(BasePipelineUseCase):
         tts_adapter_factory: Callable[[], Any],
         audio_converter: AudioConverterPort,
         ai_adapter_factory: Callable[[str], Any],
+        social_truncator: Callable[..., str],
+        post_editor: Callable[..., str],
+        tts_text_processor: Any,
         metrics_repo: Optional[MetricsRepositoryPort] = None,
         ai_provider: str = "local",
         tts_voice: str = "",
@@ -76,6 +80,9 @@ class AudioPipelineUseCase(BasePipelineUseCase):
         self._tts_voice = tts_voice
         self._tts_model = tts_model
         self._wp_default_image_url = wp_default_image_url
+        self._social_truncator = social_truncator
+        self._post_editor = post_editor
+        self._tts_text_processor = tts_text_processor
 
     def run(self, url: str, tema: str, job_id: Optional[str] = None) -> Dict[str, Any]:
         audio_fetcher = self._audio_fetcher_factory()
@@ -146,6 +153,8 @@ class AudioPipelineUseCase(BasePipelineUseCase):
                     wp_site_url=self._wp_site_url,
                     wp_default_image_url=self._wp_default_image_url,
                     ai_adapter_factory=self._ai_adapter_factory,
+                    social_truncator=self._social_truncator,
+                    post_editor=self._post_editor,
                 ).execute(transcript, url, tema)
                 step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
                 logger.info(f"[2/4] Artículo generado en {step_duration_ms}ms")
@@ -193,14 +202,12 @@ class AudioPipelineUseCase(BasePipelineUseCase):
         step_start_ns = time.time_ns()
         logger.info("[4/8] Generando audio TTS del artículo...")
         try:
-            from src.shared.adapters.tts_text_processor import TTSTextProcessor
-
             tts = self._tts_adapter_factory()
             converter = self._audio_converter
 
             article_text = enriched_article.get("content", "")
             if article_text:
-                cleaned_text = TTSTextProcessor.process(article_text)
+                cleaned_text = self._tts_text_processor.process(article_text)
                 tts_audio_path = tts.text_to_speech(
                     text=cleaned_text,
                     voice=self._tts_voice,
@@ -303,11 +310,7 @@ class AudioPipelineUseCase(BasePipelineUseCase):
                         # Append URL if not present
                         if wordpress_url not in tweet:
                             tweet = f"{tweet}\n\nMás info: {wordpress_url}"
-                            from src.shared.adapters.social_post_adapter import (
-                                truncate_social_post,
-                            )
-
-                            tweet = truncate_social_post(tweet)
+                            tweet = self._social_truncator(tweet)
                         tweets = [tweet]  # Update tweets list with corrected tweet
                 else:
                     logger.warning(
@@ -321,9 +324,7 @@ class AudioPipelineUseCase(BasePipelineUseCase):
                     )
                     if fallback_url and fallback_url not in tweet:
                         tweet = f"{tweet}\n\nMás: {fallback_url}"
-                        from src.shared.adapters.social_post_adapter import truncate_social_post
-
-                        tweet = truncate_social_post(tweet)
+                        tweet = self._social_truncator(tweet)
                         tweets = [tweet]
                         logger.info(f"[6/10] Tweet con URL fallback: {fallback_url}")
             else:

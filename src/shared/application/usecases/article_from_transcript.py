@@ -61,13 +61,19 @@ class ArticleFromTranscriptUseCase:
         wp_site_url: str = "",
         wp_default_image_url: str = "",
         ai_adapter_factory: Callable[[str], Any] = None,
+        social_truncator: Callable[..., str] = None,
+        post_editor: Callable[..., str] = None,
     ):
+        if social_truncator is None or post_editor is None:
+            raise ValueError("social_truncator y post_editor son requeridos")
         self.llm_provider = llm_provider
         self.llm_config = llm_config or {}
         self.source_type = source_type
         self._wp_site_url = wp_site_url
         self._wp_default_image_url = wp_default_image_url
         self._ai_adapter_factory = ai_adapter_factory
+        self._social_truncator = social_truncator
+        self._post_editor = post_editor
         self._ai_model = None
 
     def _get_ai_model(self):
@@ -117,8 +123,7 @@ class ArticleFromTranscriptUseCase:
         )
 
         # 4. Apply post-editing
-        from src.shared.adapters.content_post_editor import post_edit_content
-        content = post_edit_content(content)
+        content = self._post_editor(content)
 
         # 5. Clean markdown fences if present
         content = re.sub(r"^```html\s*", "", content, flags=re.MULTILINE)
@@ -263,12 +268,10 @@ class ArticleFromTranscriptUseCase:
         tweet = re.sub(r"^\s*#\w+\s*$", "", tweet, flags=re.MULTILINE)
         tweet = tweet.strip()
 
-        from src.shared.adapters.social_post_adapter import truncate_social_post
-        tweet = truncate_social_post(tweet)
+        tweet = self._social_truncator(tweet)
 
         # Apply post-editing
-        from src.shared.adapters.content_post_editor import post_edit_content
-        tweet = post_edit_content(tweet)
+        tweet = self._post_editor(tweet)
 
         if not tweet:
             logger.error(
@@ -293,6 +296,9 @@ def run_from_transcript(
     wp_site_url: str = "",
     wp_default_image_url: str = "",
     ai_adapter_factory: Callable[[str], Any] = None,
+    *,
+    social_truncator: Callable[..., str],
+    post_editor: Callable[..., str],
 ) -> Dict[str, Any]:
     """Convenience function for generating article from transcript.
 
@@ -306,6 +312,8 @@ def run_from_transcript(
         wp_site_url: WordPress site base URL for article URLs.
         wp_default_image_url: Default image URL when none is available.
         ai_adapter_factory: Factory de adaptador IA por proveedor.
+        social_truncator: Callable de truncado de posts sociales.
+        post_editor: Callable de post-edición.
 
     Returns:
         Dict with article, tweet, mode, and stats.
@@ -320,5 +328,7 @@ def run_from_transcript(
         wp_site_url=wp_site_url,
         wp_default_image_url=wp_default_image_url,
         ai_adapter_factory=ai_adapter_factory,
+        social_truncator=social_truncator,
+        post_editor=post_editor,
     )
     return usecase.execute(transcript, url, tema)

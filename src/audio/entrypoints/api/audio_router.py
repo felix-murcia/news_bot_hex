@@ -46,6 +46,8 @@ def audio_process(req: AudioRequest):
         from src.audio.application.usecases.audio_to_news import AudioToNewsUseCase
         from src.audio.infrastructure.adapters.audio_fetcher import download_audio, transcribe_audio
         from src.shared.adapters.audio_converter import AudioConverter
+        from src.shared.adapters.content_post_editor import post_edit_content
+        from src.shared.adapters.social_post_adapter import truncate_social_post
         from src.shared.infrastructure.composition_root import create_debug_output_repository
 
         model_provider = req.get_model_provider()
@@ -57,6 +59,8 @@ def audio_process(req: AudioRequest):
             download_audio=download_audio,
             transcribe_audio=transcribe_audio,
             has_audio_stream=AudioConverter().has_audio_stream,
+            social_truncator=truncate_social_post,
+            post_editor=post_edit_content,
             use_ai=True,
             model_provider=model_provider,
         )
@@ -105,6 +109,9 @@ def audio_pipeline(
         job_id = str(uuid.uuid4())
 
         from config.settings import Settings
+        from src.shared.adapters.content_post_editor import post_edit_content
+        from src.shared.adapters.social_post_adapter import truncate_social_post
+        from src.shared.adapters.tts_text_processor import TTSTextProcessor
         from src.shared.infrastructure.composition_root import (
             create_ai_adapter,
             create_audio_converter,
@@ -122,6 +129,9 @@ def audio_pipeline(
             tts_adapter_factory=create_tts_adapter,
             audio_converter=create_audio_converter(),
             ai_adapter_factory=create_ai_adapter,
+            social_truncator=truncate_social_post,
+            post_editor=post_edit_content,
+            tts_text_processor=TTSTextProcessor(),
             metrics_repo=metrics_repo,
             ai_provider=Settings.AI_PROVIDER,
             tts_voice=Settings.TTS_VOICE,

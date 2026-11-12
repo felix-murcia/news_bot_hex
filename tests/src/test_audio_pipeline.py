@@ -66,7 +66,12 @@ class TestAudioToNewsUseCase:
             cache_dir=Path("/tmp"),
             wp_site_url="https://test.example",
             copyright_domains=[],
-            download_audio=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), model_provider=Settings.AI_PROVIDER,
+            download_audio=Mock(return_value="/tmp/fake.mp3"),
+            transcribe_audio=Mock(return_value="transcript"),
+            has_audio_stream=Mock(return_value=True),
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+            model_provider=Settings.AI_PROVIDER,
         )
         assert use_case.model_provider == Settings.AI_PROVIDER
 
@@ -78,7 +83,11 @@ class TestArticleFromAudioUseCase:
         """Test ArticleFromAudioUseCase initialization."""
         from src.audio.application.usecases import ArticleFromAudioUseCase
 
-        use_case = ArticleFromAudioUseCase(llm_provider=Settings.AI_PROVIDER)
+        use_case = ArticleFromAudioUseCase(
+            llm_provider=Settings.AI_PROVIDER,
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+        )
         assert use_case.llm_provider == Settings.AI_PROVIDER
 
 
@@ -101,10 +110,14 @@ class TestAudioPipeline:
         from src.audio.application.usecases import AudioToNewsUseCase
         from src.audio.application.usecases import ArticleFromAudioUseCase
 
-        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_audio=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), use_ai=False)
+        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_audio=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, use_ai=False)
         assert use_case is not None
 
-        article_use_case = ArticleFromAudioUseCase(llm_provider=Settings.AI_PROVIDER)
+        article_use_case = ArticleFromAudioUseCase(
+            llm_provider=Settings.AI_PROVIDER,
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+        )
         assert article_use_case is not None
 
     def test_audio_pipeline_accepts_video_generator(self):
@@ -125,6 +138,9 @@ class TestAudioPipeline:
             tts_adapter_factory=lambda: Mock(),
             audio_converter=Mock(),
             ai_adapter_factory=lambda p: Mock(),
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+            tts_text_processor=Mock(),
         )
         assert pipeline.video_generator is mock_generator
 
@@ -175,6 +191,9 @@ class TestAudioPipelineUseCase:
             tts_adapter_factory=lambda: Mock(),
             audio_converter=Mock(),
             ai_adapter_factory=lambda p: Mock(),
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+            tts_text_processor=Mock(),
         )
         defaults.update(kwargs)
         return AudioPipelineUseCase(**defaults)

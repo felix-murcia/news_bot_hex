@@ -258,6 +258,9 @@ class TestAudioPipeline:
             tts_adapter_factory=lambda: Mock(),
             audio_converter=Mock(),
             ai_adapter_factory=lambda p: Mock(),
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+            tts_text_processor=Mock(),
         )
         defaults.update(kwargs)
         return AudioPipelineUseCase(**defaults)
@@ -271,6 +274,9 @@ class TestAudioPipeline:
             tts_adapter_factory=lambda: Mock(),
             audio_converter=Mock(),
             ai_adapter_factory=lambda p: Mock(),
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+            tts_text_processor=Mock(),
         )
         defaults.update(kwargs)
         return VideoPipelineUseCase(**defaults)
@@ -311,6 +317,9 @@ class TestAudioPipeline:
             tts_adapter_factory=lambda: Mock(text_to_speech=Mock(return_value=None), is_available=Mock(return_value=True)),
             audio_converter=Mock(),
             ai_adapter_factory=lambda p: Mock(),
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+            tts_text_processor=Mock(),
         )
         with patch.object(pipeline, "_enrich_with_images", side_effect=lambda arts: arts), \
              patch.object(pipeline, "_track_temp_file"):
@@ -349,6 +358,9 @@ class TestVideoPipeline:
             tts_adapter_factory=lambda: Mock(),
             audio_converter=Mock(),
             ai_adapter_factory=lambda p: Mock(),
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+            tts_text_processor=Mock(),
         )
         assert pipeline.no_publish is True
         assert pipeline.mode == "video"
@@ -514,6 +526,9 @@ class TestErrorHandling:
             tts_adapter_factory=lambda: Mock(),
             audio_converter=Mock(),
             ai_adapter_factory=lambda p: Mock(),
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+            tts_text_processor=Mock(),
         )
 
         with pytest.raises(RuntimeError, match="Error in audio download"):
@@ -538,6 +553,9 @@ class TestErrorHandling:
             tts_adapter_factory=lambda: Mock(),
             audio_converter=Mock(),
             ai_adapter_factory=lambda p: Mock(),
+            social_truncator=lambda t, limit=None: t,
+            post_editor=lambda c, editor=None: c,
+            tts_text_processor=Mock(),
         )
 
         with pytest.raises(RuntimeError, match="Error in audio download/transcription"):

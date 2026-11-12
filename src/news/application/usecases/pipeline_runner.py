@@ -126,6 +126,9 @@ class PipelineRunner:
         image_enricher_runner: Callable[[], None],
         wordpress_runner: Callable[[], None],
         video_generator_factory: Callable[[], VideoGeneratorPort],
+        *,
+        social_truncator: Callable[..., str],
+        post_editor: Callable[..., str],
     ):
         self._generated_articles_repo = generated_articles_repo
         self._generated_posts_repo = generated_posts_repo
@@ -140,6 +143,8 @@ class PipelineRunner:
         self._image_enricher_runner = image_enricher_runner
         self._wordpress_runner = wordpress_runner
         self._video_generator_factory = video_generator_factory
+        self._social_truncator = social_truncator
+        self._post_editor = post_editor
 
     def run(self, ctx: PipelineContext) -> None:
         from src.news.application.usecases.pipeline_executor import update_job_status
@@ -192,6 +197,8 @@ class PipelineRunner:
                         mode="news",
                         generated_posts_repo=self._generated_posts_repo,
                         verified_news_repo=self._verified_news_repo,
+                        social_truncator=self._social_truncator,
+                        post_editor=self._post_editor,
                     ),
                     metrics_steps,
                     step_results,
