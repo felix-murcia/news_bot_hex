@@ -70,7 +70,7 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
         "src.shared.adapters.seo_optimizer",  # TODO B20
         "src.shared.adapters.ai.ai_factory",  # TODO B20
         "config.settings",  # TODO B11c (argparse)
-        "src.shared.infrastructure.composition_root",  # TODO B20
+        "src.shared.infrastructure.composition_root",  # TODO B11c (main/argparse)
         "argparse",  # TODO B20
     },
     "news/application/usecases/article_from_news.py": {
@@ -94,7 +94,7 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
         "src.shared.adapters.ai.ai_factory",  # TODO B20
         "src.shared.adapters.cache_manager",  # TODO B20
         "config.settings",  # TODO B11c (argparse)
-        "src.shared.infrastructure.composition_root",  # TODO B20
+        "src.shared.infrastructure.composition_root",  # TODO B11c (main/argparse)
         "argparse",  # TODO B20
     },
     "news/application/usecases/full_verify_usecase.py": {

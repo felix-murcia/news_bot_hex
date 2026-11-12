@@ -169,6 +169,11 @@ def main_provider():
     args = parser.parse_args()
 
     from src.news.application.usecases.article import run
+    from src.shared.infrastructure.composition_root import (
+        create_generated_articles_repository,
+        create_generated_posts_repository,
+        create_verified_news_repository,
+    )
 
     results = run(
         limit=args.limit,
@@ -176,6 +181,9 @@ def main_provider():
         model_provider=args.model,
         wp_site_url=Settings.WP_SITE_URL,
         wp_default_image_url=Settings.WP_DEFAULT_IMAGE_URL,
+        generated_articles_repo=create_generated_articles_repository(),
+        generated_posts_repo=create_generated_posts_repository(),
+        verified_news_repo=create_verified_news_repository(),
     )
 
     if results:
@@ -337,8 +345,23 @@ def main_pipeline():
         "[CONTENT] Iniciando generación de tweets/posts desde noticias verificadas..."
     )
     from src.news.application.usecases.content import run_content
+    from src.shared.infrastructure.composition_root import (
+        create_generated_articles_repository,
+        create_generated_posts_repository,
+        create_verified_news_repository,
+    )
 
-    posts = run_content(use_gemini=True, mode="news", model_provider=Settings.AI_PROVIDER)
+    generated_articles_repo = create_generated_articles_repository()
+    generated_posts_repo = create_generated_posts_repository()
+    verified_news_repo = create_verified_news_repository()
+
+    posts = run_content(
+        use_gemini=True,
+        mode="news",
+        model_provider=Settings.AI_PROVIDER,
+        generated_posts_repo=generated_posts_repo,
+        verified_news_repo=verified_news_repo,
+    )
     logger.info(f"[CONTENT] Finalizada generación de {len(posts)} post(s).")
 
     # Step 4: Generate articles
@@ -352,6 +375,9 @@ def main_pipeline():
         model_provider=Settings.AI_PROVIDER,
         wp_site_url=Settings.WP_SITE_URL,
         wp_default_image_url=Settings.WP_DEFAULT_IMAGE_URL,
+        generated_articles_repo=generated_articles_repo,
+        generated_posts_repo=generated_posts_repo,
+        verified_news_repo=verified_news_repo,
     )
     logger.info(f"[ARTICLE] Finalizada generación de {len(articles)} artículo(s).")
 

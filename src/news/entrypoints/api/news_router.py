@@ -353,6 +353,8 @@ def news_content(
 @router.post("/pipeline", response_model=PipelineResponse)
 def news_full_pipeline(
     generated_articles_repo=Depends(get_generated_articles_repo),
+    generated_posts_repo=Depends(get_generated_posts_repo),
+    verified_news_repo=Depends(get_verified_news_repo),
     metrics_repo=Depends(get_metrics_repository),
 ):
     """Start the complete news pipeline asynchronously (returns job_id for polling)."""
@@ -376,6 +378,8 @@ def news_full_pipeline(
         started = execute_pipeline_async(
             job_id,
             generated_articles_repo,
+            generated_posts_repo,
+            verified_news_repo,
             metrics_repo,
             create_social_publisher(),
             tts_usecase,

@@ -486,19 +486,17 @@ def run(
     model_provider: str = None,
     wp_site_url: str = "",
     wp_default_image_url: str = "",
+    *,
+    generated_articles_repo: GeneratedArticlesRepository,
+    generated_posts_repo: GeneratedPostsRepository,
+    verified_news_repo: VerifiedNewsRepository,
 ) -> List[Dict]:
-    from src.shared.infrastructure.composition_root import (
-        create_generated_articles_repository,
-        create_generated_posts_repository,
-        create_verified_news_repository,
-    )
-
     provider = model_provider or "local"
     logger.info(f"[ARTICLE] Ejecutando (provider: {provider})")
     use_case = ArticleUseCase(
-        verified_repo=create_verified_news_repository(),
-        generated_posts_repo=create_generated_posts_repository(),
-        generated_articles_repo=create_generated_articles_repository(),
+        verified_repo=verified_news_repo,
+        generated_posts_repo=generated_posts_repo,
+        generated_articles_repo=generated_articles_repo,
         use_ai=use_gemini,
         ai_config=ai_config,
         model_provider=provider,
@@ -511,6 +509,11 @@ def run(
 def main():
     import argparse
     from config.settings import Settings
+    from src.shared.infrastructure.composition_root import (  # TODO B11c (main/argparse)
+        create_generated_articles_repository,
+        create_generated_posts_repository,
+        create_verified_news_repository,
+    )
 
     parser = argparse.ArgumentParser(description="Generador de artículos con IA")
     parser.add_argument("--local", action="store_true", help="Usar solo modelo local")
@@ -531,6 +534,9 @@ def main():
         model_provider=args.model,
         wp_site_url=Settings.WP_SITE_URL,
         wp_default_image_url=Settings.WP_DEFAULT_IMAGE_URL,
+        generated_articles_repo=create_generated_articles_repository(),
+        generated_posts_repo=create_generated_posts_repository(),
+        verified_news_repo=create_verified_news_repository(),
     )
 
     if results:

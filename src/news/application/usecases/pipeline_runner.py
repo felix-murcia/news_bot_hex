@@ -112,6 +112,8 @@ class PipelineRunner:
     def __init__(
         self,
         generated_articles_repo,
+        generated_posts_repo,
+        verified_news_repo,
         metrics_repo,
         social_publisher,
         tts_usecase,
@@ -122,6 +124,8 @@ class PipelineRunner:
         video_generator_factory: Callable[[], VideoGeneratorPort],
     ):
         self._generated_articles_repo = generated_articles_repo
+        self._generated_posts_repo = generated_posts_repo
+        self._verified_news_repo = verified_news_repo
         self._metrics_repo = metrics_repo
         self._social_publisher = social_publisher
         self._tts_usecase = tts_usecase
@@ -177,7 +181,12 @@ class PipelineRunner:
                 success, error = _execute_step(
                     ctx.job_id,
                     ProcessingStepName.GENERATE_POSTS,
-                    lambda: __import__('src.news.application.usecases.content', fromlist=['run_content']).run_content(use_gemini=True, mode="news"),
+                    lambda: __import__('src.news.application.usecases.content', fromlist=['run_content']).run_content(
+                        use_gemini=True,
+                        mode="news",
+                        generated_posts_repo=self._generated_posts_repo,
+                        verified_news_repo=self._verified_news_repo,
+                    ),
                     metrics_steps,
                     step_results,
                 )
@@ -188,7 +197,12 @@ class PipelineRunner:
                 success, error = _execute_step(
                     ctx.job_id,
                     ProcessingStepName.GENERATE_ARTICLES,
-                    lambda: __import__('src.news.application.usecases.article', fromlist=['run']).run(use_gemini=True),
+                    lambda: __import__('src.news.application.usecases.article', fromlist=['run']).run(
+                        use_gemini=True,
+                        generated_articles_repo=self._generated_articles_repo,
+                        generated_posts_repo=self._generated_posts_repo,
+                        verified_news_repo=self._verified_news_repo,
+                    ),
                     metrics_steps,
                     step_results,
                 )

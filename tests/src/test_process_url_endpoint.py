@@ -407,12 +407,10 @@ class ProcessUrlPipelineTestBase:
             if run_article_result is not None:
                 ctx["run_article"].return_value = run_article_result
 
-            mock_repo_cls = stack.enter_context(
-                patch("src.news.infrastructure.adapters.MongoVerifiedNewsRepository")
-            )
-            mock_repo_cls.return_value.insert_news.side_effect = (
-                lambda arts: inserted.extend(arts)
-            )
+            mock_verified_repo = Mock()
+            mock_verified_repo.delete_all_news.return_value = None
+            mock_verified_repo.insert_news.side_effect = lambda arts: inserted.extend(arts)
+            ctx["verified_news_repo"] = mock_verified_repo
 
             mock_articles_repo = Mock()
             mock_articles_repo.load_all.return_value = [] if articles_in_db is None else articles_in_db
@@ -424,6 +422,7 @@ class ProcessUrlPipelineTestBase:
                 content_extractor=extractor,
                 generated_articles_repo=mock_articles_repo,
                 generated_posts_repo=mock_posts_repo,
+                verified_news_repo=mock_verified_repo,
                 metrics_repo=None,
                 social_publisher=mock_social,
                 tts_usecase=ctx["tts"],

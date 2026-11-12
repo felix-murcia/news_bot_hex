@@ -114,6 +114,8 @@ def _video_fails():
 def _run_pipeline(
     job_id,
     articles_repo=None,
+    posts_repo=None,
+    verified_repo=None,
     metrics_repo=None,
     tts_usecase=None,
     social_publisher=None,
@@ -130,7 +132,7 @@ def _run_pipeline(
     ``_execution_lock`` is released in the worker's ``finally``.
     """
     from unittest.mock import Mock
-    from src.news.domain.ports import GeneratedArticlesRepository, MetricsRepositoryPort
+    from src.news.domain.ports import GeneratedArticlesRepository, GeneratedPostsRepository, MetricsRepositoryPort, VerifiedNewsRepository
 
     # Mock repositories for the new injected dependencies
     if articles_repo is None:
@@ -140,6 +142,16 @@ def _run_pipeline(
         mock_articles_repo.update_generated_video_path.return_value = True
     else:
         mock_articles_repo = articles_repo
+
+    if posts_repo is None:
+        mock_posts_repo = Mock(spec=GeneratedPostsRepository)
+    else:
+        mock_posts_repo = posts_repo
+
+    if verified_repo is None:
+        mock_verified_repo = Mock(spec=VerifiedNewsRepository)
+    else:
+        mock_verified_repo = verified_repo
 
     if metrics_repo is None:
         mock_metrics_repo = Mock(spec=MetricsRepositoryPort)
@@ -171,6 +183,8 @@ def _run_pipeline(
     started = pipeline_executor.execute_pipeline_async(
         job_id,
         mock_articles_repo,
+        mock_posts_repo,
+        mock_verified_repo,
         mock_metrics_repo,
         social_publisher,
         tts_usecase,
@@ -236,8 +250,8 @@ def _capture_steps(job_id, scenario, video_scenario=False):
     ), patch.object(pipeline_executor, "update_job_status"), scenario:
         _run_pipeline(
             job_id,
-            mock_articles_repo,
-            mock_metrics_repo,
+            articles_repo=mock_articles_repo,
+            metrics_repo=mock_metrics_repo,
             tts_usecase=tts_usecase,
             video_generator_factory=video_generator_factory,
         )
@@ -284,7 +298,12 @@ class TestAudioFailureIsEnrichment:
         with patch.object(pipeline_executor.logger, "error") as err, \
              patch.object(pipeline_executor.logger, "warning") as warn, \
              _audio_fails():
-            _run_pipeline("job-audio-3", mock_articles_repo, mock_metrics_repo, tts_usecase=tts_usecase)
+            _run_pipeline(
+                "job-audio-3",
+                articles_repo=mock_articles_repo,
+                metrics_repo=mock_metrics_repo,
+                tts_usecase=tts_usecase,
+            )
 
         errors = [str(c.args[0]) for c in err.call_args_list if c.args]
         warnings = [str(c.args[0]) for c in warn.call_args_list if c.args]
@@ -322,7 +341,12 @@ class TestAudioFailureIsEnrichment:
 
         with patch.object(pipeline_executor, "update_job_status") as update_status, \
              _audio_fails():
-            _run_pipeline("job-audio-5", mock_articles_repo, mock_metrics_repo, tts_usecase=tts_usecase)
+            _run_pipeline(
+                "job-audio-5",
+                articles_repo=mock_articles_repo,
+                metrics_repo=mock_metrics_repo,
+                tts_usecase=tts_usecase,
+            )
 
         # Check final update_job_status call
         calls = update_status.call_args_list
@@ -371,8 +395,8 @@ class TestVideoFailureIsEnrichment:
              _video_fails():
             _run_pipeline(
                 "job-video-3",
-                mock_articles_repo,
-                mock_metrics_repo,
+                articles_repo=mock_articles_repo,
+                metrics_repo=mock_metrics_repo,
                 tts_usecase=tts_usecase,
                 video_generator_factory=_failing_video_factory(),
             )
@@ -407,8 +431,8 @@ class TestVideoFailureIsEnrichment:
              _video_fails():
             _run_pipeline(
                 "job-video-5",
-                mock_articles_repo,
-                mock_metrics_repo,
+                articles_repo=mock_articles_repo,
+                metrics_repo=mock_metrics_repo,
                 video_generator_factory=_failing_video_factory(),
             )
 
@@ -454,7 +478,7 @@ class TestCriticalFailureAborts:
             stack.enter_context(_stub_cli_package())
             p = lambda *a, **k: stack.enter_context(patch(*a, **k))
             p("src.news.entrypoints.cli.main_rss", side_effect=_Boom("RSS exploded"))
-            _run_pipeline("job-rss-2", mock_articles_repo, mock_metrics_repo)
+            _run_pipeline("job-rss-2", articles_repo=mock_articles_repo, metrics_repo=mock_metrics_repo)
 
             calls = update_status.call_args_list
             final_call = calls[-1]

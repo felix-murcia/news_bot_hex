@@ -230,10 +230,12 @@ class TestVideoPathPropagation:
         video_gen.is_available.return_value = True
         video_gen.create_video_from_audio.return_value = "/tmp/video.mp4"
 
+        mock_verified_repo = Mock()
         pipeline = ProcessUrlPipeline(
             content_extractor=extractor,
             generated_articles_repo=mock_articles_repo,
             generated_posts_repo=mock_posts_repo,
+            verified_news_repo=mock_verified_repo,
             social_publisher=Mock(),
             tts_usecase=tts_usecase,
             image_unsplash_runner=Mock(),
@@ -243,8 +245,7 @@ class TestVideoPathPropagation:
             video_generator_factory=Mock(return_value=video_gen),
         )
 
-        with patch("src.news.infrastructure.adapters.MongoVerifiedNewsRepository"), \
-             patch("src.news.application.usecases.content.run_content"), \
+        with patch("src.news.application.usecases.content.run_content"), \
              patch("src.news.application.usecases.article.run"), \
              patch("os.path.exists", return_value=True):
             result = pipeline.execute("https://example.com/news/1")
@@ -291,10 +292,12 @@ class TestVideoPathPropagation:
         video_gen = Mock()
         video_gen.is_available.return_value = False
 
+        mock_verified_repo = Mock()
         pipeline = ProcessUrlPipeline(
             content_extractor=extractor,
             generated_articles_repo=mock_articles_repo,
             generated_posts_repo=mock_posts_repo,
+            verified_news_repo=mock_verified_repo,
             social_publisher=Mock(),
             tts_usecase=tts_usecase,
             image_unsplash_runner=Mock(),
@@ -304,8 +307,7 @@ class TestVideoPathPropagation:
             video_generator_factory=Mock(return_value=video_gen),
         )
 
-        with patch("src.news.infrastructure.adapters.MongoVerifiedNewsRepository"), \
-             patch("src.news.application.usecases.content.run_content"), \
+        with patch("src.news.application.usecases.content.run_content"), \
              patch("src.news.application.usecases.article.run"), \
              patch("os.path.exists", return_value=True):
             pipeline.execute("https://example.com/news/1")

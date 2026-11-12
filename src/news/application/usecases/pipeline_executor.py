@@ -19,6 +19,8 @@ _execution_lock = threading.Lock()
 def execute_pipeline_async(
     job_id,
     generated_articles_repo,
+    generated_posts_repo,
+    verified_news_repo,
     metrics_repo,
     social_publisher,
     tts_usecase,
@@ -37,6 +39,8 @@ def execute_pipeline_async(
     Args:
         job_id: Unique job identifier
         generated_articles_repo: Repository for generated articles (injected)
+        generated_posts_repo: Repository for generated posts (injected)
+        verified_news_repo: Repository for verified news (injected)
         metrics_repo: Repository for metrics (injected)
         social_publisher: Publisher social inyectado
         tts_usecase: Caso de uso TTS inyectado
@@ -58,6 +62,8 @@ def execute_pipeline_async(
     ctx = PipelineContext(job_id=job_id)
     runner = PipelineRunner(
         generated_articles_repo,
+        generated_posts_repo,
+        verified_news_repo,
         metrics_repo,
         social_publisher,
         tts_usecase,

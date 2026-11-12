@@ -14,7 +14,7 @@ from typing import Callable, Optional
 import logging
 from src.news.application.usecases.metrics_collector import MetricsCollector
 from src.news.domain.entities.processing_metric import PipelineType
-from src.news.domain.ports import GeneratedArticlesRepository, GeneratedPostsRepository
+from src.news.domain.ports import GeneratedArticlesRepository, GeneratedPostsRepository, VerifiedNewsRepository
 from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
 from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
 
@@ -26,6 +26,7 @@ class ProcessUrlPipeline:
         content_extractor,
         generated_articles_repo: GeneratedArticlesRepository,
         generated_posts_repo: GeneratedPostsRepository,
+        verified_news_repo: VerifiedNewsRepository,
         metrics_repo: Optional[MetricsRepositoryPort] = None,
         *,
         social_publisher,
@@ -41,6 +42,7 @@ class ProcessUrlPipeline:
         self.content_extractor = content_extractor
         self.generated_articles_repo = generated_articles_repo
         self.generated_posts_repo = generated_posts_repo
+        self._verified_news_repo = verified_news_repo
         self.metrics_repo = metrics_repo
         self._social_publisher = social_publisher
         self._tts_usecase = tts_usecase
@@ -92,7 +94,6 @@ class ProcessUrlPipeline:
         # ── Step 2: Save as VerifiedArticle → verified_news ────────────────
         def save_verified():
             from src.news.domain.entities.verified_article import VerifiedArticle
-            from src.news.infrastructure.adapters import MongoVerifiedNewsRepository
 
             # Prioridad: 'Title:' de Jina (metadato de la página) > primera
             # línea del cuerpo > la URL. En páginas con banner de cookies la
@@ -129,16 +130,20 @@ class ProcessUrlPipeline:
                 source_url=url,
             )
 
-            repo = MongoVerifiedNewsRepository()
-            repo.delete_all_news()
-            repo.insert_news([article])
+            self._verified_news_repo.delete_all_news()
+            self._verified_news_repo.insert_news([article])
 
         run_step("Save Verified Article", save_verified, critical=True)
 
         # ── Step 3: Generate Posts (same as automatic pipeline) ─────────────
         def generate_posts():
             from src.news.application.usecases.content import run_content
-            posts = run_content(use_gemini=True, mode="news")
+            posts = run_content(
+                use_gemini=True,
+                mode="news",
+                generated_posts_repo=self.generated_posts_repo,
+                verified_news_repo=self._verified_news_repo,
+            )
             # Fail-fast: run_content omite por-item las noticias cuya IA se
             # negó (baja calidad). En el pipeline automático eso es legítimo
             # (N artículos RSS), pero aquí hay UNA sola url: 0 posts = nada
@@ -165,6 +170,9 @@ class ProcessUrlPipeline:
                 use_gemini=True,
                 wp_site_url=self._wp_site_url,
                 wp_default_image_url=self._wp_default_image_url,
+                generated_articles_repo=self.generated_articles_repo,
+                generated_posts_repo=self.generated_posts_repo,
+                verified_news_repo=self._verified_news_repo,
             )
             # Fail-fast: si no se generó artículo para la url (p. ej. el post
             # no coincide con la URL verificada, o el LLM no devolvió cuerpo),

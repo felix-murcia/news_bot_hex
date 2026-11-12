@@ -204,18 +204,16 @@ def run_content(
     gemini_config: Optional[Dict] = None,
     mode: str = "news",
     model_provider: str = None,
+    *,
+    generated_posts_repo: GeneratedPostsRepository,
+    verified_news_repo: VerifiedNewsRepository,
 ) -> List[Dict]:
     """Función principal para generar tweets."""
-    from src.shared.infrastructure.composition_root import (
-        create_generated_posts_repository,
-        create_verified_news_repository,
-    )
-
     provider = model_provider or "local"
     logger.info(f"[CONTENT] Ejecutando (provider: {provider}, red: {network})")
     use_case = ContentUseCase(
-        verified_repo=create_verified_news_repository(),
-        generated_posts_repo=create_generated_posts_repository(),
+        verified_repo=verified_news_repo,
+        generated_posts_repo=generated_posts_repo,
         network=network,
         use_ai=use_gemini,
         ai_config=gemini_config,
@@ -225,14 +223,13 @@ def run_content(
     return use_case.execute()
 
 
-def run(llm=None):
-    """Wrapper para compatibilidad de pipeline."""
-    return run_content(llm=llm)
-
-
 def main():
     import argparse
     from config.settings import Settings
+    from src.shared.infrastructure.composition_root import (  # TODO B11c (main/argparse)
+        create_generated_posts_repository,
+        create_verified_news_repository,
+    )
 
     parser = argparse.ArgumentParser(description="Generador de tweets")
     parser.add_argument("--local", action="store_true", help="Usar solo modelo local")
@@ -255,6 +252,8 @@ def main():
         use_gemini=not args.local,
         mode=args.mode,
         model_provider=args.model,
+        generated_posts_repo=create_generated_posts_repository(),
+        verified_news_repo=create_verified_news_repository(),
     )
 
     if results:

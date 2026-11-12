@@ -343,6 +343,7 @@ def get_process_url_usecase(
     metrics_repo=Depends(get_metrics_repository),
     generated_articles_repo=Depends(get_generated_articles_repo),
     generated_posts_repo=Depends(get_generated_posts_repo),
+    verified_news_repo=Depends(get_verified_news_repo),
 ):
     """ProcessUrlPipeline - same pipeline as automatic, starting from URL extraction."""
     from src.news.application.usecases.process_url_pipeline import ProcessUrlPipeline
@@ -365,6 +366,7 @@ def get_process_url_usecase(
         content_extractor=content_extractor,
         generated_articles_repo=generated_articles_repo,
         generated_posts_repo=generated_posts_repo,
+        verified_news_repo=verified_news_repo,
         metrics_repo=metrics_repo,
         social_publisher=create_social_publisher(),
         tts_usecase=tts_usecase,
