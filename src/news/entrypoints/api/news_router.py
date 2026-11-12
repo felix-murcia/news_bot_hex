@@ -359,9 +359,22 @@ def news_full_pipeline(
     try:
         from src.news.application.usecases.pipeline_job import create_job
         from src.news.application.usecases.pipeline_executor import execute_pipeline_async
+        from src.shared.application.usecases.tts_from_article import TTSFromArticleUseCase
+        from src.shared.infrastructure.composition_root import (
+            create_audio_converter,
+            create_social_publisher,
+            create_tts_adapter,
+        )
 
         job_id = create_job()
-        started = execute_pipeline_async(job_id, generated_articles_repo, metrics_repo)
+        tts_usecase = TTSFromArticleUseCase(create_tts_adapter(), create_audio_converter())
+        started = execute_pipeline_async(
+            job_id,
+            generated_articles_repo,
+            metrics_repo,
+            create_social_publisher(),
+            tts_usecase,
+        )
 
         if not started:
             raise HTTPException(

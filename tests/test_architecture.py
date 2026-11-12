@@ -49,7 +49,6 @@ INFRASTRUCTURE_PREFIXES = (
 # Imports inline existentes en application/ + domain/ allowlisteados hasta B20.
 ALLOWED_IMPORTS: dict[str, set[str]] = {
     "audio/application/usecases/audio_pipeline.py": {
-        "src.shared.infrastructure.composition_root",  # TODO B20
         "src.shared.adapters.tts_text_processor",  # TODO B20
         "pathlib",  # TODO B20
         "src.shared.adapters.social_post_adapter",  # TODO B20
@@ -118,7 +117,6 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
     },
     "news/application/usecases/pipeline_runner.py": {
         "src.news.application.usecases.pipeline_executor",  # TODO B20
-        "src.shared.application.usecases.tts_from_article",  # TODO B20
         "src.shared.infrastructure.composition_root",  # TODO B20
         "os",  # TODO B20
     },
@@ -128,7 +126,6 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
         "src.news.application.usecases.content",  # TODO B20
         "src.news.application.usecases.article",  # TODO B20
         "src.shared.infrastructure.composition_root",  # TODO B20
-        "src.shared.application.usecases.tts_from_article",  # TODO B20
     },
     "news/application/usecases/soft_verify.py": {
         "src.shared.adapters.cache_manager",  # TODO B20
@@ -139,7 +136,6 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
     },
     "shared/application/usecases/article_from_transcript.py": {
         "unicodedata",  # TODO B20
-        "src.shared.infrastructure.composition_root",  # TODO B20
         "src.shared.adapters.ai.agents",  # TODO B20
         "src.shared.adapters.web_search",  # TODO B20
         "src.shared.adapters.content_post_editor",  # TODO B20
@@ -153,7 +149,6 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
         "src.shared.adapters.google_images_fetcher",  # TODO B20
         "src.shared.adapters.unsplash_fetcher",  # TODO B20
         "src.shared.adapters.wordpress_publisher",  # TODO B20
-        "src.shared.infrastructure.composition_root",  # TODO B20
     },
     "shared/application/usecases/tts_from_article.py": {
         "src.shared.adapters.tts_text_processor",  # TODO B20
@@ -161,10 +156,8 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
         "uuid",  # TODO B20
         "datetime",  # TODO B20
         "src.shared.adapters.audio_converter_factory",  # TODO B20
-        "src.shared.infrastructure.composition_root",  # TODO B20
     },
     "video/application/usecases/video_pipeline.py": {
-        "src.shared.infrastructure.composition_root",  # TODO B20
         "src.shared.adapters.tts_text_processor",  # TODO B20
         "pathlib",  # TODO B20
         "src.shared.adapters.social_post_adapter",  # TODO B20

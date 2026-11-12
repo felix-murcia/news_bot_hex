@@ -100,9 +100,23 @@ def video_pipeline(
         job_id = str(uuid.uuid4())
 
         from config.settings import Settings
+        from src.shared.infrastructure.composition_root import (
+            create_ai_adapter,
+            create_audio_converter,
+            create_tts_adapter,
+            create_video_fetcher,
+            create_video_generator,
+            create_video_transcriber,
+        )
 
         usecase = VideoPipelineUseCase(
             no_publish=req.no_publish,
+            video_generator=create_video_generator(),
+            video_fetcher_factory=create_video_fetcher,
+            video_transcriber_factory=create_video_transcriber,
+            tts_adapter_factory=create_tts_adapter,
+            audio_converter=create_audio_converter(),
+            ai_adapter_factory=create_ai_adapter,
             metrics_repo=metrics_repo,
             ai_provider=Settings.AI_PROVIDER,
             tts_voice=Settings.TTS_VOICE,

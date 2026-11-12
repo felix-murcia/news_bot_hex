@@ -13,7 +13,12 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 
 import logging
+
+from src.shared.domain.ports.audio_converter_port import AudioConverterPort
+
 logger = logging.getLogger(__name__)
+
+
 class BasePipelineUseCase(ABC):
     """Abstract base class for all media processing pipelines.
 
@@ -32,6 +37,7 @@ class BasePipelineUseCase(ABC):
         enable_mastodon: bool = True,
         enable_facebook: bool = True,
         wp_site_url: str = "",
+        audio_converter: AudioConverterPort = None,
     ):
         self.mode = mode
         self.no_publish = no_publish
@@ -41,6 +47,7 @@ class BasePipelineUseCase(ABC):
         self._enable_mastodon = enable_mastodon
         self._enable_facebook = enable_facebook
         self._wp_site_url = wp_site_url
+        self._audio_converter = audio_converter
         self._temp_files: List[str] = []
         self._wp_validated = False
 
@@ -257,9 +264,9 @@ class BasePipelineUseCase(ABC):
                         f"[{self.mode.upper()}] Intentando convertir WAV → MP3 (64k)..."
                     )
                     try:
-                        from src.shared.infrastructure.composition_root import create_audio_converter
-
-                        converter = create_audio_converter()
+                        converter = self._audio_converter
+                        if converter is None:
+                            raise RuntimeError("audio_converter no inyectado en BasePipelineUseCase")
                         mp3_path = converter.convert_to_mp3(
                             input_path=audio_path,
                             bitrate="64k",

@@ -23,6 +23,14 @@ setup_logging()
 logger = get_logger("video_bot.pipeline")
 
 from src.video.application.usecases.video_pipeline import VideoPipelineUseCase
+from src.shared.infrastructure.composition_root import (
+    create_ai_adapter,
+    create_audio_converter,
+    create_tts_adapter,
+    create_video_fetcher,
+    create_video_generator,
+    create_video_transcriber,
+)
 
 
 def parse_args(argv: list) -> argparse.Namespace:
@@ -55,6 +63,12 @@ def main(argv: list = None):
 
     usecase = VideoPipelineUseCase(
         no_publish=args.no_publish,
+        video_generator=create_video_generator(),
+        video_fetcher_factory=create_video_fetcher,
+        video_transcriber_factory=create_video_transcriber,
+        tts_adapter_factory=create_tts_adapter,
+        audio_converter=create_audio_converter(),
+        ai_adapter_factory=create_ai_adapter,
         ai_provider=Settings.AI_PROVIDER,
         tts_voice=Settings.TTS_VOICE,
         tts_model=Settings.TTS_MODEL,

@@ -199,17 +199,3 @@ class TTSFromArticleUseCase:
             logger.warning("[TTS] Servicio TTS no disponible, saltando generación de audio")
             return articles
         return [self.execute(article) for article in articles]
-
-
-def run_tts_from_article(article: Dict[str, Any]) -> Dict[str, Any]:
-    """Función de conveniencia para generar audio TTS desde un artículo."""
-    from src.shared.infrastructure.composition_root import create_tts_adapter, create_audio_converter
-    use_case = TTSFromArticleUseCase(create_tts_adapter(), create_audio_converter())
-    return use_case.execute(article)
-
-
-def run_tts_from_articles(articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Función de conveniencia para generar audio TTS desde una lista de artículos."""
-    from src.shared.infrastructure.composition_root import create_tts_adapter, create_audio_converter
-    use_case = TTSFromArticleUseCase(create_tts_adapter(), create_audio_converter())
-    return use_case.execute_batch(articles)

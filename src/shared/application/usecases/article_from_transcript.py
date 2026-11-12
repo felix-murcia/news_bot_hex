@@ -11,9 +11,10 @@ Respects hexagonal architecture:
 """
 
 import re
-from typing import Dict, Any, Optional
+from typing import Any, Callable, Dict, Optional
 
 import logging
+
 logger = logging.getLogger(__name__)
 # Source type mapping for prompt selection
 SOURCE_TYPE_MAP = {
@@ -59,19 +60,22 @@ class ArticleFromTranscriptUseCase:
         source_type: str = "audio",
         wp_site_url: str = "",
         wp_default_image_url: str = "",
+        ai_adapter_factory: Callable[[str], Any] = None,
     ):
         self.llm_provider = llm_provider
         self.llm_config = llm_config or {}
         self.source_type = source_type
         self._wp_site_url = wp_site_url
         self._wp_default_image_url = wp_default_image_url
+        self._ai_adapter_factory = ai_adapter_factory
         self._ai_model = None
 
     def _get_ai_model(self):
         """Lazy load AI model."""
         if self._ai_model is None:
-            from src.shared.infrastructure.composition_root import create_ai_adapter
-            self._ai_model = create_ai_adapter(provider=self.llm_provider)
+            if self._ai_adapter_factory is None:
+                raise RuntimeError("ai_adapter_factory no inyectado en ArticleFromTranscriptUseCase")
+            self._ai_model = self._ai_adapter_factory(self.llm_provider)
         return self._ai_model
 
     def execute(
@@ -288,6 +292,7 @@ def run_from_transcript(
     source_type: str = "audio",
     wp_site_url: str = "",
     wp_default_image_url: str = "",
+    ai_adapter_factory: Callable[[str], Any] = None,
 ) -> Dict[str, Any]:
     """Convenience function for generating article from transcript.
 
@@ -300,6 +305,7 @@ def run_from_transcript(
         source_type: "audio" or "video".
         wp_site_url: WordPress site base URL for article URLs.
         wp_default_image_url: Default image URL when none is available.
+        ai_adapter_factory: Factory de adaptador IA por proveedor.
 
     Returns:
         Dict with article, tweet, mode, and stats.
@@ -313,5 +319,6 @@ def run_from_transcript(
         source_type=source_type,
         wp_site_url=wp_site_url,
         wp_default_image_url=wp_default_image_url,
+        ai_adapter_factory=ai_adapter_factory,
     )
     return usecase.execute(transcript, url, tema)

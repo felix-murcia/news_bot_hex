@@ -74,10 +74,6 @@ def _audio_fails():
         p("src.shared.infrastructure.composition_root.run_image_unsplash")
         p("src.shared.infrastructure.composition_root.run_image_google")
         p("src.shared.infrastructure.composition_root.run_image_enricher")
-        p(
-            "src.shared.application.usecases.tts_from_article.run_tts_from_articles",
-            side_effect=_Boom("TTS exploded"),
-        )
         # Patch video, WordPress and social to avoid real DB access
         p(
             "src.shared.infrastructure.composition_root.create_video_generator",
@@ -113,8 +109,6 @@ def _video_fails():
         p("src.shared.infrastructure.composition_root.run_image_unsplash")
         p("src.shared.infrastructure.composition_root.run_image_google")
         p("src.shared.infrastructure.composition_root.run_image_enricher")
-        p("src.shared.application.usecases.tts_from_article.run_tts_from_articles",
-          return_value=[])
         p(
             "src.shared.infrastructure.composition_root.create_video_generator",
             return_value=_Gen(),
@@ -129,7 +123,7 @@ def _video_fails():
         yield
 
 
-def _run_pipeline(job_id, articles_repo=None, metrics_repo=None):
+def _run_pipeline(job_id, articles_repo=None, metrics_repo=None, tts_usecase=None, social_publisher=None):
     """Start the pipeline and wait until its worker thread releases the lock.
 
     ``execute_pipeline_async`` spawns its own daemon thread and returns
@@ -154,7 +148,17 @@ def _run_pipeline(job_id, articles_repo=None, metrics_repo=None):
     else:
         mock_metrics_repo = metrics_repo
 
-    started = pipeline_executor.execute_pipeline_async(job_id, mock_articles_repo, mock_metrics_repo)
+    if tts_usecase is None:
+        tts_usecase = Mock()
+        tts_usecase.execute_batch.side_effect = lambda arts: arts
+
+    if social_publisher is None:
+        social_publisher = Mock()
+        social_publisher.publish_all.return_value = None
+
+    started = pipeline_executor.execute_pipeline_async(
+        job_id, mock_articles_repo, mock_metrics_repo, social_publisher, tts_usecase
+    )
     assert started, "pipeline rejected: execution lock was still held"
 
     deadline = time.time() + 60
@@ -176,9 +180,13 @@ def _capture_steps(job_id, scenario, video_scenario=False):
     if video_scenario:
         # Video test needs articles with valid audio paths
         mock_articles_repo.load_all.return_value = [{"_id": "test-id", "tts_audio_path": "/tmp/test.mp3", "image_url": None}]
+        tts_usecase = Mock()
+        tts_usecase.execute_batch.side_effect = lambda arts: arts
     else:
         # Audio test needs articles (audio path can be None since TTS generates it)
         mock_articles_repo.load_all.return_value = [{"_id": "test-id", "tts_audio_path": None, "image_url": None}]
+        tts_usecase = Mock()
+        tts_usecase.execute_batch.side_effect = _Boom("TTS exploded")
     mock_articles_repo.update_tts_audio_path.return_value = True
     mock_articles_repo.update_generated_video_path.return_value = True
 
@@ -190,7 +198,7 @@ def _capture_steps(job_id, scenario, video_scenario=False):
         pipeline_executor, "add_step",
         side_effect=lambda job, name, status: steps.append((name, status)),
     ), patch.object(pipeline_executor, "update_job_status"), scenario:
-        _run_pipeline(job_id, mock_articles_repo, mock_metrics_repo)
+        _run_pipeline(job_id, mock_articles_repo, mock_metrics_repo, tts_usecase=tts_usecase)
     return steps
 
 
@@ -228,10 +236,13 @@ class TestAudioFailureIsEnrichment:
         mock_metrics_repo = Mock(spec=MetricsRepositoryPort)
         mock_metrics_repo.save.return_value = None
 
+        tts_usecase = Mock()
+        tts_usecase.execute_batch.side_effect = _Boom("TTS exploded")
+
         with patch.object(pipeline_executor.logger, "error") as err, \
              patch.object(pipeline_executor.logger, "warning") as warn, \
              _audio_fails():
-            _run_pipeline("job-audio-3", mock_articles_repo, mock_metrics_repo)
+            _run_pipeline("job-audio-3", mock_articles_repo, mock_metrics_repo, tts_usecase=tts_usecase)
 
         errors = [str(c.args[0]) for c in err.call_args_list if c.args]
         warnings = [str(c.args[0]) for c in warn.call_args_list if c.args]
@@ -264,9 +275,12 @@ class TestAudioFailureIsEnrichment:
         mock_metrics_repo = Mock(spec=MetricsRepositoryPort)
         mock_metrics_repo.save.return_value = None
 
+        tts_usecase = Mock()
+        tts_usecase.execute_batch.side_effect = _Boom("TTS exploded")
+
         with patch.object(pipeline_executor, "update_job_status") as update_status, \
              _audio_fails():
-            _run_pipeline("job-audio-5", mock_articles_repo, mock_metrics_repo)
+            _run_pipeline("job-audio-5", mock_articles_repo, mock_metrics_repo, tts_usecase=tts_usecase)
 
         # Check final update_job_status call
         calls = update_status.call_args_list
@@ -307,10 +321,13 @@ class TestVideoFailureIsEnrichment:
         mock_metrics_repo = Mock(spec=MetricsRepositoryPort)
         mock_metrics_repo.save.return_value = None
 
+        tts_usecase = Mock()
+        tts_usecase.execute_batch.side_effect = lambda arts: arts
+
         with patch.object(pipeline_executor.logger, "error") as err, \
              patch.object(pipeline_executor.logger, "warning") as warn, \
              _video_fails():
-            _run_pipeline("job-video-3", mock_articles_repo, mock_metrics_repo)
+            _run_pipeline("job-video-3", mock_articles_repo, mock_metrics_repo, tts_usecase=tts_usecase)
 
         errors = [str(c.args[0]) for c in err.call_args_list if c.args]
         assert any("ffmpeg died" in m for m in errors), (

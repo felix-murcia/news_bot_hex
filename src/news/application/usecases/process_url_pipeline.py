@@ -28,6 +28,7 @@ class ProcessUrlPipeline:
         metrics_repo: Optional[MetricsRepositoryPort] = None,
         *,
         social_publisher,
+        tts_usecase,
         wp_site_url: str = "",
         wp_default_image_url: str = "",
     ):
@@ -36,6 +37,7 @@ class ProcessUrlPipeline:
         self.generated_posts_repo = generated_posts_repo
         self.metrics_repo = metrics_repo
         self._social_publisher = social_publisher
+        self._tts_usecase = tts_usecase
         self._wp_site_url = wp_site_url
         self._wp_default_image_url = wp_default_image_url
 
@@ -192,9 +194,8 @@ class ProcessUrlPipeline:
 
         # ── Step 7: Generate Audio ──────────────────────────────────────────
         def generate_audio():
-            from src.shared.application.usecases.tts_from_article import run_tts_from_articles
             if articles_list:
-                updated = run_tts_from_articles(articles_list)
+                updated = self._tts_usecase.execute_batch(articles_list)
                 for article in updated:
                     if article.get("tts_audio_path"):
                         article_id = article.get("_id")

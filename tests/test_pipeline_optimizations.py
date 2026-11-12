@@ -223,11 +223,14 @@ class TestVideoPathPropagation:
         extractor = Mock()
         extractor.extract.return_value = ("x" * 200, "meta", "")
 
+        tts_usecase = Mock()
+        tts_usecase.execute_batch.side_effect = lambda arts: arts
         pipeline = ProcessUrlPipeline(
             content_extractor=extractor,
             generated_articles_repo=mock_articles_repo,
             generated_posts_repo=mock_posts_repo,
             social_publisher=Mock(),
+            tts_usecase=tts_usecase,
         )
 
         video_gen = Mock()
@@ -240,10 +243,6 @@ class TestVideoPathPropagation:
              patch("src.shared.infrastructure.composition_root.run_image_unsplash"), \
              patch("src.shared.infrastructure.composition_root.run_image_google"), \
              patch("src.shared.infrastructure.composition_root.run_image_enricher"), \
-             patch(
-                 "src.shared.application.usecases.tts_from_article.run_tts_from_articles",
-                 side_effect=lambda arts: arts,
-             ), \
              patch(
                  "src.shared.infrastructure.composition_root.create_video_generator",
                  return_value=video_gen,
@@ -291,11 +290,14 @@ class TestVideoPathPropagation:
         extractor = Mock()
         extractor.extract.return_value = ("x" * 200, "meta", "")
 
+        tts_usecase = Mock()
+        tts_usecase.execute_batch.side_effect = lambda arts: arts
         pipeline = ProcessUrlPipeline(
             content_extractor=extractor,
             generated_articles_repo=mock_articles_repo,
             generated_posts_repo=mock_posts_repo,
             social_publisher=Mock(),
+            tts_usecase=tts_usecase,
         )
 
         video_gen = Mock()
@@ -307,10 +309,6 @@ class TestVideoPathPropagation:
              patch("src.shared.infrastructure.composition_root.run_image_unsplash"), \
              patch("src.shared.infrastructure.composition_root.run_image_google"), \
              patch("src.shared.infrastructure.composition_root.run_image_enricher"), \
-             patch(
-                 "src.shared.application.usecases.tts_from_article.run_tts_from_articles",
-                 side_effect=lambda arts: arts,
-             ), \
              patch(
                  "src.shared.infrastructure.composition_root.create_video_generator",
                  return_value=video_gen,

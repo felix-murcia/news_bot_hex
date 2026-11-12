@@ -120,6 +120,11 @@ class TestAudioPipeline:
         pipeline = AudioPipelineUseCase(
             no_publish=True,
             video_generator=mock_generator,
+            audio_fetcher_factory=lambda: Mock(),
+            audio_transcriber_factory=lambda: Mock(),
+            tts_adapter_factory=lambda: Mock(),
+            audio_converter=Mock(),
+            ai_adapter_factory=lambda p: Mock(),
         )
         assert pipeline.video_generator is mock_generator
 
@@ -161,18 +166,27 @@ class TestAudioUseCases:
 class TestAudioPipelineUseCase:
     """Test AudioPipelineUseCase functionality."""
 
+    def _make_pipeline(self, **kwargs):
+        from src.audio.application.usecases import AudioPipelineUseCase
+        defaults = dict(
+            video_generator=Mock(),
+            audio_fetcher_factory=lambda: Mock(),
+            audio_transcriber_factory=lambda: Mock(),
+            tts_adapter_factory=lambda: Mock(),
+            audio_converter=Mock(),
+            ai_adapter_factory=lambda p: Mock(),
+        )
+        defaults.update(kwargs)
+        return AudioPipelineUseCase(**defaults)
+
     def test_audio_pipeline_init(self):
         """Test AudioPipelineUseCase initialization."""
-        from src.audio.application.usecases import AudioPipelineUseCase
-
-        pipeline = AudioPipelineUseCase(no_publish=True)
+        pipeline = self._make_pipeline(no_publish=True)
         assert pipeline.no_publish is True
         assert pipeline._image_enricher is None
         assert pipeline._social_publisher is None
 
     def test_audio_pipeline_with_publish(self):
         """Test AudioPipelineUseCase with publish enabled."""
-        from src.audio.application.usecases import AudioPipelineUseCase
-
-        pipeline = AudioPipelineUseCase(no_publish=False)
+        pipeline = self._make_pipeline(no_publish=False)
         assert pipeline.no_publish is False

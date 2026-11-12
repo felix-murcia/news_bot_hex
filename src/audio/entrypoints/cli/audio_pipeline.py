@@ -20,6 +20,14 @@ setup_logging()
 logger = get_logger("audio_bot.pipeline")
 
 from src.audio.application.usecases.audio_pipeline import AudioPipelineUseCase
+from src.shared.infrastructure.composition_root import (
+    create_ai_adapter,
+    create_audio_converter,
+    create_audio_fetcher,
+    create_audio_transcriber,
+    create_tts_adapter,
+    create_video_generator,
+)
 
 
 def parse_args(argv: list) -> argparse.Namespace:
@@ -52,6 +60,12 @@ def main(argv: list = None):
 
     usecase = AudioPipelineUseCase(
         no_publish=args.no_publish,
+        video_generator=create_video_generator(),
+        audio_fetcher_factory=create_audio_fetcher,
+        audio_transcriber_factory=create_audio_transcriber,
+        tts_adapter_factory=create_tts_adapter,
+        audio_converter=create_audio_converter(),
+        ai_adapter_factory=create_ai_adapter,
         ai_provider=Settings.AI_PROVIDER,
         tts_voice=Settings.TTS_VOICE,
         tts_model=Settings.TTS_MODEL,

@@ -11,13 +11,12 @@ from src.news.application.usecases.pipeline_runner import (
     PipelineRunner,
     logger,
 )
-from src.shared.infrastructure.composition_root import create_social_publisher
 
 # Global execution lock - only one pipeline execution at a time
 _execution_lock = threading.Lock()
 
 
-def execute_pipeline_async(job_id, generated_articles_repo, metrics_repo) -> bool:
+def execute_pipeline_async(job_id, generated_articles_repo, metrics_repo, social_publisher, tts_usecase) -> bool:
     """
     Execute pipeline in background thread with job tracking and metrics collection.
 
@@ -28,6 +27,8 @@ def execute_pipeline_async(job_id, generated_articles_repo, metrics_repo) -> boo
         job_id: Unique job identifier
         generated_articles_repo: Repository for generated articles (injected)
         metrics_repo: Repository for metrics (injected)
+        social_publisher: Publisher social inyectado
+        tts_usecase: Caso de uso TTS inyectado
 
     Returns:
         bool: True if execution started, False if another execution is in progress.
@@ -39,7 +40,7 @@ def execute_pipeline_async(job_id, generated_articles_repo, metrics_repo) -> boo
     logger.info(f"[PIPELINE-JOB] {job_id} Lock acquired - execution starting")
 
     ctx = PipelineContext(job_id=job_id)
-    runner = PipelineRunner(generated_articles_repo, metrics_repo, create_social_publisher())
+    runner = PipelineRunner(generated_articles_repo, metrics_repo, social_publisher, tts_usecase)
 
     def _target():
         try:

@@ -395,9 +395,9 @@ class ProcessUrlPipelineTestBase:
                 "src.shared.infrastructure.composition_root.run_image_google")
             ctx["image_enricher"] = p(
                 "src.shared.infrastructure.composition_root.run_image_enricher")
-            ctx["tts"] = p(
-                "src.shared.application.usecases.tts_from_article.run_tts_from_articles",
-                return_value=[])
+            tts_usecase = Mock()
+            tts_usecase.execute_batch.return_value = []
+            ctx["tts"] = tts_usecase
             ctx["video_gen"] = p(
                 "src.shared.infrastructure.composition_root.create_video_generator",
                 return_value=Mock(is_available=Mock(return_value=False)))
@@ -436,6 +436,7 @@ class ProcessUrlPipelineTestBase:
                 generated_posts_repo=mock_posts_repo,
                 metrics_repo=None,
                 social_publisher=mock_social,
+                tts_usecase=ctx["tts"],
             )
             try:
                 pipeline.execute(self.PIPELINE_URL)
@@ -496,7 +497,7 @@ class TestProcessUrlPipelineFailFastNoContent(ProcessUrlPipelineTestBase):
         ctx["run_article"].assert_not_called()
         ctx["images_unsplash"].assert_not_called()
         ctx["image_enricher"].assert_not_called()
-        ctx["tts"].assert_not_called()
+        ctx["tts"].execute_batch.assert_not_called()
         ctx["wordpress"].assert_not_called()
         ctx["social_publisher"].publish_all.assert_not_called()
         assert ctx.get("error") is not None
@@ -521,7 +522,7 @@ class TestProcessUrlPipelineFailFastNoContent(ProcessUrlPipelineTestBase):
         assert isinstance(ctx.get("error"), RuntimeError)
         assert "No se generó artículo" in str(ctx["error"])
         ctx["run_article"].assert_called_once()
-        ctx["tts"].assert_not_called()
+        ctx["tts"].execute_batch.assert_not_called()
         ctx["wordpress"].assert_not_called()
         ctx["social_publisher"].publish_all.assert_not_called()
 
@@ -539,7 +540,7 @@ class TestProcessUrlPipelineFailFastNoContent(ProcessUrlPipelineTestBase):
         inserted, ctx = self._run_pipeline(articles_in_db=arts)
         assert ctx.get("error") is None
         # El TTS solo debe ver el artículo de ESTA url, no el resto:
-        tts_arg = ctx["tts"].call_args.args[0]
+        tts_arg = ctx["tts"].execute_batch.call_args.args[0]
         assert tts_arg == [arts[1]]
 
 

@@ -249,33 +249,50 @@ class TestAudioPipeline:
 
         assert issubclass(AudioPipelineUseCase, BasePipelineUseCase)
 
+    def _audio_pipeline(self, **kwargs):
+        from src.audio.application.usecases.audio_pipeline import AudioPipelineUseCase
+        defaults = dict(
+            video_generator=Mock(),
+            audio_fetcher_factory=lambda: Mock(),
+            audio_transcriber_factory=lambda: Mock(),
+            tts_adapter_factory=lambda: Mock(),
+            audio_converter=Mock(),
+            ai_adapter_factory=lambda p: Mock(),
+        )
+        defaults.update(kwargs)
+        return AudioPipelineUseCase(**defaults)
+
+    def _video_pipeline(self, **kwargs):
+        from src.video.application.usecases.video_pipeline import VideoPipelineUseCase
+        defaults = dict(
+            video_generator=Mock(),
+            video_fetcher_factory=lambda: Mock(),
+            video_transcriber_factory=lambda: Mock(),
+            tts_adapter_factory=lambda: Mock(),
+            audio_converter=Mock(),
+            ai_adapter_factory=lambda p: Mock(),
+        )
+        defaults.update(kwargs)
+        return VideoPipelineUseCase(**defaults)
+
     def test_audio_pipeline_initialization(self):
         """Test audio pipeline initialization."""
-        from src.audio.application.usecases.audio_pipeline import AudioPipelineUseCase
-
-        pipeline = AudioPipelineUseCase(no_publish=True)
+        pipeline = self._audio_pipeline(no_publish=True)
         assert pipeline.no_publish is True
         assert pipeline.mode == "audio"
 
-    @patch("src.audio.application.usecases.audio_pipeline.run_from_transcript")
-    @patch("src.audio.infrastructure.adapters.audio_transcriber.transcribe_audio")
-    @patch("src.audio.infrastructure.adapters.audio_fetcher._audio_converter")
-    @patch("src.audio.infrastructure.adapters.audio_fetcher.download_audio")
-    def test_audio_pipeline_run(
-        self,
-        mock_download,
-        mock_converter,
-        mock_transcribe,
-        mock_run_from_transcript,
-    ):
+    @patch("src.audio.application.usecases.audio_pipeline.ArticleFromTranscriptUseCase")
+    def test_audio_pipeline_run(self, mock_article_uc_cls):
         """Test audio pipeline execution with mocks."""
         from src.audio.application.usecases.audio_pipeline import AudioPipelineUseCase
 
         # Setup mocks
-        mock_download.return_value = "/tmp/test_audio.mp3"
-        mock_converter.has_audio_stream.return_value = True
-        mock_transcribe.return_value = "Test transcript"
-        mock_run_from_transcript.return_value = {
+        mock_fetcher = Mock()
+        mock_fetcher.fetch.return_value = "/tmp/test_audio.mp3"
+        mock_transcriber = Mock()
+        mock_transcriber.transcribe.return_value = "Test transcript"
+        mock_article_uc = Mock()
+        mock_article_uc.execute.return_value = {
             "article": {
                 "title": "Test Article",
                 "content": "<p>Test content</p>",
@@ -284,9 +301,20 @@ class TestAudioPipeline:
             "tweet": "Test tweet",
             "article_file": "/tmp/article.json",
         }
+        mock_article_uc_cls.return_value = mock_article_uc
 
-        pipeline = AudioPipelineUseCase(no_publish=True)
-        result = pipeline.run("https://example.com/audio", "Test")
+        pipeline = AudioPipelineUseCase(
+            no_publish=True,
+            video_generator=Mock(),
+            audio_fetcher_factory=lambda: mock_fetcher,
+            audio_transcriber_factory=lambda: mock_transcriber,
+            tts_adapter_factory=lambda: Mock(text_to_speech=Mock(return_value=None), is_available=Mock(return_value=True)),
+            audio_converter=Mock(),
+            ai_adapter_factory=lambda p: Mock(),
+        )
+        with patch.object(pipeline, "_enrich_with_images", side_effect=lambda arts: arts), \
+             patch.object(pipeline, "_track_temp_file"):
+            result = pipeline.run("https://example.com/audio", "Test")
 
         assert result["mode"] == "audio"
         assert result["transcript"] == "Test transcript"
@@ -313,7 +341,15 @@ class TestVideoPipeline:
         """Test video pipeline initialization."""
         from src.video.application.usecases.video_pipeline import VideoPipelineUseCase
 
-        pipeline = VideoPipelineUseCase(no_publish=True)
+        pipeline = VideoPipelineUseCase(
+            no_publish=True,
+            video_generator=Mock(),
+            video_fetcher_factory=lambda: Mock(),
+            video_transcriber_factory=lambda: Mock(),
+            tts_adapter_factory=lambda: Mock(),
+            audio_converter=Mock(),
+            ai_adapter_factory=lambda p: Mock(),
+        )
         assert pipeline.no_publish is True
         assert pipeline.mode == "video"
 
@@ -467,7 +503,18 @@ class TestErrorHandling:
         """Test pipeline handles missing audio file gracefully."""
         from src.audio.application.usecases.audio_pipeline import AudioPipelineUseCase
 
-        pipeline = AudioPipelineUseCase(no_publish=True)
+        mock_fetcher = Mock()
+        mock_fetcher.fetch.return_value = None
+        mock_transcriber = Mock()
+        pipeline = AudioPipelineUseCase(
+            no_publish=True,
+            video_generator=Mock(),
+            audio_fetcher_factory=lambda: mock_fetcher,
+            audio_transcriber_factory=lambda: mock_transcriber,
+            tts_adapter_factory=lambda: Mock(),
+            audio_converter=Mock(),
+            ai_adapter_factory=lambda p: Mock(),
+        )
 
         with pytest.raises(RuntimeError, match="Error in audio download"):
             pipeline.run("https://invalid.url/audio.mp3", "Test")
@@ -477,25 +524,24 @@ class TestErrorHandling:
 
         Step 1 downloads the video's audio and transcribes it, so a video that
         cannot be fetched surfaces as "Error in audio download/transcription".
-        The fetcher is patched so the test does not depend on real DNS.
         """
         from src.video.application.usecases.video_pipeline import VideoPipelineUseCase
-
-        pipeline = VideoPipelineUseCase(no_publish=True)
 
         mock_fetcher = Mock()
         mock_fetcher.fetch.return_value = None
         mock_transcriber = Mock()
+        pipeline = VideoPipelineUseCase(
+            no_publish=True,
+            video_generator=Mock(),
+            video_fetcher_factory=lambda: mock_fetcher,
+            video_transcriber_factory=lambda: mock_transcriber,
+            tts_adapter_factory=lambda: Mock(),
+            audio_converter=Mock(),
+            ai_adapter_factory=lambda p: Mock(),
+        )
 
-        with patch(
-            "src.shared.infrastructure.composition_root.create_video_fetcher",
-            return_value=mock_fetcher,
-        ), patch(
-            "src.shared.infrastructure.composition_root.create_video_transcriber",
-            return_value=mock_transcriber,
-        ):
-            with pytest.raises(RuntimeError, match="Error in audio download/transcription"):
-                pipeline.run("https://invalid.url/video.mp4", "Test")
+        with pytest.raises(RuntimeError, match="Error in audio download/transcription"):
+            pipeline.run("https://invalid.url/video.mp4", "Test")
 
         mock_fetcher.fetch.assert_called_once_with("https://invalid.url/video.mp4")
         mock_transcriber.transcribe.assert_not_called()

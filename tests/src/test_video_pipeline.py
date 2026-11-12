@@ -103,6 +103,11 @@ class TestVideoPipeline:
         pipeline = VideoPipelineUseCase(
             no_publish=True,
             video_generator=mock_generator,
+            video_fetcher_factory=lambda: Mock(),
+            video_transcriber_factory=lambda: Mock(),
+            tts_adapter_factory=lambda: Mock(),
+            audio_converter=Mock(),
+            ai_adapter_factory=lambda p: Mock(),
         )
         assert pipeline.video_generator is mock_generator
 

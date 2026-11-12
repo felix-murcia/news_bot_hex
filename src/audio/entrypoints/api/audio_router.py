@@ -100,9 +100,23 @@ def audio_pipeline(
         job_id = str(uuid.uuid4())
 
         from config.settings import Settings
+        from src.shared.infrastructure.composition_root import (
+            create_ai_adapter,
+            create_audio_converter,
+            create_audio_fetcher,
+            create_audio_transcriber,
+            create_tts_adapter,
+            create_video_generator,
+        )
 
         usecase = AudioPipelineUseCase(
             no_publish=req.no_publish,
+            video_generator=create_video_generator(),
+            audio_fetcher_factory=create_audio_fetcher,
+            audio_transcriber_factory=create_audio_transcriber,
+            tts_adapter_factory=create_tts_adapter,
+            audio_converter=create_audio_converter(),
+            ai_adapter_factory=create_ai_adapter,
             metrics_repo=metrics_repo,
             ai_provider=Settings.AI_PROVIDER,
             tts_voice=Settings.TTS_VOICE,

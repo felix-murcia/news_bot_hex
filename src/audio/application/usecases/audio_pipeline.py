@@ -4,17 +4,21 @@ This use-case orchestrates the complete audio-to-article processing pipeline.
 """
 
 import os
-import re
 import time
-from typing import Dict, Any, List, Optional
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
+
 import logging
-logger = logging.getLogger(__name__)
-from src.shared.application.usecases.article_from_transcript import run_from_transcript
+
+from src.shared.application.usecases.article_from_transcript import ArticleFromTranscriptUseCase
 from src.shared.application.usecases.base_pipeline import BasePipelineUseCase
+from src.shared.domain.ports.audio_converter_port import AudioConverterPort
 from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
 from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
 from src.news.domain.entities.processing_metric import PipelineType
 from src.news.application.usecases.metrics_collector import MetricsCollector
+
+logger = logging.getLogger(__name__)
 
 
 class AudioPipelineUseCase(BasePipelineUseCase):
@@ -22,8 +26,14 @@ class AudioPipelineUseCase(BasePipelineUseCase):
 
     def __init__(
         self,
+        *,
         no_publish: bool = False,
-        video_generator: Optional[VideoGeneratorPort] = None,
+        video_generator: VideoGeneratorPort,
+        audio_fetcher_factory: Callable[[], Any],
+        audio_transcriber_factory: Callable[[], Any],
+        tts_adapter_factory: Callable[[], Any],
+        audio_converter: AudioConverterPort,
+        ai_adapter_factory: Callable[[str], Any],
         metrics_repo: Optional[MetricsRepositoryPort] = None,
         ai_provider: str = "local",
         tts_voice: str = "",
@@ -36,33 +46,40 @@ class AudioPipelineUseCase(BasePipelineUseCase):
 
         Args:
             no_publish: Si True, omite publicación en WordPress y redes.
-            video_generator: Adaptador para generar videos (inyección de dependencia).
-                           Si None, se usa la instancia global por defecto.
-            metrics_repo: Repositorio para persistir métricas (inyección de dependencia).
-                         Si None, las métricas no se registran.
+            video_generator: Adaptador para generar videos.
+            audio_fetcher_factory: Factory de fetcher de audio.
+            audio_transcriber_factory: Factory de transcriber de audio.
+            tts_adapter_factory: Factory de adaptador TTS.
+            audio_converter: Conversor de audio (instancia).
+            ai_adapter_factory: Factory de adaptador IA por proveedor.
+            metrics_repo: Repositorio para persistir métricas.
             ai_provider: Proveedor de IA para generación de contenido.
             tts_voice: Voz TTS.
             tts_model: Modelo TTS.
             wp_site_url: URL base del sitio WordPress.
             wp_default_image_url: URL de imagen por defecto.
         """
-        super().__init__(mode="audio", no_publish=no_publish, wp_site_url=wp_site_url)
-        self.video_generator = video_generator or self._create_video_generator()
+        super().__init__(
+            mode="audio",
+            no_publish=no_publish,
+            wp_site_url=wp_site_url,
+            audio_converter=audio_converter,
+        )
+        self.video_generator = video_generator
+        self._audio_fetcher_factory = audio_fetcher_factory
+        self._audio_transcriber_factory = audio_transcriber_factory
+        self._tts_adapter_factory = tts_adapter_factory
+        self._audio_converter = audio_converter
+        self._ai_adapter_factory = ai_adapter_factory
         self.metrics_repo = metrics_repo
         self._ai_provider = ai_provider
         self._tts_voice = tts_voice
         self._tts_model = tts_model
         self._wp_default_image_url = wp_default_image_url
 
-    @staticmethod
-    def _create_video_generator() -> VideoGeneratorPort:
-        from src.shared.infrastructure.composition_root import create_video_generator
-        return create_video_generator()
-
     def run(self, url: str, tema: str, job_id: Optional[str] = None) -> Dict[str, Any]:
-        from src.shared.infrastructure.composition_root import create_audio_fetcher, create_audio_transcriber
-        audio_fetcher = create_audio_fetcher()
-        audio_transcriber = create_audio_transcriber()
+        audio_fetcher = self._audio_fetcher_factory()
+        audio_transcriber = self._audio_transcriber_factory()
 
         # Initialize metrics collector
         metrics = None
@@ -82,7 +99,7 @@ class AudioPipelineUseCase(BasePipelineUseCase):
         # Retry logic for audio download and transcription
         max_retries = 3
         retry_delay = 2.0
-        
+
         for attempt in range(max_retries):
             try:
                 audio_path = audio_fetcher.fetch(url)
@@ -104,7 +121,7 @@ class AudioPipelineUseCase(BasePipelineUseCase):
                 logger.warning(f"[1/4] Error en intento {attempt + 1}/{max_retries}: {e}")
                 if metrics:
                     metrics.record_step("Download and transcribe audio", "FAILED", step_duration_ms, str(e))
-                
+
                 if attempt < max_retries - 1:
                     logger.info(f"[1/4] Reintentando en {retry_delay}s...")
                     time.sleep(retry_delay)
@@ -115,23 +132,21 @@ class AudioPipelineUseCase(BasePipelineUseCase):
         # Steps 2-4: Article generation
         step_start_ns = time.time_ns()
         logger.info("[2/4] Generando artículo y posts con IA...")
-        
+
         # Retry logic for article generation
         max_retries = 3
         retry_delay = 2.0
         result = None
-        
+
         for attempt in range(max_retries):
             try:
-                result = run_from_transcript(
-                    transcript=transcript,
-                    url=url,
-                    tema=tema,
+                result = ArticleFromTranscriptUseCase(
                     llm_provider=self._ai_provider,
                     source_type="audio",
                     wp_site_url=self._wp_site_url,
                     wp_default_image_url=self._wp_default_image_url,
-                )
+                    ai_adapter_factory=self._ai_adapter_factory,
+                ).execute(transcript, url, tema)
                 step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
                 logger.info(f"[2/4] Artículo generado en {step_duration_ms}ms")
                 if metrics:
@@ -142,7 +157,7 @@ class AudioPipelineUseCase(BasePipelineUseCase):
                 logger.warning(f"[2/4] Error en intento {attempt + 1}/{max_retries}: {e}")
                 if metrics:
                     metrics.record_step("Generate article and posts", "FAILED", step_duration_ms, str(e))
-                
+
                 if attempt < max_retries - 1:
                     logger.info(f"[2/4] Reintentando en {retry_delay}s...")
                     time.sleep(retry_delay)
@@ -178,11 +193,10 @@ class AudioPipelineUseCase(BasePipelineUseCase):
         step_start_ns = time.time_ns()
         logger.info("[4/8] Generando audio TTS del artículo...")
         try:
-            from src.shared.infrastructure.composition_root import create_tts_adapter, create_audio_converter
             from src.shared.adapters.tts_text_processor import TTSTextProcessor
 
-            tts = create_tts_adapter()
-            converter = create_audio_converter()
+            tts = self._tts_adapter_factory()
+            converter = self._audio_converter
 
             article_text = enriched_article.get("content", "")
             if article_text:
@@ -197,7 +211,6 @@ class AudioPipelineUseCase(BasePipelineUseCase):
                     f"[4/8] Audio TTS generado: {tts_audio_path}"
                 )
 
-                from pathlib import Path
                 _audio_path = enriched_article.get("tts_audio_path")
                 if _audio_path and Path(_audio_path).exists():
                     _ext = Path(_audio_path).suffix.lower()

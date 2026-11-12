@@ -106,10 +106,11 @@ def record_step_metric(metrics_steps: list, step_name: str, status: str, duratio
 
 
 class PipelineRunner:
-    def __init__(self, generated_articles_repo, metrics_repo, social_publisher):
+    def __init__(self, generated_articles_repo, metrics_repo, social_publisher, tts_usecase):
         self._generated_articles_repo = generated_articles_repo
         self._metrics_repo = metrics_repo
         self._social_publisher = social_publisher
+        self._tts_usecase = tts_usecase
 
     def run(self, ctx: PipelineContext) -> None:
         from src.news.application.usecases.pipeline_executor import update_job_status
@@ -198,12 +199,10 @@ class PipelineRunner:
 
                 # Step 7: Generate Audio (ENRICHMENT)
                 def _run_audio():
-                    from src.shared.application.usecases.tts_from_article import run_tts_from_articles
-
                     articles = self._generated_articles_repo.load_all()
 
                     if articles:
-                        updated = run_tts_from_articles(articles)
+                        updated = self._tts_usecase.execute_batch(articles)
                         for article in updated:
                             if article.get("tts_audio_path"):
                                 article_id = article.get("_id")

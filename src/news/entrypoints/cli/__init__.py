@@ -378,15 +378,20 @@ def main_pipeline():
 
     # Step 8: Text-to-Speech
     logger.info("[TTS] Iniciando generación de audio TTS para artículos...")
-    from src.shared.application.usecases.tts_from_article import run_tts_from_articles
     from src.shared.adapters.mongo_db import get_database
+    from src.shared.application.usecases.tts_from_article import TTSFromArticleUseCase
+    from src.shared.infrastructure.composition_root import (
+        create_audio_converter,
+        create_tts_adapter,
+    )
 
     db = get_database()
     articles_coll = db["generated_articles"]
     articles = list(articles_coll.find({}))
     updated_articles_tts = None
     if articles:
-        updated_articles_tts = run_tts_from_articles(articles)
+        tts_usecase = TTSFromArticleUseCase(create_tts_adapter(), create_audio_converter())
+        updated_articles_tts = tts_usecase.execute_batch(articles)
         for article in updated_articles_tts:
             if article.get("tts_audio_path"):
                 articles_coll.update_one(

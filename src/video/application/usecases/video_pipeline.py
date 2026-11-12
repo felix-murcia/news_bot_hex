@@ -6,18 +6,21 @@ and publishing to WordPress and social media.
 """
 
 import os
-import re
 import time
-from typing import Dict, Any, List, Optional
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
 
 import logging
-logger = logging.getLogger(__name__)
-from src.shared.application.usecases.article_from_transcript import run_from_transcript
+
+from src.shared.application.usecases.article_from_transcript import ArticleFromTranscriptUseCase
 from src.shared.application.usecases.base_pipeline import BasePipelineUseCase
+from src.shared.domain.ports.audio_converter_port import AudioConverterPort
 from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
 from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
 from src.news.domain.entities.processing_metric import PipelineType
 from src.news.application.usecases.metrics_collector import MetricsCollector
+
+logger = logging.getLogger(__name__)
 
 
 class VideoPipelineUseCase(BasePipelineUseCase):
@@ -25,8 +28,14 @@ class VideoPipelineUseCase(BasePipelineUseCase):
 
     def __init__(
         self,
+        *,
         no_publish: bool = False,
-        video_generator: Optional[VideoGeneratorPort] = None,
+        video_generator: VideoGeneratorPort,
+        video_fetcher_factory: Callable[[], Any],
+        video_transcriber_factory: Callable[[], Any],
+        tts_adapter_factory: Callable[[], Any],
+        audio_converter: AudioConverterPort,
+        ai_adapter_factory: Callable[[str], Any],
         metrics_repo: Optional[MetricsRepositoryPort] = None,
         ai_provider: str = "local",
         tts_voice: str = "",
@@ -39,28 +48,36 @@ class VideoPipelineUseCase(BasePipelineUseCase):
 
         Args:
             no_publish: Si True, omite publicación en WordPress y redes.
-            video_generator: Adaptador para generar videos (inyección de dependencia).
-                           Si None, se usa la instancia global por defecto.
-            metrics_repo: Repositorio para persistir métricas (inyección de dependencia).
-                         Si None, las métricas no se registran.
+            video_generator: Adaptador para generar videos.
+            video_fetcher_factory: Factory de fetcher de video.
+            video_transcriber_factory: Factory de transcriber de video.
+            tts_adapter_factory: Factory de adaptador TTS.
+            audio_converter: Conversor de audio (instancia).
+            ai_adapter_factory: Factory de adaptador IA por proveedor.
+            metrics_repo: Repositorio para persistir métricas.
             ai_provider: Proveedor de IA para generación de contenido.
             tts_voice: Voz TTS.
             tts_model: Modelo TTS.
             wp_site_url: URL base del sitio WordPress.
             wp_default_image_url: URL de imagen por defecto.
         """
-        super().__init__(mode="video", no_publish=no_publish, wp_site_url=wp_site_url)
-        self.video_generator = video_generator or self._create_video_generator()
+        super().__init__(
+            mode="video",
+            no_publish=no_publish,
+            wp_site_url=wp_site_url,
+            audio_converter=audio_converter,
+        )
+        self.video_generator = video_generator
+        self._video_fetcher_factory = video_fetcher_factory
+        self._video_transcriber_factory = video_transcriber_factory
+        self._tts_adapter_factory = tts_adapter_factory
+        self._audio_converter = audio_converter
+        self._ai_adapter_factory = ai_adapter_factory
         self.metrics_repo = metrics_repo
         self._ai_provider = ai_provider
         self._tts_voice = tts_voice
         self._tts_model = tts_model
         self._wp_default_image_url = wp_default_image_url
-
-    @staticmethod
-    def _create_video_generator() -> VideoGeneratorPort:
-        from src.shared.infrastructure.composition_root import create_video_generator
-        return create_video_generator()
 
     def run(self, url: str, tema: str, job_id: Optional[str] = None) -> Dict[str, Any]:
 
@@ -80,9 +97,8 @@ class VideoPipelineUseCase(BasePipelineUseCase):
         audio_path: Optional[str] = None
 
         try:
-            from src.shared.infrastructure.composition_root import create_video_fetcher, create_video_transcriber
-            video_fetcher = create_video_fetcher()
-            video_transcriber = create_video_transcriber()
+            video_fetcher = self._video_fetcher_factory()
+            video_transcriber = self._video_transcriber_factory()
 
             audio_path = video_fetcher.fetch(url)
             if not audio_path or not os.path.exists(audio_path):
@@ -115,15 +131,13 @@ class VideoPipelineUseCase(BasePipelineUseCase):
         step_start_ns = time.time_ns()
         logger.info("[2/4] Generando artículo y posts con IA...")
         try:
-            result = run_from_transcript(
-                transcript=transcript,
-                url=url,
-                tema=tema,
+            result = ArticleFromTranscriptUseCase(
                 llm_provider=self._ai_provider,
                 source_type="video",
                 wp_site_url=self._wp_site_url,
                 wp_default_image_url=self._wp_default_image_url,
-            )
+                ai_adapter_factory=self._ai_adapter_factory,
+            ).execute(transcript, url, tema)
             step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
             logger.info(f"[2/4] Artículo generado en {step_duration_ms}ms")
             if metrics:
@@ -163,11 +177,10 @@ class VideoPipelineUseCase(BasePipelineUseCase):
         step_start_ns = time.time_ns()
         logger.info("[4/8] Generando audio TTS del artículo...")
         try:
-            from src.shared.infrastructure.composition_root import create_tts_adapter, create_audio_converter
             from src.shared.adapters.tts_text_processor import TTSTextProcessor
 
-            tts = create_tts_adapter()
-            converter = create_audio_converter()
+            tts = self._tts_adapter_factory()
+            converter = self._audio_converter
 
             article_text = enriched_article.get("content", "")
             if article_text:
@@ -182,7 +195,6 @@ class VideoPipelineUseCase(BasePipelineUseCase):
                     f"[4/8] Audio TTS generado: {tts_audio_path}"
                 )
 
-                from pathlib import Path
                 _audio_path = enriched_article.get("tts_audio_path")
                 if _audio_path and Path(_audio_path).exists():
                     _ext = Path(_audio_path).suffix.lower()

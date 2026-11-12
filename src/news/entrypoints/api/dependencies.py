@@ -347,15 +347,22 @@ def get_process_url_usecase(
     """ProcessUrlPipeline - same pipeline as automatic, starting from URL extraction."""
     from src.news.application.usecases.process_url_pipeline import ProcessUrlPipeline
 
-    from src.shared.infrastructure.composition_root import create_social_publisher
     from config.settings import Settings
+    from src.shared.application.usecases.tts_from_article import TTSFromArticleUseCase
+    from src.shared.infrastructure.composition_root import (
+        create_audio_converter,
+        create_social_publisher,
+        create_tts_adapter,
+    )
 
+    tts_usecase = TTSFromArticleUseCase(create_tts_adapter(), create_audio_converter())
     pipeline = ProcessUrlPipeline(
         content_extractor=content_extractor,
         generated_articles_repo=generated_articles_repo,
         generated_posts_repo=generated_posts_repo,
         metrics_repo=metrics_repo,
         social_publisher=create_social_publisher(),
+        tts_usecase=tts_usecase,
         wp_site_url=Settings.WP_SITE_URL,
         wp_default_image_url=Settings.WP_DEFAULT_IMAGE_URL,
     )
