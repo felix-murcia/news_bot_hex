@@ -92,7 +92,7 @@ def main_verify():
 
 def main_full_verify():
     """Punto de entrada para verificación completa de noticias."""
-    article_repo = MongoArticleRepository()
+    generated_articles_repo = MongoArticleRepository()
     verified_repo = MongoVerifiedNewsRepository()
     published_urls_repo = MongoPublishedUrlsRepository()
     keywords_repo = MongoKeywordsRepository()
@@ -102,15 +102,21 @@ def main_full_verify():
     # Classic validator: TF-IDF + LogisticRegression (CPU, fast)
     fake_news_model = ClassicNewsValidatorAdapter()
 
-    from src.news.infrastructure.adapters import MongoFrozenTermsRepository
+    from src.news.infrastructure.adapters import (
+        MongoFrozenTermsRepository,
+        categorizar_noticia,
+        extract_frozen_terms,
+    )
     frozen_terms_repo = MongoFrozenTermsRepository()
 
     use_case = FullVerifyNewsUseCase(
-        article_repo=article_repo,
-        verified_repo=verified_repo,
+        generated_articles_repo=generated_articles_repo,
+        verified_news_repo=verified_repo,
         published_urls_repo=published_urls_repo,
         keywords_repo=keywords_repo,
         scoring_config_repo=scoring_config_repo,
+        categorizer=categorizar_noticia,
+        frozen_terms_extractor=extract_frozen_terms,
         content_extractor=content_extractor,
         fake_news_model=fake_news_model,
         frozen_terms_repo=frozen_terms_repo,

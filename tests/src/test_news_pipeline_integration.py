@@ -88,6 +88,8 @@ class TestFullVerifyNewsUseCase:
             published_urls_repo=Mock(),
             keywords_repo=Mock(),
             scoring_config_repo=Mock(),
+            categorizer=lambda title, desc: "Noticias",
+            frozen_terms_extractor=lambda title: [],
         )
 
         assert use_case.generated_articles_repo is not None

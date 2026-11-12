@@ -15,6 +15,8 @@ from src.news.domain.ports import (
 )
 
 import logging
+from typing import Callable
+
 from src.news.domain.services.date_utils import (
     get_article_date,
     is_today_or_yesterday,
@@ -30,11 +32,6 @@ from src.news.domain.services.scoring import (
     resumir_noticia,
     sort_verified_news,
 )
-# TODO B20.3b1b: extract_frozen_terms y categorizar_noticia dependen de adapters/AI
-from src.news.infrastructure.adapters import (  # TODO B20.3b1b
-    categorizar_noticia,
-    extract_frozen_terms,
-)
 
 logger = logging.getLogger(__name__)
 class FullVerifyNewsUseCase:
@@ -47,6 +44,8 @@ class FullVerifyNewsUseCase:
         published_urls_repo: PublishedUrlsRepository,
         keywords_repo: KeywordsRepository,
         scoring_config_repo: ScoringConfigRepository,
+        categorizer: Callable[[str, str], str],
+        frozen_terms_extractor: Callable[[str], list[str]],
         content_extractor: Optional[ContentExtractor] = None,
         fake_news_model: Optional[FakeNewsModel] = None,
         frozen_terms_repo: Optional[FrozenTermsRepository] = None,
@@ -57,6 +56,8 @@ class FullVerifyNewsUseCase:
         self._published_urls_repo = published_urls_repo
         self._keywords_repo = keywords_repo
         self._scoring_config_repo = scoring_config_repo
+        self._categorizer = categorizer
+        self._frozen_terms_extractor = frozen_terms_extractor
         self._content_extractor = content_extractor
         self._fake_news_model = fake_news_model
         self._frozen_terms_repo = frozen_terms_repo
@@ -103,7 +104,7 @@ class FullVerifyNewsUseCase:
             else:
                 is_real, confidence = True, 1.0
 
-            tema = categorizar_noticia(title, desc)
+            tema = self._categorizer(title, desc)
             score = compute_score(
                 {
                     "title": title,
@@ -193,7 +194,7 @@ class FullVerifyNewsUseCase:
 
         title = top.get("title", "")
         if self._frozen_terms_repo and title:
-            terms = extract_frozen_terms(title)
+            terms = self._frozen_terms_extractor(title)
             if terms:
                 self._frozen_terms_repo.freeze_terms(terms, title)
 

@@ -26,6 +26,8 @@ def test_full_verify_usecase_injects_ports():
         published_urls_repo=published_urls_repo,
         keywords_repo=keywords_repo,
         scoring_config_repo=scoring_config_repo,
+        categorizer=lambda title, desc: "Noticias",
+        frozen_terms_extractor=lambda title: [],
     )
 
     assert usecase.generated_articles_repo is articles_repo

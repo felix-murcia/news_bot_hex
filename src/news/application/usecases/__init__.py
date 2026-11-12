@@ -31,11 +31,6 @@ from src.news.domain.services.scoring import (
     resumir_noticia,
     sort_verified_news,
 )
-# TODO B20.3b1b: extract_frozen_terms y categorizar_noticia dependen de adapters/AI
-from src.news.infrastructure.adapters import (  # TODO B20.3b1b
-    categorizar_noticia,
-    extract_frozen_terms,
-)
 
 class FetchRSSNewsUseCase:
     def __init__(

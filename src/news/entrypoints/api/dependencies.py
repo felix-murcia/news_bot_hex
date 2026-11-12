@@ -192,13 +192,19 @@ def get_full_verify_usecase(
 ):
     """Use case para verificación completa."""
     from src.news.application.usecases import FullVerifyNewsUseCase
-    from src.news.infrastructure.adapters import MongoFrozenTermsRepository
+    from src.news.infrastructure.adapters import (
+        MongoFrozenTermsRepository,
+        categorizar_noticia,
+        extract_frozen_terms,
+    )
     return FullVerifyNewsUseCase(
         generated_articles_repo=generated_articles_repo,
         verified_news_repo=verified_repo,
         published_urls_repo=published_urls_repo,
         keywords_repo=keywords_repo,
         scoring_config_repo=scoring_config_repo,
+        categorizer=categorizar_noticia,
+        frozen_terms_extractor=extract_frozen_terms,
         frozen_terms_repo=MongoFrozenTermsRepository(),
     )
 
