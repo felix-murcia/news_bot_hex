@@ -13,7 +13,13 @@ class TestNewsToNewsUseCaseForceExtractParameter:
         from src.news.application.usecases.news_to_news import NewsToNewsUseCase
 
         mock_extractor = Mock()
-        use_case = NewsToNewsUseCase(content_extractor=mock_extractor)
+        mock_articles_repo = Mock()
+        mock_posts_repo = Mock()
+        use_case = NewsToNewsUseCase(
+            content_extractor=mock_extractor,
+            generated_articles_repo=mock_articles_repo,
+            generated_posts_repo=mock_posts_repo,
+        )
         assert use_case.force_extract is False
 
     def test_force_extract_parameter_can_be_set_true(self):
@@ -21,7 +27,14 @@ class TestNewsToNewsUseCaseForceExtractParameter:
         from src.news.application.usecases.news_to_news import NewsToNewsUseCase
 
         mock_extractor = Mock()
-        use_case = NewsToNewsUseCase(content_extractor=mock_extractor, force_extract=True)
+        mock_articles_repo = Mock()
+        mock_posts_repo = Mock()
+        use_case = NewsToNewsUseCase(
+            content_extractor=mock_extractor,
+            generated_articles_repo=mock_articles_repo,
+            generated_posts_repo=mock_posts_repo,
+            force_extract=True,
+        )
         assert use_case.force_extract is True
 
     def test_force_extract_parameter_can_be_set_false(self):
@@ -29,8 +42,13 @@ class TestNewsToNewsUseCaseForceExtractParameter:
         from src.news.application.usecases.news_to_news import NewsToNewsUseCase
 
         mock_extractor = Mock()
+        mock_articles_repo = Mock()
+        mock_posts_repo = Mock()
         use_case = NewsToNewsUseCase(
-            content_extractor=mock_extractor, force_extract=False
+            content_extractor=mock_extractor,
+            generated_articles_repo=mock_articles_repo,
+            generated_posts_repo=mock_posts_repo,
+            force_extract=False,
         )
         assert use_case.force_extract is False
 
@@ -42,8 +60,13 @@ class TestNewsToNewsUseCaseForceExtractParameter:
         mock_extractor.extract = Mock(return_value=("Content from Jina", "jina", ""))
 
         # Test with force_extract=True
+        mock_articles_repo = Mock()
+        mock_posts_repo = Mock()
         use_case_force = NewsToNewsUseCase(
-            content_extractor=mock_extractor, force_extract=True
+            content_extractor=mock_extractor,
+            generated_articles_repo=mock_articles_repo,
+            generated_posts_repo=mock_posts_repo,
+            force_extract=True,
         )
 
         with patch.object(NewsToNewsUseCase, "_load_from_cache") as mock_cache:
@@ -64,8 +87,13 @@ class TestNewsToNewsUseCaseForceExtractParameter:
         mock_extractor.extract = Mock(return_value=("Content from Jina", "jina", ""))
 
         # Test with force_extract=False (default)
+        mock_articles_repo = Mock()
+        mock_posts_repo = Mock()
         use_case = NewsToNewsUseCase(
-            content_extractor=mock_extractor, force_extract=False
+            content_extractor=mock_extractor,
+            generated_articles_repo=mock_articles_repo,
+            generated_posts_repo=mock_posts_repo,
+            force_extract=False,
         )
 
         with patch.object(
@@ -152,6 +180,8 @@ class TestProcessNewsUrlFunction:
             process_news_url(
                 url="https://example.com",
                 content_extractor=mock_extractor,
+                generated_articles_repo=Mock(),
+                generated_posts_repo=Mock(),
                 force_extract=True,
             )
 

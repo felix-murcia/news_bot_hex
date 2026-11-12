@@ -65,10 +65,11 @@ class TestVerifyNewsUseCase:
     def test_verify_news_use_case_init(self):
         """Test VerifyNewsUseCase initialization."""
         from src.news.application.usecases import VerifyNewsUseCase
-        from src.news.infrastructure.adapters import MongoVerifiedNewsRepository
+        from unittest.mock import Mock
 
-        verified_repo = MongoVerifiedNewsRepository()
-        use_case = VerifyNewsUseCase(verified_repo)
+        verified_repo = Mock()
+        generated_articles_repo = Mock()
+        use_case = VerifyNewsUseCase(verified_repo, generated_articles_repo)
 
         assert use_case._verified_repo is not None
 
@@ -79,23 +80,17 @@ class TestFullVerifyNewsUseCase:
     def test_full_verify_news_use_case_init(self):
         """Test FullVerifyNewsUseCase initialization."""
         from src.news.application.usecases import FullVerifyNewsUseCase
-        from src.news.infrastructure.adapters import (
-            MongoArticleRepository,
-            MongoVerifiedNewsRepository,
-            MongoPublishedUrlsRepository,
-            MongoKeywordsRepository,
-            MongoScoringConfigRepository,
-        )
+        from unittest.mock import Mock
 
         use_case = FullVerifyNewsUseCase(
-            article_repo=MongoArticleRepository(),
-            verified_repo=MongoVerifiedNewsRepository(),
-            published_urls_repo=MongoPublishedUrlsRepository(),
-            keywords_repo=MongoKeywordsRepository(),
-            scoring_config_repo=MongoScoringConfigRepository(),
+            generated_articles_repo=Mock(),
+            verified_news_repo=Mock(),
+            published_urls_repo=Mock(),
+            keywords_repo=Mock(),
+            scoring_config_repo=Mock(),
         )
 
-        assert use_case._article_repo is not None
+        assert use_case.generated_articles_repo is not None
         assert use_case._verified_repo is not None
         assert use_case._published_urls_repo is not None
         assert use_case._keywords_repo is not None
@@ -177,7 +172,11 @@ class TestNewsToNewsUseCase:
 
         mock_extractor = Mock()
         use_case = NewsToNewsUseCase(
-            content_extractor=mock_extractor, use_ai=True, model_provider="local"
+            content_extractor=mock_extractor,
+            generated_articles_repo=Mock(),
+            generated_posts_repo=Mock(),
+            use_ai=True,
+            model_provider="local",
         )
         assert use_case.use_ai == True
         assert use_case.model_provider == "local"
@@ -188,7 +187,12 @@ class TestNewsToNewsUseCase:
         from unittest.mock import Mock
 
         mock_extractor = Mock()
-        use_case = NewsToNewsUseCase(content_extractor=mock_extractor, use_ai=False)
+        use_case = NewsToNewsUseCase(
+            content_extractor=mock_extractor,
+            generated_articles_repo=Mock(),
+            generated_posts_repo=Mock(),
+            use_ai=False,
+        )
         assert use_case.use_ai == False
 
 
