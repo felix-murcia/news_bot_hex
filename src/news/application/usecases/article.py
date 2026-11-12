@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from urllib.parse import urlparse
 
-from config.logging_config import get_logger
+import logging
 from src.news.domain.ports import VerifiedNewsRepository, GeneratedPostsRepository, GeneratedArticlesRepository
 from src.shared.adapters.ai.agents import ArticleAgent
 from src.news.domain.services.template_renderer import TemplateRenderer
@@ -16,8 +16,7 @@ from src.shared.adapters.seo_optimizer import (
     clean_title as seo_clean_title,
 )
 
-logger = get_logger("news_bot.usecase.article")
-
+logger = logging.getLogger(__name__)
 _TEMPLATE_PATH = (
     Path(__file__).resolve().parent.parent.parent.parent
     / "templates"

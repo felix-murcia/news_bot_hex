@@ -4,14 +4,10 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from config.logging_config import setup_logging, get_logger
-
+import logging
 from src.shared.domain.ports.debug_output_repository import DebugOutputRepository
 
-setup_logging()
-logger = get_logger("video_bot")
-
-
+logger = logging.getLogger(__name__)
 def slugify(text: str) -> str:
     text = text.lower()
     text = re.sub(r"[^\w\s-]", "", text)

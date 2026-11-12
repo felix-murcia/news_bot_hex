@@ -8,11 +8,8 @@ from src.news.domain.entities.processing_metric import (
     StepStatus,
 )
 from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
-from config.logging_config import get_logger
-
-logger = get_logger("news_bot.metrics")
-
-
+import logging
+logger = logging.getLogger(__name__)
 class MetricsCollector:
     """Collects step-level timing data and flushes complete metrics to repository."""
 

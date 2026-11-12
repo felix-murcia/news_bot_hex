@@ -11,15 +11,13 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Optional
 
-from config.logging_config import get_logger
+import logging
 from src.news.application.usecases.metrics_collector import MetricsCollector
 from src.news.domain.entities.processing_metric import PipelineType
 from src.news.domain.ports import GeneratedArticlesRepository, GeneratedPostsRepository
 from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
 
-logger = get_logger("news_bot.pipeline.process_url")
-
-
+logger = logging.getLogger(__name__)
 class ProcessUrlPipeline:
 
     def __init__(

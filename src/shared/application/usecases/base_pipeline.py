@@ -12,11 +12,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-from config.logging_config import get_logger
-
-logger = get_logger("news_bot.base_pipeline")
-
-
+import logging
+logger = logging.getLogger(__name__)
 class BasePipelineUseCase(ABC):
     """Abstract base class for all media processing pipelines.
 

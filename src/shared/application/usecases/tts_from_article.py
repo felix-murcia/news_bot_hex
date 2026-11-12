@@ -5,13 +5,12 @@ import requests
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-from config.logging_config import get_logger
+import logging
 from src.shared.domain.ports.tts_port import TTSPort
 from src.shared.domain.ports.audio_converter_port import AudioConverterPort
 from src.shared.adapters.tts_text_processor import TTSTextProcessor
 
-logger = get_logger("shared.usecases.tts")
-
+logger = logging.getLogger(__name__)
 COQUI_TTS_CHAR_LIMIT = 239
 
 # F13: Session compartida por servicio (ffmpeg-api concatenate) para reutilizar

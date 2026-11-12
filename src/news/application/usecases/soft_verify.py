@@ -12,10 +12,8 @@ from src.shared.adapters.cache_manager import (
     clear_old_cache,
 )
 
-from config.logging_config import get_logger
-
-logger = get_logger("news_bot.usecase.soft_verify")
-
+import logging
+logger = logging.getLogger(__name__)
 LIMITS = {"ttl_days": 7, "max_urls": 300}
 MIN_CHARS = 800
 MIN_SCORE = 12

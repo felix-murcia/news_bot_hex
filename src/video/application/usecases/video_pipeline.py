@@ -10,10 +10,8 @@ import re
 import time
 from typing import Dict, Any, List, Optional
 
-from config.logging_config import get_logger
-
-logger = get_logger("video_bot.usecase")
-
+import logging
+logger = logging.getLogger(__name__)
 from src.shared.application.usecases.article_from_transcript import run_from_transcript
 from src.shared.application.usecases.base_pipeline import BasePipelineUseCase
 from src.shared.domain.ports.video_generator_port import VideoGeneratorPort

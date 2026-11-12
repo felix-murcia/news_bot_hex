@@ -13,7 +13,7 @@ Does NOT handle:
 import threading
 from typing import Callable, Dict, Any
 
-from config.logging_config import get_logger
+import logging
 from src.news.domain.entities.pipeline_job import (
     JobStatus,
     ProcessingStepName,
@@ -25,9 +25,7 @@ from src.news.application.usecases.pipeline_log_handler import (
     teardown_pipeline_logging,
 )
 
-logger = get_logger("news_bot.process_url.executor")
-
-
+logger = logging.getLogger(__name__)
 class ProcessUrlJobCoordinator:
     """Coordinates job lifecycle for URL processing (job tracking + execution)."""
 

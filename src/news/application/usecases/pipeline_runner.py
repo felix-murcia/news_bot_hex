@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
-from config.logging_config import get_logger
+import logging
 from src.news.application.usecases.pipeline_log_handler import (
     setup_pipeline_logging,
     teardown_pipeline_logging,
@@ -26,9 +26,7 @@ from src.news.domain.entities.processing_metric import (
     StepStatus,
 )
 
-logger = get_logger("news_bot.pipeline.runner")
-
-
+logger = logging.getLogger(__name__)
 @dataclass
 class PipelineContext:
     """Contexto compartido entre los pasos del pipeline. Se pasa por parámetro, no se guarda en self."""

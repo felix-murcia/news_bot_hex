@@ -2,11 +2,8 @@ import os
 from typing import Dict, Any, Optional
 
 from src.shared.adapters.translator import translate_text
-from config.logging_config import get_logger
-
-logger = get_logger("news_bot.usecase.article_from_news")
-
-
+import logging
+logger = logging.getLogger(__name__)
 def limpiar(texto: str) -> str:
     if not texto:
         return ""

@@ -49,7 +49,6 @@ INFRASTRUCTURE_PREFIXES = (
 # Imports inline existentes en application/ + domain/ allowlisteados hasta B20.
 ALLOWED_IMPORTS: dict[str, set[str]] = {
     "audio/application/usecases/audio_pipeline.py": {
-        "config.logging_config",  # TODO B20
         "src.shared.infrastructure.composition_root",  # TODO B20
         "config.settings",  # TODO B20
         "src.shared.adapters.tts_text_processor",  # TODO B20
@@ -57,7 +56,6 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
         "src.shared.adapters.social_post_adapter",  # TODO B20
     },
     "audio/application/usecases/audio_to_news.py": {
-        "config.logging_config",  # TODO B20
         "config.settings",  # TODO B20
         "src.shared.adapters.ai.ai_factory",  # TODO B20
         "src.audio.infrastructure.adapters.audio_fetcher",  # TODO B20
@@ -71,7 +69,6 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
         "config.settings",  # TODO B20
     },
     "news/application/usecases/article.py": {
-        "config.logging_config",  # TODO B20
         "src.shared.adapters.ai.agents",  # TODO B20
         "src.shared.adapters.seo_optimizer",  # TODO B20
         "src.shared.adapters.ai.ai_factory",  # TODO B20
@@ -81,7 +78,6 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
     },
     "news/application/usecases/article_from_news.py": {
         "src.shared.adapters.translator",  # TODO B20
-        "config.logging_config",  # TODO B20
         "src.shared.adapters.ai.ai_factory",  # TODO B20
         "config.settings",  # TODO B20
         "src.shared.adapters.content_post_editor",  # TODO B20
@@ -92,11 +88,9 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
         "traceback",  # TODO B20
     },
     "news/application/usecases/cleanup.py": {
-        "config.logging_config",  # TODO B20
         "src.news.infrastructure.adapters",  # TODO B20
     },
     "news/application/usecases/content.py": {
-        "config.logging_config",  # TODO B20
         "src.shared.adapters.ai.agents",  # TODO B20
         "src.shared.adapters.social_post_adapter",  # TODO B20
         "src.shared.adapters.content_post_editor",  # TODO B20
@@ -107,14 +101,9 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
         "argparse",  # TODO B20
     },
     "news/application/usecases/full_verify_usecase.py": {
-        "config.logging_config",  # TODO B20
         "src.news.infrastructure.adapters",  # TODO B20
     },
-    "news/application/usecases/metrics_collector.py": {
-        "config.logging_config",  # TODO B20
-    },
     "news/application/usecases/news_to_news.py": {
-        "config.logging_config",  # TODO B20
         "config.settings",  # TODO B20
         "src.news.application.usecases.article_from_news",  # TODO B20
         "src.shared.adapters.cache_manager",  # TODO B20
@@ -131,17 +120,12 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
         "src.news.application.usecases.pipeline_job",  # TODO B20
     },
     "news/application/usecases/pipeline_runner.py": {
-        "config.logging_config",  # TODO B20
         "src.news.application.usecases.pipeline_executor",  # TODO B20
         "src.shared.application.usecases.tts_from_article",  # TODO B20
         "src.shared.infrastructure.composition_root",  # TODO B20
         "os",  # TODO B20
     },
-    "news/application/usecases/process_url_executor.py": {
-        "config.logging_config",  # TODO B20
-    },
     "news/application/usecases/process_url_pipeline.py": {
-        "config.logging_config",  # TODO B20
         "src.news.domain.entities.verified_article",  # TODO B20
         "src.news.infrastructure.adapters",  # TODO B20
         "src.news.application.usecases.content",  # TODO B20
@@ -151,14 +135,12 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
     },
     "news/application/usecases/soft_verify.py": {
         "src.shared.adapters.cache_manager",  # TODO B20
-        "config.logging_config",  # TODO B20
         "src.news.infrastructure.adapters",  # TODO B20
     },
     "news/domain/services/template_renderer.py": {
         "urllib.parse",  # TODO B20
     },
     "shared/application/usecases/article_from_transcript.py": {
-        "config.logging_config",  # TODO B20
         "unicodedata",  # TODO B20
         "src.shared.infrastructure.composition_root",  # TODO B20
         "config.settings",  # TODO B20
@@ -168,7 +150,6 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
         "src.shared.adapters.social_post_adapter",  # TODO B20
     },
     "shared/application/usecases/base_pipeline.py": {
-        "config.logging_config",  # TODO B20
         "src.shared.adapters.wordpress_token_manager",  # TODO B20
         "src.shared.adapters.image_enricher",  # TODO B20
         "src.shared.adapters.publishers.social",  # TODO B20
@@ -180,7 +161,6 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
         "src.shared.infrastructure.composition_root",  # TODO B20
     },
     "shared/application/usecases/tts_from_article.py": {
-        "config.logging_config",  # TODO B20
         "src.shared.adapters.tts_text_processor",  # TODO B20
         "shutil",  # TODO B20
         "uuid",  # TODO B20
@@ -189,7 +169,6 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
         "src.shared.infrastructure.composition_root",  # TODO B20
     },
     "video/application/usecases/video_pipeline.py": {
-        "config.logging_config",  # TODO B20
         "src.shared.infrastructure.composition_root",  # TODO B20
         "config.settings",  # TODO B20
         "src.shared.adapters.tts_text_processor",  # TODO B20
@@ -197,7 +176,6 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
         "src.shared.adapters.social_post_adapter",  # TODO B20
     },
     "video/application/usecases/video_to_news.py": {
-        "config.logging_config",  # TODO B20
         "config.settings",  # TODO B20
         "src.video.infrastructure.adapters.video_transcriber",  # TODO B20
         "src.shared.adapters.ai.ai_factory",  # TODO B20

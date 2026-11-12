@@ -13,10 +13,8 @@ Respects hexagonal architecture:
 import re
 from typing import Dict, Any, Optional
 
-from config.logging_config import get_logger
-
-logger = get_logger("shared.usecase.article_from_transcript")
-
+import logging
+logger = logging.getLogger(__name__)
 # Source type mapping for prompt selection
 SOURCE_TYPE_MAP = {
     "audio": "transcript",

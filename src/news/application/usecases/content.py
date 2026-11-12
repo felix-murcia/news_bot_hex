@@ -1,13 +1,12 @@
 from typing import Dict, List, Optional
 
-from config.logging_config import get_logger
+import logging
 from src.news.domain.ports import VerifiedNewsRepository, GeneratedPostsRepository
 from src.shared.adapters.ai.agents import TweetGeopoliticsAgent
 from src.shared.adapters.social_post_adapter import truncate_social_post
 from src.shared.adapters.content_post_editor import post_edit_content
 
-logger = get_logger("news_bot.usecase.content")
-
+logger = logging.getLogger(__name__)
 POST_LIMITS = {
     "bluesky": 300,
     "twitter": 280,

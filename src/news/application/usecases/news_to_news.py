@@ -4,12 +4,10 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 from src.news.domain.ports import ContentExtractor, GeneratedArticlesRepository, GeneratedPostsRepository
-from config.logging_config import get_logger
+import logging
 from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
 
-logger = get_logger("news_bot.usecase.news_to_news")
-
-
+logger = logging.getLogger(__name__)
 def slugify(text: str) -> str:
     text = text.lower()
     text = re.sub(r"[^\w\s-]", "", text)

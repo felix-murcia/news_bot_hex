@@ -14,7 +14,7 @@ from src.news.domain.ports import (
     GeneratedArticlesRepository,
 )
 
-from config.logging_config import get_logger
+import logging
 from src.news.infrastructure.adapters import (
     parse_date_flexible,
     is_today_or_yesterday,
@@ -31,9 +31,7 @@ from src.news.infrastructure.adapters import (
     apply_frozen_terms_penalty,
 )
 
-logger = get_logger("news_bot.usecase.full_verify")
-
-
+logger = logging.getLogger(__name__)
 class FullVerifyNewsUseCase:
     """Caso de uso para verificación completa de noticias (DIP: inyección de repositorios)."""
 

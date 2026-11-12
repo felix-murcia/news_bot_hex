@@ -1,15 +1,13 @@
 """Cleanup usecase - reset pipeline state at the beginning."""
 
-from config.logging_config import get_logger
+import logging
 from src.news.domain.ports import (
     VerifiedNewsRepository,
     GeneratedPostsRepository,
     GeneratedArticlesRepository,
 )
 
-logger = get_logger("news_bot.usecase.cleanup")
-
-
+logger = logging.getLogger(__name__)
 class CleanupPipelineUseCase:
     """Clean up collections before pipeline execution (like the legacy wrapper did)."""
 
