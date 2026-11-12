@@ -494,6 +494,7 @@ systemctl --user status news-bot-pipeline.timer
 | **B16** (5 credenciales X/Twitter huérfanas) | `grep -rn "X_API_KEY\|X_API_SECRET\|X_ACCESS_TOKEN\|X_ACCESS_SECRET\|X_BEARER_TOKEN" config/ .env.example src/` → vacío fuera de docs/histórico; no hay adaptador X | Tras cambios en settings/env | **CERRADO** (2026-11-11: eliminadas de `settings.API_KEYS` y `.env.example`; X no soportado, documentado en §7.2) |
 | **B16b** (`TWITTER_POST_LIMIT` + opción Twitter/X en UI) | `settings.py:91` (`"twitter": ...TWITTER_POST_LIMIT`), `frontend/src/features/news/NewsTab.tsx:30` | — | **ABIERTO** — decisión de producto: ¿ocultar de UI o mantener para futuro? |
 | **B16c** (`ALLOWED_VIDEO_DOMAINS` incluye `twitter.com`) | `settings.py:246`, `.env.example:244` | — | **ABIERTO** — decisión de producto: ¿mantener transcripción de vídeos externos o eliminar? |
+| **B24 / B20.3a.3** (pipeline_runner: `__import__` dinámicos a entrypoints/application) | `grep -n "__import__" src/news/application/usecases/pipeline_runner.py` → L139 `src.news.entrypoints.cli.main_rss`, L150 `main_full_verify`, L161 `src.news.application.usecases.content.run_content`, L172 `src.news.application.usecases.article.run` deben desaparecer (inyectar callables/steps o mover ejecución al borde) | **ABIERTO** — violación de capas (application→entrypoints) + service locator; no mezclar con B20.3a.2a/b |
 
 ### Baseline de suite (2026-11-12)
 

@@ -225,32 +225,27 @@ class TestVideoPathPropagation:
 
         tts_usecase = Mock()
         tts_usecase.execute_batch.side_effect = lambda arts: arts
+
+        video_gen = Mock()
+        video_gen.is_available.return_value = True
+        video_gen.create_video_from_audio.return_value = "/tmp/video.mp4"
+
         pipeline = ProcessUrlPipeline(
             content_extractor=extractor,
             generated_articles_repo=mock_articles_repo,
             generated_posts_repo=mock_posts_repo,
             social_publisher=Mock(),
             tts_usecase=tts_usecase,
+            image_unsplash_runner=Mock(),
+            image_google_runner=Mock(),
+            image_enricher_runner=Mock(),
+            wordpress_runner=Mock(),
+            video_generator_factory=Mock(return_value=video_gen),
         )
-
-        video_gen = Mock()
-        video_gen.is_available.return_value = True
-        video_gen.create_video_from_audio.return_value = "/tmp/video.mp4"
 
         with patch("src.news.infrastructure.adapters.MongoVerifiedNewsRepository"), \
              patch("src.news.application.usecases.content.run_content"), \
              patch("src.news.application.usecases.article.run"), \
-             patch("src.shared.infrastructure.composition_root.run_image_unsplash"), \
-             patch("src.shared.infrastructure.composition_root.run_image_google"), \
-             patch("src.shared.infrastructure.composition_root.run_image_enricher"), \
-             patch(
-                 "src.shared.infrastructure.composition_root.create_video_generator",
-                 return_value=video_gen,
-             ), \
-             patch("src.shared.infrastructure.composition_root.run_wordpress"), \
-             patch("src.shared.infrastructure.composition_root.run_bluesky"), \
-             patch("src.shared.infrastructure.composition_root.run_mastodon"), \
-             patch("src.shared.infrastructure.composition_root.run_facebook"), \
              patch("os.path.exists", return_value=True):
             result = pipeline.execute("https://example.com/news/1")
 
@@ -292,31 +287,26 @@ class TestVideoPathPropagation:
 
         tts_usecase = Mock()
         tts_usecase.execute_batch.side_effect = lambda arts: arts
+
+        video_gen = Mock()
+        video_gen.is_available.return_value = False
+
         pipeline = ProcessUrlPipeline(
             content_extractor=extractor,
             generated_articles_repo=mock_articles_repo,
             generated_posts_repo=mock_posts_repo,
             social_publisher=Mock(),
             tts_usecase=tts_usecase,
+            image_unsplash_runner=Mock(),
+            image_google_runner=Mock(),
+            image_enricher_runner=Mock(),
+            wordpress_runner=Mock(),
+            video_generator_factory=Mock(return_value=video_gen),
         )
-
-        video_gen = Mock()
-        video_gen.is_available.return_value = False
 
         with patch("src.news.infrastructure.adapters.MongoVerifiedNewsRepository"), \
              patch("src.news.application.usecases.content.run_content"), \
              patch("src.news.application.usecases.article.run"), \
-             patch("src.shared.infrastructure.composition_root.run_image_unsplash"), \
-             patch("src.shared.infrastructure.composition_root.run_image_google"), \
-             patch("src.shared.infrastructure.composition_root.run_image_enricher"), \
-             patch(
-                 "src.shared.infrastructure.composition_root.create_video_generator",
-                 return_value=video_gen,
-             ), \
-             patch("src.shared.infrastructure.composition_root.run_wordpress"), \
-             patch("src.shared.infrastructure.composition_root.run_bluesky"), \
-             patch("src.shared.infrastructure.composition_root.run_mastodon"), \
-             patch("src.shared.infrastructure.composition_root.run_facebook"), \
              patch("os.path.exists", return_value=True):
             pipeline.execute("https://example.com/news/1")
 

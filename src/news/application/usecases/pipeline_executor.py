@@ -16,7 +16,18 @@ from src.news.application.usecases.pipeline_runner import (
 _execution_lock = threading.Lock()
 
 
-def execute_pipeline_async(job_id, generated_articles_repo, metrics_repo, social_publisher, tts_usecase) -> bool:
+def execute_pipeline_async(
+    job_id,
+    generated_articles_repo,
+    metrics_repo,
+    social_publisher,
+    tts_usecase,
+    image_unsplash_runner,
+    image_google_runner,
+    image_enricher_runner,
+    wordpress_runner,
+    video_generator_factory,
+) -> bool:
     """
     Execute pipeline in background thread with job tracking and metrics collection.
 
@@ -29,6 +40,11 @@ def execute_pipeline_async(job_id, generated_articles_repo, metrics_repo, social
         metrics_repo: Repository for metrics (injected)
         social_publisher: Publisher social inyectado
         tts_usecase: Caso de uso TTS inyectado
+        image_unsplash_runner: Callable para fetch Unsplash (inyectado)
+        image_google_runner: Callable para fetch Google (inyectado)
+        image_enricher_runner: Callable para enriquecer imágenes (inyectado)
+        wordpress_runner: Callable para publicar en WordPress (inyectado)
+        video_generator_factory: Factory de generador de vídeo (inyectado)
 
     Returns:
         bool: True if execution started, False if another execution is in progress.
@@ -40,7 +56,17 @@ def execute_pipeline_async(job_id, generated_articles_repo, metrics_repo, social
     logger.info(f"[PIPELINE-JOB] {job_id} Lock acquired - execution starting")
 
     ctx = PipelineContext(job_id=job_id)
-    runner = PipelineRunner(generated_articles_repo, metrics_repo, social_publisher, tts_usecase)
+    runner = PipelineRunner(
+        generated_articles_repo,
+        metrics_repo,
+        social_publisher,
+        tts_usecase,
+        image_unsplash_runner,
+        image_google_runner,
+        image_enricher_runner,
+        wordpress_runner,
+        video_generator_factory,
+    )
 
     def _target():
         try:

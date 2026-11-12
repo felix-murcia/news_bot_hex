@@ -117,7 +117,6 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
     },
     "news/application/usecases/pipeline_runner.py": {
         "src.news.application.usecases.pipeline_executor",  # TODO B20
-        "src.shared.infrastructure.composition_root",  # TODO B20
         "os",  # TODO B20
     },
     "news/application/usecases/process_url_pipeline.py": {
@@ -125,7 +124,6 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
         "src.news.infrastructure.adapters",  # TODO B20
         "src.news.application.usecases.content",  # TODO B20
         "src.news.application.usecases.article",  # TODO B20
-        "src.shared.infrastructure.composition_root",  # TODO B20
     },
     "news/application/usecases/soft_verify.py": {
         "src.shared.adapters.cache_manager",  # TODO B20

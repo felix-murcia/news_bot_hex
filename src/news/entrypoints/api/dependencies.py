@@ -353,6 +353,11 @@ def get_process_url_usecase(
         create_audio_converter,
         create_social_publisher,
         create_tts_adapter,
+        create_video_generator,
+        run_image_enricher,
+        run_image_google,
+        run_image_unsplash,
+        run_wordpress,
     )
 
     tts_usecase = TTSFromArticleUseCase(create_tts_adapter(), create_audio_converter())
@@ -365,6 +370,11 @@ def get_process_url_usecase(
         tts_usecase=tts_usecase,
         wp_site_url=Settings.WP_SITE_URL,
         wp_default_image_url=Settings.WP_DEFAULT_IMAGE_URL,
+        image_unsplash_runner=run_image_unsplash,
+        image_google_runner=run_image_google,
+        image_enricher_runner=run_image_enricher,
+        wordpress_runner=run_wordpress,
+        video_generator_factory=create_video_generator,
     )
     return pipeline.execute
 

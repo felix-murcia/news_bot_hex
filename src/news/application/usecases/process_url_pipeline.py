@@ -9,13 +9,14 @@ import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import Optional
+from typing import Callable, Optional
 
 import logging
 from src.news.application.usecases.metrics_collector import MetricsCollector
 from src.news.domain.entities.processing_metric import PipelineType
 from src.news.domain.ports import GeneratedArticlesRepository, GeneratedPostsRepository
 from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
+from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
 
 logger = logging.getLogger(__name__)
 class ProcessUrlPipeline:
@@ -31,6 +32,11 @@ class ProcessUrlPipeline:
         tts_usecase,
         wp_site_url: str = "",
         wp_default_image_url: str = "",
+        image_unsplash_runner: Callable[[], None],
+        image_google_runner: Callable[[], None],
+        image_enricher_runner: Callable[[], None],
+        wordpress_runner: Callable[[], None],
+        video_generator_factory: Callable[[], VideoGeneratorPort],
     ):
         self.content_extractor = content_extractor
         self.generated_articles_repo = generated_articles_repo
@@ -40,6 +46,11 @@ class ProcessUrlPipeline:
         self._tts_usecase = tts_usecase
         self._wp_site_url = wp_site_url
         self._wp_default_image_url = wp_default_image_url
+        self._image_unsplash_runner = image_unsplash_runner
+        self._image_google_runner = image_google_runner
+        self._image_enricher_runner = image_enricher_runner
+        self._wordpress_runner = wordpress_runner
+        self._video_generator_factory = video_generator_factory
 
     def execute(self, url: str, job_id: Optional[str] = None) -> dict:
         logger.info(f"[PROCESS_URL] Starting pipeline for: {url}")
@@ -165,9 +176,8 @@ class ProcessUrlPipeline:
                 )
 
         def fetch_images():
-            from src.shared.infrastructure.composition_root import run_image_unsplash, run_image_google
-            run_image_unsplash()
-            run_image_google()
+            self._image_unsplash_runner()
+            self._image_google_runner()
 
         with ThreadPoolExecutor(max_workers=2) as executor:
             fut_articles = executor.submit(run_step, "Generate Articles", generate_articles, True)
@@ -179,8 +189,7 @@ class ProcessUrlPipeline:
 
         # ── Step 6: Enrich Images ───────────────────────────────────────────
         def enrich_images():
-            from src.shared.infrastructure.composition_root import run_image_enricher
-            run_image_enricher()
+            self._image_enricher_runner()
 
         run_step("Enrich Images", enrich_images, critical=True)
 
@@ -206,8 +215,7 @@ class ProcessUrlPipeline:
 
         # ── Step 8: Generate Video ──────────────────────────────────────────
         def generate_video():
-            from src.shared.infrastructure.composition_root import create_video_generator
-            video_gen = create_video_generator()
+            video_gen = self._video_generator_factory()
             if video_gen.is_available():
                 for article in articles_list:
                     audio_path = article.get("tts_audio_path")
@@ -237,8 +245,7 @@ class ProcessUrlPipeline:
 
         # ── Step 9: Publish WordPress ───────────────────────────────────────
         def publish_wordpress():
-            from src.shared.infrastructure.composition_root import run_wordpress
-            run_wordpress()
+            self._wordpress_runner()
 
         run_step("Publish WordPress", publish_wordpress, critical=True)
 

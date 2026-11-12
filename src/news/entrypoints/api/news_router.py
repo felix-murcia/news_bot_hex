@@ -364,6 +364,11 @@ def news_full_pipeline(
             create_audio_converter,
             create_social_publisher,
             create_tts_adapter,
+            create_video_generator,
+            run_image_enricher,
+            run_image_google,
+            run_image_unsplash,
+            run_wordpress,
         )
 
         job_id = create_job()
@@ -374,6 +379,11 @@ def news_full_pipeline(
             metrics_repo,
             create_social_publisher(),
             tts_usecase,
+            run_image_unsplash,
+            run_image_google,
+            run_image_enricher,
+            run_wordpress,
+            create_video_generator,
         )
 
         if not started:

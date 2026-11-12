@@ -389,26 +389,16 @@ class ProcessUrlPipelineTestBase:
             p = lambda *a, **k: stack.enter_context(patch(*a, **k))  # noqa: E731
             ctx["run_content"] = p("src.news.application.usecases.content.run_content")
             ctx["run_article"] = p("src.news.application.usecases.article.run")
-            ctx["images_unsplash"] = p(
-                "src.shared.infrastructure.composition_root.run_image_unsplash")
-            ctx["images_google"] = p(
-                "src.shared.infrastructure.composition_root.run_image_google")
-            ctx["image_enricher"] = p(
-                "src.shared.infrastructure.composition_root.run_image_enricher")
+            ctx["images_unsplash"] = Mock()
+            ctx["images_google"] = Mock()
+            ctx["image_enricher"] = Mock()
             tts_usecase = Mock()
             tts_usecase.execute_batch.return_value = []
             ctx["tts"] = tts_usecase
-            ctx["video_gen"] = p(
-                "src.shared.infrastructure.composition_root.create_video_generator",
-                return_value=Mock(is_available=Mock(return_value=False)))
-            ctx["wordpress"] = p(
-                "src.shared.infrastructure.composition_root.run_wordpress")
-            ctx["bluesky"] = p(
-                "src.shared.infrastructure.composition_root.run_bluesky")
-            ctx["mastodon"] = p(
-                "src.shared.infrastructure.composition_root.run_mastodon")
-            ctx["facebook"] = p(
-                "src.shared.infrastructure.composition_root.run_facebook")
+            video_gen = Mock(is_available=Mock(return_value=False))
+            ctx["video_gen"] = video_gen
+            ctx["video_generator_factory"] = Mock(return_value=video_gen)
+            ctx["wordpress"] = Mock()
             p("src.shared.adapters.mongo_db.get_database", return_value=fake_db)
             ctx["translate"] = p("src.shared.adapters.translator.translate_text")
 
@@ -437,6 +427,11 @@ class ProcessUrlPipelineTestBase:
                 metrics_repo=None,
                 social_publisher=mock_social,
                 tts_usecase=ctx["tts"],
+                image_unsplash_runner=ctx["images_unsplash"],
+                image_google_runner=ctx["images_google"],
+                image_enricher_runner=ctx["image_enricher"],
+                wordpress_runner=ctx["wordpress"],
+                video_generator_factory=ctx["video_generator_factory"],
             )
             try:
                 pipeline.execute(self.PIPELINE_URL)

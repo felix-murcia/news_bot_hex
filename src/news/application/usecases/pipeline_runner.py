@@ -3,10 +3,13 @@
 Extraído de execute_pipeline_async (B2). Mantiene toda la lógica original sin cambios.
 """
 
+import os
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
+from typing import Callable, Optional
+
+from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
 
 import logging
 from src.news.application.usecases.pipeline_log_handler import (
@@ -106,11 +109,27 @@ def record_step_metric(metrics_steps: list, step_name: str, status: str, duratio
 
 
 class PipelineRunner:
-    def __init__(self, generated_articles_repo, metrics_repo, social_publisher, tts_usecase):
+    def __init__(
+        self,
+        generated_articles_repo,
+        metrics_repo,
+        social_publisher,
+        tts_usecase,
+        image_unsplash_runner: Callable[[], None],
+        image_google_runner: Callable[[], None],
+        image_enricher_runner: Callable[[], None],
+        wordpress_runner: Callable[[], None],
+        video_generator_factory: Callable[[], VideoGeneratorPort],
+    ):
         self._generated_articles_repo = generated_articles_repo
         self._metrics_repo = metrics_repo
         self._social_publisher = social_publisher
         self._tts_usecase = tts_usecase
+        self._image_unsplash_runner = image_unsplash_runner
+        self._image_google_runner = image_google_runner
+        self._image_enricher_runner = image_enricher_runner
+        self._wordpress_runner = wordpress_runner
+        self._video_generator_factory = video_generator_factory
 
     def run(self, ctx: PipelineContext) -> None:
         from src.news.application.usecases.pipeline_executor import update_job_status
@@ -181,8 +200,8 @@ class PipelineRunner:
                     ctx.job_id,
                     ProcessingStepName.FETCH_IMAGES,
                     lambda: (
-                        __import__('src.shared.infrastructure.composition_root', fromlist=['run_image_unsplash']).run_image_unsplash(),
-                        __import__('src.shared.infrastructure.composition_root', fromlist=['run_image_google']).run_image_google(),
+                        self._image_unsplash_runner(),
+                        self._image_google_runner(),
                     ),
                     metrics_steps,
                     step_results,
@@ -192,7 +211,7 @@ class PipelineRunner:
                 success, error = _execute_step(
                     ctx.job_id,
                     ProcessingStepName.ENRICH_IMAGES,
-                    lambda: __import__('src.shared.infrastructure.composition_root', fromlist=['run_image_enricher']).run_image_enricher(),
+                    lambda: self._image_enricher_runner(),
                     metrics_steps,
                     step_results,
                 )
@@ -220,12 +239,9 @@ class PipelineRunner:
 
                 # Step 8: Generate Video (ENRICHMENT)
                 def _run_video():
-                    from src.shared.infrastructure.composition_root import create_video_generator
-                    import os
-
                     articles = self._generated_articles_repo.load_all()
 
-                    video_gen = create_video_generator()
+                    video_gen = self._video_generator_factory()
                     if video_gen.is_available():
                         for article in articles:
                             audio_path = article.get("tts_audio_path")
@@ -252,7 +268,7 @@ class PipelineRunner:
                 success, error = _execute_step(
                     ctx.job_id,
                     ProcessingStepName.PUBLISH_WORDPRESS,
-                    lambda: __import__('src.shared.infrastructure.composition_root', fromlist=['run_wordpress']).run_wordpress(),
+                    lambda: self._wordpress_runner(),
                     metrics_steps,
                     step_results,
                 )
