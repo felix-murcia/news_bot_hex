@@ -92,7 +92,8 @@ def main_verify():
 
 def main_full_verify():
     """Punto de entrada para verificación completa de noticias."""
-    generated_articles_repo = MongoArticleRepository()
+    from src.news.infrastructure.adapters.mongo_repositories import MongoGeneratedArticlesRepository
+    generated_articles_repo = MongoGeneratedArticlesRepository()
     verified_repo = MongoVerifiedNewsRepository()
     published_urls_repo = MongoPublishedUrlsRepository()
     keywords_repo = MongoKeywordsRepository()
