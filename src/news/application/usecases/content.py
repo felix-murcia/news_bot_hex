@@ -25,7 +25,7 @@ class ContentUseCase:
         cache_loader: Callable[..., tuple[Optional[str], str]],
         network: str = "bluesky",
         use_ai: bool = True,
-        model_provider: str = "gemini",
+        model_provider: str | None = None,
         ai_model=None,
         mode: str = "news",
     ):
@@ -48,11 +48,11 @@ class ContentUseCase:
         """Obtiene el modelo de IA (lazy loading)."""
         if self.ai_model is None:
             if self.use_ai:
-                provider = self.model_provider
+                provider = self.model_provider  # Puede ser None; el factory resuelve el default
             else:
                 provider = "mock"
             self.ai_model = self._ai_providers.adapter_factory(provider)
-            logger.info(f"[CONTENT] Adapter '{provider}' instanciado")
+            logger.info(f"[CONTENT] Adapter '{provider or 'auto'}' instanciado")
         return self.ai_model
 
     def _get_verified_news(self) -> List[Dict]:
@@ -224,8 +224,9 @@ def run_content(
     cache_loader: Callable[..., tuple[Optional[str], str]],
 ) -> List[Dict]:
     """Función principal para generar tweets."""
-    provider = model_provider or "local"
-    logger.info(f"[CONTENT] Ejecutando (provider: {provider}, red: {network})")
+    # Pasa model_provider tal cual (puede ser None); el factory resuelve el default
+    provider_for_log = model_provider or "auto"
+    logger.info(f"[CONTENT] Ejecutando (provider: {provider_for_log}, red: {network})")
     use_case = ContentUseCase(
         verified_repo=verified_news_repo,
         generated_posts_repo=generated_posts_repo,
@@ -235,7 +236,7 @@ def run_content(
         cache_loader=cache_loader,
         network=network,
         use_ai=use_gemini,
-        model_provider=provider,
+        model_provider=model_provider,
         mode=mode,
     )
     return use_case.execute()

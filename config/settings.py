@@ -98,8 +98,8 @@ class Settings:
     TWEET_TRUNCATION_BUFFER = int(os.getenv("TWEET_TRUNCATION_BUFFER", "3"))
 
     # === AI Model Configuration ===
-    # Default is ALWAYS "local" — no external providers are used unless explicitly configured
-    AI_PROVIDER = (os.getenv("AI_PROVIDER") or "local").lower()
+    # Default is "openrouter" — external provider used unless explicitly configured otherwise
+    AI_PROVIDER = os.getenv("AI_PROVIDER", "openrouter")
     SUPPORTED_AI_PROVIDERS = ["openrouter", "gemini", "local", "mock", "groq"]
 
     AI_ADAPTER_MAP = {

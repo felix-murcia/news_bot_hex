@@ -143,7 +143,7 @@ class ArticleUseCase:
         ai_providers: AiProviders,
         use_ai: bool = True,
         ai_model=None,
-        model_provider: str = "gemini",
+        model_provider: str | None = None,
         wp_site_url: str = "",
         wp_default_image_url: str = "",
         seo_helpers: SeoHelpers = None,
@@ -169,7 +169,7 @@ class ArticleUseCase:
         if self.ai_model is None:
             provider = self.model_provider if self.use_ai else "mock"
             self.ai_model = self._ai_providers.adapter_factory(provider)
-            logger.info(f"[ARTICLE] Adapter '{provider}' instanciado")
+            logger.info(f"[ARTICLE] Adapter '{provider or 'auto'}' instanciado")
         return self.ai_model
 
     def _get_template_renderer(self):
@@ -498,15 +498,15 @@ def run(
     verified_news_repo: VerifiedNewsRepository,
     seo_helpers: SeoHelpers,
 ) -> List[Dict]:
-    provider = model_provider or "local"
-    logger.info(f"[ARTICLE] Ejecutando (provider: {provider})")
+    provider_for_log = model_provider or "auto"
+    logger.info(f"[ARTICLE] Ejecutando (provider: {provider_for_log})")
     use_case = ArticleUseCase(
         verified_repo=verified_news_repo,
         generated_posts_repo=generated_posts_repo,
         generated_articles_repo=generated_articles_repo,
         ai_providers=ai_providers,
         use_ai=use_gemini,
-        model_provider=provider,
+        model_provider=model_provider,
         wp_site_url=wp_site_url,
         wp_default_image_url=wp_default_image_url,
         seo_helpers=seo_helpers,
