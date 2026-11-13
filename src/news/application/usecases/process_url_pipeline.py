@@ -17,6 +17,7 @@ from src.news.domain.entities.processing_metric import PipelineType
 from src.news.domain.ports import GeneratedArticlesRepository, GeneratedPostsRepository, VerifiedNewsRepository
 from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
 from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
+from src.shared.domain.services.ai_providers import AiProviders
 
 logger = logging.getLogger(__name__)
 class ProcessUrlPipeline:
@@ -42,6 +43,7 @@ class ProcessUrlPipeline:
         post_editor: Callable[..., str],
         cache_loader: Callable[..., tuple[Optional[str], str]],
         seo_helpers,
+        ai_providers: AiProviders,
     ):
         self.content_extractor = content_extractor
         self.generated_articles_repo = generated_articles_repo
@@ -61,6 +63,7 @@ class ProcessUrlPipeline:
         self._post_editor = post_editor
         self._cache_loader = cache_loader
         self._seo_helpers = seo_helpers
+        self._ai_providers = ai_providers
 
     def execute(self, url: str, job_id: Optional[str] = None) -> dict:
         logger.info(f"[PROCESS_URL] Starting pipeline for: {url}")
@@ -149,6 +152,7 @@ class ProcessUrlPipeline:
             posts = run_content(
                 use_gemini=True,
                 mode="news",
+                ai_providers=self._ai_providers,
                 generated_posts_repo=self.generated_posts_repo,
                 verified_news_repo=self._verified_news_repo,
                 social_truncator=self._social_truncator,
@@ -179,6 +183,7 @@ class ProcessUrlPipeline:
 
             generated = run_article(
                 use_gemini=True,
+                ai_providers=self._ai_providers,
                 wp_site_url=self._wp_site_url,
                 wp_default_image_url=self._wp_default_image_url,
                 generated_articles_repo=self.generated_articles_repo,

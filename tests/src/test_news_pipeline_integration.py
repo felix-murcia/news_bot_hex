@@ -3,6 +3,7 @@ import sys
 import os
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
+from ai_helpers import build_ai_providers
 
 sys.path.insert(
     0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -132,7 +133,7 @@ class TestArticleFromNewsUseCase:
             ArticleFromNewsUseCase,
         )
 
-        use_case = ArticleFromNewsUseCase(use_ai=True, model_provider="local", social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, translator=lambda text, target_lang="es": text)
+        use_case = ArticleFromNewsUseCase(use_ai=True, model_provider="local", social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, translator=lambda text, target_lang="es": text, ai_providers=build_ai_providers())
         assert use_case.use_ai == True
         assert use_case.model_provider == "local"
 
@@ -142,7 +143,7 @@ class TestArticleFromNewsUseCase:
             ArticleFromNewsUseCase,
         )
 
-        use_case = ArticleFromNewsUseCase(use_ai=False, social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, translator=lambda text, target_lang="es": text)
+        use_case = ArticleFromNewsUseCase(use_ai=False, social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, translator=lambda text, target_lang="es": text, ai_providers=build_ai_providers())
         assert use_case.use_ai == False
 
 
@@ -154,7 +155,7 @@ class TestContentGeminiUseCase:
         from src.news.application.usecases.content import ContentGeminiUseCase
 
         from unittest.mock import Mock
-        use_case = ContentGeminiUseCase(network="bluesky", use_gemini=True, verified_repo=Mock(), generated_posts_repo=Mock(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, cache_loader=Mock(return_value=(None, "no_cache")))
+        use_case = ContentGeminiUseCase(network="bluesky", use_gemini=True, verified_repo=Mock(), generated_posts_repo=Mock(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, cache_loader=Mock(return_value=(None, "no_cache")), ai_providers=build_ai_providers())
 
         assert use_case is not None
 
@@ -187,6 +188,7 @@ class TestNewsToNewsUseCase:
             cache_loader=Mock(return_value=(None, "no_cache")),
             cache_saver=Mock(return_value=True),
             translator=lambda text, target_lang="es": text,
+            ai_providers=build_ai_providers(),
         )
         assert use_case.use_ai == True
         assert use_case.model_provider == "local"
@@ -208,6 +210,7 @@ class TestNewsToNewsUseCase:
             cache_loader=Mock(return_value=(None, "no_cache")),
             cache_saver=Mock(return_value=True),
             translator=lambda text, target_lang="es": text,
+            ai_providers=build_ai_providers(),
         )
         assert use_case.use_ai == False
 
@@ -243,6 +246,7 @@ class TestArticleGeminiUseCase:
             generated_articles_repo=Mock(),
             generated_posts_repo=Mock(),
             seo_helpers=seo_helpers,
+            ai_providers=build_ai_providers(),
         )
 
         assert use_case is not None

@@ -29,6 +29,8 @@ from src.shared.adapters.seo_optimizer import (
 )
 from src.shared.domain.services.seo_helpers import SeoHelpers
 
+from ai_helpers import build_ai_providers
+
 
 def _seo_helpers():
     return SeoHelpers(
@@ -221,6 +223,7 @@ def _run_pipeline(
         post_editor=lambda c, editor=None: c,
         cache_loader=lambda url, max_age_hours=6: (None, "no_cache"),
         seo_helpers=_seo_helpers(),
+        ai_providers=build_ai_providers(),
     )
     assert started, "pipeline rejected: execution lock was still held"
 

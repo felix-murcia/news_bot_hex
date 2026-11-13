@@ -5,8 +5,8 @@ from urllib.parse import urlparse
 
 import logging
 from src.news.domain.ports import VerifiedNewsRepository, GeneratedPostsRepository, GeneratedArticlesRepository
-from src.shared.adapters.ai.agents import ArticleAgent
 from src.news.domain.services.template_renderer import TemplateRenderer
+from src.shared.domain.services.ai_providers import AiProviders
 from src.shared.domain.services.seo_helpers import SeoHelpers
 
 logger = logging.getLogger(__name__)
@@ -140,8 +140,8 @@ class ArticleUseCase:
         verified_repo: VerifiedNewsRepository,
         generated_posts_repo: GeneratedPostsRepository,
         generated_articles_repo: GeneratedArticlesRepository,
+        ai_providers: AiProviders,
         use_ai: bool = True,
-        ai_config: Optional[dict] = None,
         ai_model=None,
         model_provider: str = "gemini",
         wp_site_url: str = "",
@@ -150,25 +150,25 @@ class ArticleUseCase:
     ):
         if seo_helpers is None:
             raise ValueError("seo_helpers es requerido")
+        if ai_providers is None:
+            raise ValueError("ai_providers es requerido")
         self.verified_repo = verified_repo
         self.generated_posts_repo = generated_posts_repo
         self.generated_articles_repo = generated_articles_repo
         self.use_ai = use_ai
-        self.ai_config = ai_config or {}
         self.ai_model = ai_model
         self.model_provider = model_provider
         self._wp_site_url = wp_site_url
         self._wp_default_image_url = wp_default_image_url
         self._seo_helpers = seo_helpers
+        self._ai_providers = ai_providers
         self._template_renderer = None
 
     def _get_ai_model(self):
         """Obtiene el modelo de IA (lazy loading)."""
         if self.ai_model is None:
-            from src.shared.adapters.ai.ai_factory import get_ai_adapter
-
             provider = self.model_provider if self.use_ai else "mock"
-            self.ai_model = get_ai_adapter(provider, self.ai_config)
+            self.ai_model = self._ai_providers.adapter_factory(provider)
             logger.info(f"[ARTICLE] Adapter '{provider}' instanciado")
         return self.ai_model
 
@@ -224,7 +224,7 @@ class ArticleUseCase:
 
             keyphrase = self._seo_helpers.extract_focus_keyphrase(raw_title)
 
-            agent = ArticleAgent(model)
+            agent = self._ai_providers.article_agent_factory(model)
             peticion = (
                 f"Título original de la noticia: {raw_title}\n"
                 f"Tema: {tema}\n"
@@ -459,16 +459,16 @@ class ArticleGeminiUseCase(ArticleUseCase):
 
     def __init__(
         self,
+        ai_providers: AiProviders,
         use_gemini: bool = True,
-        gemini_config: Optional[dict] = None,
         ai_model=None,
         model_provider: str = "gemini",
         seo_helpers: SeoHelpers = None,
         **kwargs,
     ):
         super().__init__(
+            ai_providers=ai_providers,
             use_ai=use_gemini,
-            ai_config=gemini_config,
             ai_model=ai_model,
             model_provider=model_provider,
             seo_helpers=seo_helpers,
@@ -480,12 +480,12 @@ def run(
     llm=None,
     limit: int = 1,
     use_gemini: bool = True,
-    ai_config: Optional[dict] = None,
     mode: str = "news",
     model_provider: str = None,
     wp_site_url: str = "",
     wp_default_image_url: str = "",
     *,
+    ai_providers: AiProviders,
     generated_articles_repo: GeneratedArticlesRepository,
     generated_posts_repo: GeneratedPostsRepository,
     verified_news_repo: VerifiedNewsRepository,
@@ -497,8 +497,8 @@ def run(
         verified_repo=verified_news_repo,
         generated_posts_repo=generated_posts_repo,
         generated_articles_repo=generated_articles_repo,
+        ai_providers=ai_providers,
         use_ai=use_gemini,
-        ai_config=ai_config,
         model_provider=provider,
         wp_site_url=wp_site_url,
         wp_default_image_url=wp_default_image_url,
@@ -511,10 +511,20 @@ def main():
     import argparse
     from config.settings import Settings
     from src.shared.infrastructure.composition_root import (  # TODO B11c (main/argparse)
+        create_ai_providers,
         create_generated_articles_repository,
         create_generated_posts_repository,
         create_verified_news_repository,
     )
+    from src.shared.adapters.seo_optimizer import (
+        slugify as seo_slugify,
+        extract_focus_keyphrase,
+        generate_meta_description,
+        generate_excerpt,
+        truncate_seo_title,
+        clean_title as seo_clean_title,
+    )
+    from src.shared.domain.services.seo_helpers import SeoHelpers
 
     parser = argparse.ArgumentParser(description="Generador de artículos con IA")
     parser.add_argument("--local", action="store_true", help="Usar solo modelo local")
@@ -529,15 +539,25 @@ def main():
 
     args = parser.parse_args()
 
+    seo_helpers = SeoHelpers(
+        slugify=seo_slugify,
+        extract_focus_keyphrase=extract_focus_keyphrase,
+        generate_meta_description=generate_meta_description,
+        truncate_seo_title=truncate_seo_title,
+        clean_title=seo_clean_title,
+        generate_excerpt=generate_excerpt,
+    )
     results = run(
         limit=args.limit,
         use_gemini=not args.local,
         model_provider=args.model,
         wp_site_url=Settings.WP_SITE_URL,
         wp_default_image_url=Settings.WP_DEFAULT_IMAGE_URL,
+        ai_providers=create_ai_providers(),
         generated_articles_repo=create_generated_articles_repository(),
         generated_posts_repo=create_generated_posts_repository(),
         verified_news_repo=create_verified_news_repository(),
+        seo_helpers=seo_helpers,
     )
 
     if results:

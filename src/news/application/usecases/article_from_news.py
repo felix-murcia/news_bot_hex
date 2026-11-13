@@ -1,7 +1,9 @@
 import os
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict
 
 import logging
+from src.shared.domain.services.ai_providers import AiProviders
+
 logger = logging.getLogger(__name__)
 def limpiar(texto: str) -> str:
     if not texto:
@@ -25,9 +27,9 @@ class ArticleFromNewsUseCase:
 
     def __init__(
         self,
+        ai_providers: AiProviders,
         use_ai: bool = True,
         model_provider: str = "gemini",
-        ai_config: Optional[dict] = None,
         ai_model=None,
         wp_site_url: str = "",
         wp_default_image_url: str = "",
@@ -39,10 +41,12 @@ class ArticleFromNewsUseCase:
             raise ValueError("social_truncator y post_editor son requeridos")
         if translator is None:
             raise ValueError("translator es requerido")
+        if ai_providers is None:
+            raise ValueError("ai_providers es requerido")
         self.use_ai = use_ai
         self.model_provider = model_provider
-        self.ai_config = ai_config or {}
         self.ai_model = ai_model
+        self._ai_providers = ai_providers
         self._wp_site_url = wp_site_url
         self._wp_default_image_url = wp_default_image_url
         self._social_truncator = social_truncator
@@ -52,10 +56,8 @@ class ArticleFromNewsUseCase:
     def _get_ai_model(self):
         """Obtiene el modelo de IA (lazy loading)."""
         if self.ai_model is None:
-            from src.shared.adapters.ai.ai_factory import get_ai_adapter
-
             provider = self.model_provider if self.use_ai else "mock"
-            self.ai_model = get_ai_adapter(provider, self.ai_config)
+            self.ai_model = self._ai_providers.adapter_factory(provider)
             logger.info(f"[ARTICLE_NEWS] Adapter '{provider}' instanciado")
         return self.ai_model
 
@@ -241,10 +243,10 @@ def run_from_news(
     tema: str = "Noticias",
     use_gemini: bool = True,
     model_provider: str = "gemini",
-    ai_config: Optional[dict] = None,
     wp_site_url: str = "",
     wp_default_image_url: str = "",
     *,
+    ai_providers: AiProviders,
     social_truncator: Callable[..., str],
     post_editor: Callable[..., str],
     translator: Callable[[str, str], str],
@@ -254,9 +256,9 @@ def run_from_news(
         f"[ARTICLE_NEWS] Ejecutando pipeline para noticias (provider: {model_provider})"
     )
     use_case = ArticleFromNewsUseCase(
+        ai_providers=ai_providers,
         use_ai=use_gemini,
         model_provider=model_provider,
-        ai_config=ai_config,
         wp_site_url=wp_site_url,
         wp_default_image_url=wp_default_image_url,
         social_truncator=social_truncator,
@@ -311,6 +313,11 @@ def main():
         post_editor = __import__(
             "src.shared.adapters.content_post_editor", fromlist=["post_edit_content"]
         ).post_edit_content
+        from src.shared.adapters.translator import translate_text
+        from src.shared.infrastructure.composition_root import (  # TODO B11c (main/argparse)
+            create_ai_providers,
+        )
+
         results = run_from_news(
             content=content,
             url=args.url,
@@ -319,8 +326,10 @@ def main():
             model_provider=args.model,
             wp_site_url=Settings.WP_SITE_URL,
             wp_default_image_url=Settings.WP_DEFAULT_IMAGE_URL,
+            ai_providers=create_ai_providers(),
             social_truncator=social_truncator,
             post_editor=post_editor,
+            translator=translate_text,
         )
         elapsed = time.time() - start_time
 

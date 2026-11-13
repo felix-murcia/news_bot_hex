@@ -55,23 +55,23 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
     },
     "audio/application/usecases/audio_to_news.py": {
         "config.settings",  # TODO B20
-        "src.shared.adapters.ai.ai_factory",  # TODO B20
-        "src.shared.adapters.ai.agents",  # TODO B20
         "src.shared.adapters.social_post_adapter",  # TODO B20
         "src.shared.adapters.content_post_editor",  # TODO B20
         "argparse",  # TODO B20
     },
     "news/application/usecases/__init__.py": set(),
     "news/application/usecases/article.py": {
-        "src.shared.adapters.ai.agents",  # TODO B20
-        "src.shared.adapters.ai.ai_factory",  # TODO B20
         "config.settings",  # TODO B11c (argparse)
+        "src.shared.adapters.seo_optimizer",  # TODO B11c (main/argparse)
+        "src.shared.domain.services.seo_helpers",  # TODO B11c (main/argparse)
         "src.shared.infrastructure.composition_root",  # TODO B11c (main/argparse)
         "argparse",  # TODO B20
     },
     "news/application/usecases/article_from_news.py": {
-        "src.shared.adapters.ai.ai_factory",  # TODO B20
         "config.settings",  # TODO B11c (argparse)
+        "src.shared.adapters.seo_optimizer",  # TODO B11c (main/argparse)
+        "src.shared.adapters.translator",  # TODO B11c (main/argparse)
+        "src.shared.infrastructure.composition_root",  # TODO B11c (main/argparse)
         "src.shared.adapters.content_post_editor",  # TODO B20
         "re",  # TODO B20
         "src.shared.adapters.social_post_adapter",  # TODO B20
@@ -83,10 +83,8 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
         "src.news.infrastructure.adapters",  # TODO B20
     },
     "news/application/usecases/content.py": {
-        "src.shared.adapters.ai.agents",  # TODO B20
         "src.shared.adapters.social_post_adapter",  # TODO B20
         "src.shared.adapters.content_post_editor",  # TODO B20
-        "src.shared.adapters.ai.ai_factory",  # TODO B20
         "config.settings",  # TODO B11c (argparse)
         "src.shared.infrastructure.composition_root",  # TODO B11c (main/argparse)
         "argparse",  # TODO B20
@@ -94,9 +92,7 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
     "news/application/usecases/full_verify_usecase.py": set(),
     "news/application/usecases/news_to_news.py": {
         "src.news.application.usecases.article_from_news",  # TODO B20
-        "src.shared.adapters.ai.agents",  # TODO B20
         "src.shared.adapters.social_post_adapter",  # TODO B20
-        "src.shared.adapters.ai.ai_factory",  # TODO B20
         "src.shared.application.usecases.tts_from_article",  # TODO B20
         "argparse",  # TODO B20
         "src.shared.infrastructure.composition_root",  # TODO B20
@@ -124,7 +120,6 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
     },
     "shared/application/usecases/article_from_transcript.py": {
         "unicodedata",  # TODO B20
-        "src.shared.adapters.ai.agents",  # TODO B20
         "src.shared.adapters.content_post_editor",  # TODO B20
         "src.shared.adapters.social_post_adapter",  # TODO B20
     },
@@ -151,8 +146,6 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
     },
     "video/application/usecases/video_to_news.py": {
         "config.settings",  # TODO B20
-        "src.shared.adapters.ai.ai_factory",  # TODO B20
-        "src.shared.adapters.ai.agents",  # TODO B20
         "src.shared.adapters.social_post_adapter",  # TODO B20
         "src.shared.adapters.content_post_editor",  # TODO B20
         "argparse",  # TODO B20

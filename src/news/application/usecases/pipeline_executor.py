@@ -2,6 +2,8 @@
 
 import threading
 
+from src.shared.domain.services.ai_providers import AiProviders
+
 from src.news.application.usecases.pipeline_job import (
     add_step,  # noqa: F401 - re-exported for test patching
     update_job_status,  # noqa: F401 - re-exported for test patching
@@ -36,6 +38,7 @@ def execute_pipeline_async(
     post_editor,
     cache_loader,
     seo_helpers,
+    ai_providers: AiProviders,
 ) -> bool:
     """
     Execute pipeline in background thread with job tracking and metrics collection.
@@ -87,6 +90,7 @@ def execute_pipeline_async(
         post_editor=post_editor,
         cache_loader=cache_loader,
         seo_helpers=seo_helpers,
+        ai_providers=ai_providers,
     )
 
     def _target():

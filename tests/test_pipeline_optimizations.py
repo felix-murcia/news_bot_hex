@@ -22,6 +22,7 @@ from src.shared.adapters.seo_optimizer import (
     clean_title as seo_clean_title,
 )
 from src.shared.domain.services.seo_helpers import SeoHelpers
+from ai_helpers import build_ai_providers
 
 
 def _seo_helpers():
@@ -269,6 +270,7 @@ class TestVideoPathPropagation:
             post_editor=lambda c, editor=None: c,
             cache_loader=Mock(return_value=(None, "no_cache")),
             seo_helpers=_seo_helpers(),
+            ai_providers=build_ai_providers(),
         )
 
         with patch("src.news.application.usecases.content.run_content"), \
@@ -335,6 +337,7 @@ class TestVideoPathPropagation:
             post_editor=lambda c, editor=None: c,
             cache_loader=Mock(return_value=(None, "no_cache")),
             seo_helpers=_seo_helpers(),
+            ai_providers=build_ai_providers(),
         )
 
         with patch("src.news.application.usecases.content.run_content"), \

@@ -7,7 +7,10 @@ from src.shared.adapters.audio_converter import AudioConverter
 from src.video.application.usecases.video_to_news import VideoToNewsUseCase
 from src.video.application.usecases.video_pipeline import VideoPipelineUseCase
 from src.shared.application.usecases.article_from_transcript import run_from_transcript
-from src.shared.infrastructure.composition_root import create_debug_output_repository
+from src.shared.infrastructure.composition_root import (
+    create_ai_providers,
+    create_debug_output_repository,
+)
 from config.settings import Settings
 
 
@@ -96,6 +99,7 @@ def main_video_to_news():
         has_audio_stream=AudioConverter().has_audio_stream,
         social_truncator=truncate_social_post,
         post_editor=post_edit_content,
+        ai_providers=create_ai_providers(),
         use_ai=not args.local,
         model_provider=args.model,
     )
@@ -136,6 +140,7 @@ def main_article_from_video():
         tema="Videos",
         llm_provider=llm_provider,
         source_type="video",
+        ai_providers=create_ai_providers(),
         social_truncator=truncate_social_post,
         post_editor=post_edit_content,
         context_enricher=enriquecer_con_contexto,
@@ -224,6 +229,7 @@ def main_full_pipeline():
         has_audio_stream=AudioConverter().has_audio_stream,
         social_truncator=truncate_social_post,
         post_editor=post_edit_content,
+        ai_providers=create_ai_providers(),
         use_ai=True,
         model_provider=llm_provider,
     )
@@ -344,6 +350,7 @@ def main_pipeline():
         tema=tema,
         llm_provider=llm_provider,
         source_type="video",
+        ai_providers=create_ai_providers(),
         social_truncator=truncate_social_post,
         post_editor=post_edit_content,
     )

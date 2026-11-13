@@ -52,6 +52,11 @@ ROOT = pathlib.Path(__file__).parent.resolve()
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+# Directorio de tests: permite importar `ai_helpers` desde tests/ y tests/src/.
+TESTS_DIR = ROOT / "tests"
+if str(TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(TESTS_DIR))
+
 # BD de producción. Inmutable desde la suite (decisión 2).
 PRODUCTION_DB = "appdb"
 

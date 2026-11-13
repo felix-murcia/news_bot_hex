@@ -185,6 +185,7 @@ def main_provider():
     )
     from src.shared.domain.services.seo_helpers import SeoHelpers
     from src.shared.infrastructure.composition_root import (
+        create_ai_providers,
         create_generated_articles_repository,
         create_generated_posts_repository,
         create_verified_news_repository,
@@ -204,6 +205,7 @@ def main_provider():
         model_provider=args.model,
         wp_site_url=Settings.WP_SITE_URL,
         wp_default_image_url=Settings.WP_DEFAULT_IMAGE_URL,
+        ai_providers=create_ai_providers(),
         generated_articles_repo=create_generated_articles_repository(),
         generated_posts_repo=create_generated_posts_repository(),
         verified_news_repo=create_verified_news_repository(),
@@ -266,6 +268,7 @@ def main_news_to_news():
 
     try:
         from src.shared.infrastructure.composition_root import (
+            create_ai_providers,
             create_generated_articles_repository,
             create_generated_posts_repository,
         )
@@ -287,6 +290,7 @@ def main_news_to_news():
             generated_posts_repo=generated_posts_repo,
             model_provider=args.model,
             use_ai=not args.local,
+            ai_providers=create_ai_providers(),
             force_extract=args.force_extract,
             cache_dir=Settings.CACHE_DIR,
             copyright_domains=Settings.COPYRIGHT_DOMAINS,
@@ -381,6 +385,7 @@ def main_pipeline():
     )
     from src.news.application.usecases.content import run_content
     from src.shared.infrastructure.composition_root import (
+        create_ai_providers,
         create_generated_articles_repository,
         create_generated_posts_repository,
         create_verified_news_repository,
@@ -403,6 +408,7 @@ def main_pipeline():
         use_gemini=True,
         mode="news",
         model_provider=Settings.AI_PROVIDER,
+        ai_providers=create_ai_providers(),
         generated_posts_repo=generated_posts_repo,
         verified_news_repo=verified_news_repo,
         social_truncator=social_truncator,
@@ -437,6 +443,7 @@ def main_pipeline():
     articles = run_article_gemini(
         use_gemini=True,
         model_provider=Settings.AI_PROVIDER,
+        ai_providers=create_ai_providers(),
         wp_site_url=Settings.WP_SITE_URL,
         wp_default_image_url=Settings.WP_DEFAULT_IMAGE_URL,
         generated_articles_repo=generated_articles_repo,

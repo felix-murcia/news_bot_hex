@@ -14,6 +14,7 @@ from src.shared.adapters.seo_optimizer import (
     clean_title as seo_clean_title,
 )
 from src.shared.domain.services.seo_helpers import SeoHelpers
+from ai_helpers import build_ai_providers
 
 
 def _seo_helpers():
@@ -47,6 +48,7 @@ class TestNewsToNewsUseCaseForceExtractParameter:
             cache_loader=Mock(return_value=(None, "no_cache")),
             cache_saver=Mock(return_value=True),
             translator=lambda text, target_lang="es": text,
+            ai_providers=build_ai_providers(),
         )
         assert use_case.force_extract is False
 
@@ -68,6 +70,7 @@ class TestNewsToNewsUseCaseForceExtractParameter:
             cache_loader=Mock(return_value=(None, "no_cache")),
             cache_saver=Mock(return_value=True),
             translator=lambda text, target_lang="es": text,
+            ai_providers=build_ai_providers(),
         )
         assert use_case.force_extract is True
 
@@ -89,6 +92,7 @@ class TestNewsToNewsUseCaseForceExtractParameter:
             cache_loader=Mock(return_value=(None, "no_cache")),
             cache_saver=Mock(return_value=True),
             translator=lambda text, target_lang="es": text,
+            ai_providers=build_ai_providers(),
         )
         assert use_case.force_extract is False
 
@@ -113,6 +117,7 @@ class TestNewsToNewsUseCaseForceExtractParameter:
             cache_loader=Mock(return_value=(None, "no_cache")),
             cache_saver=Mock(return_value=True),
             translator=lambda text, target_lang="es": text,
+            ai_providers=build_ai_providers(),
         )
 
         with patch.object(NewsToNewsUseCase, "_load_from_cache") as mock_cache:
@@ -146,6 +151,7 @@ class TestNewsToNewsUseCaseForceExtractParameter:
             cache_loader=Mock(return_value=(None, "no_cache")),
             cache_saver=Mock(return_value=True),
             translator=lambda text, target_lang="es": text,
+            ai_providers=build_ai_providers(),
         )
 
         with patch.object(
@@ -241,6 +247,7 @@ class TestProcessNewsUrlFunction:
                 cache_loader=Mock(return_value=(None, "no_cache")),
                 cache_saver=Mock(return_value=True),
                 translator=lambda text, target_lang="es": text,
+                ai_providers=build_ai_providers(),
             )
 
             # Verify usecase was instantiated with force_extract=True
@@ -493,6 +500,7 @@ class ProcessUrlPipelineTestBase:
                 post_editor=lambda c, editor=None: c,
                 cache_loader=Mock(return_value=(None, "no_cache")),
                 seo_helpers=_seo_helpers(),
+                ai_providers=build_ai_providers(),
             )
             try:
                 pipeline.execute(self.PIPELINE_URL)

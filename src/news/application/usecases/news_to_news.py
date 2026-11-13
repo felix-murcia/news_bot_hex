@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, Optional
 from src.news.domain.ports import ContentExtractor, GeneratedArticlesRepository, GeneratedPostsRepository
 import logging
 from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
+from src.shared.domain.services.ai_providers import AiProviders
 
 logger = logging.getLogger(__name__)
 def slugify(text: str) -> str:
@@ -29,6 +30,7 @@ class NewsToNewsUseCase:
         content_extractor: ContentExtractor,
         generated_articles_repo: GeneratedArticlesRepository,
         generated_posts_repo: GeneratedPostsRepository,
+        ai_providers: AiProviders,
         *,
         social_truncator: Callable[..., str],
         post_editor: Callable[..., str],
@@ -39,7 +41,6 @@ class NewsToNewsUseCase:
         tts_usecase: Any = None,
         use_ai: bool = True,
         model_provider: str = "gemini",
-        ai_config: Optional[dict] = None,
         ai_model=None,
         video_generator: Optional[VideoGeneratorPort] = None,
         force_extract: bool = False,
@@ -48,13 +49,15 @@ class NewsToNewsUseCase:
         wp_site_url: str = "",
         wp_default_image_url: str = "",
     ):
+        if ai_providers is None:
+            raise ValueError("ai_providers es requerido")
         self.content_extractor = content_extractor
         self.generated_articles_repo = generated_articles_repo
         self.generated_posts_repo = generated_posts_repo
         self.use_ai = use_ai
         self.model_provider = model_provider
-        self.ai_config = ai_config or {}
         self.ai_model = ai_model
+        self._ai_providers = ai_providers
         self.article_generator = None
         self.video_generator = video_generator
         self.force_extract = force_extract
@@ -77,9 +80,9 @@ class NewsToNewsUseCase:
             )
 
             self.article_generator = ArticleFromNewsUseCase(
+                ai_providers=self._ai_providers,
                 use_ai=self.use_ai,
                 model_provider=self.model_provider,
-                ai_config=self.ai_config,
                 wp_site_url=self._wp_site_url,
                 wp_default_image_url=self._wp_default_image_url,
                 social_truncator=self._social_truncator,
@@ -130,8 +133,6 @@ class NewsToNewsUseCase:
 
     def _generate_tweet(self, article_data: Dict) -> str:
         """Genera tweet a partir del artículo."""
-        from src.shared.adapters.ai.agents import TweetGeopoliticsAgent
-
         title = article_data.get("article", {}).get("title", "")
         url = article_data.get("article", {}).get("url", self._wp_site_url)
         tema = article_data.get("news_item", {}).get("tema", "Noticias")
@@ -140,12 +141,10 @@ class NewsToNewsUseCase:
         try:
             model = self.ai_model
             if model is None:
-                # Fallback: lazy-load AI model if not injected (TODO: refactor to require injection)
-                from src.shared.adapters.ai.ai_factory import get_ai_adapter
                 provider = self.model_provider if self.use_ai else "mock"
-                model = get_ai_adapter(provider, self.ai_config)
+                model = self._ai_providers.adapter_factory(provider)
 
-            agent = TweetGeopoliticsAgent(model)
+            agent = self._ai_providers.tweet_geopolitics_agent_factory(model)
             respuesta = agent.generate(title=title, tema=tema, context=desc)
 
             if respuesta.publishable:
@@ -280,6 +279,7 @@ def process_news_url(
     generated_articles_repo: GeneratedArticlesRepository,
     generated_posts_repo: GeneratedPostsRepository,
     *,
+    ai_providers: AiProviders,
     social_truncator: Callable[..., str],
     post_editor: Callable[..., str],
     tts_text_processor: Any,
@@ -289,7 +289,6 @@ def process_news_url(
     tts_usecase: Any = None,
     model_provider: str = "gemini",
     use_ai: bool = True,
-    ai_config: Optional[dict] = None,
     video_generator: Optional[VideoGeneratorPort] = None,
     force_extract: bool = False,
     cache_dir: Optional[Path] = None,
@@ -302,9 +301,9 @@ def process_news_url(
         content_extractor=content_extractor,
         generated_articles_repo=generated_articles_repo,
         generated_posts_repo=generated_posts_repo,
+        ai_providers=ai_providers,
         model_provider=model_provider,
         use_ai=use_ai,
-        ai_config=ai_config,
         video_generator=video_generator,
         force_extract=force_extract,
         cache_dir=cache_dir,

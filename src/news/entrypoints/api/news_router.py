@@ -321,10 +321,12 @@ def news_content(
         from src.shared.adapters.cache_manager import load_content_from_cache
         from src.shared.adapters.content_post_editor import post_edit_content
         from src.shared.adapters.social_post_adapter import truncate_social_post
+        from src.shared.infrastructure.composition_root import create_ai_providers
 
         content_usecase = ContentUseCase(
             verified_repo=verified_repo,
             generated_posts_repo=generated_posts_repo,
+            ai_providers=create_ai_providers(),
             social_truncator=truncate_social_post,
             post_editor=post_edit_content,
             cache_loader=load_content_from_cache,
@@ -372,6 +374,7 @@ def news_full_pipeline(
         from src.shared.application.usecases.tts_from_article import TTSFromArticleUseCase
         from src.shared.adapters.tts_text_processor import TTSTextProcessor
         from src.shared.infrastructure.composition_root import (
+            create_ai_providers,
             create_audio_converter,
             create_social_publisher,
             create_tts_adapter,
@@ -427,6 +430,7 @@ def news_full_pipeline(
             post_editor=post_edit_content,
             cache_loader=load_content_from_cache,
             seo_helpers=seo_helpers,
+            ai_providers=create_ai_providers(),
         )
 
         if not started:

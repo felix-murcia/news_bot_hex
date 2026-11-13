@@ -35,11 +35,23 @@ LONG_BODY = "<h2>Sección uno</h2><p>" + " ".join(["palabra"] * 850) + "</p>"
 
 
 def _use_case(ai_model):
+    from src.shared.adapters.ai.agents import ArticleAgent
+    from src.shared.domain.services.ai_providers import AiProviders
+
     posts_repo = Mock()
     arts_repo = Mock()
     verified = Mock()
     verified.get_all_news.return_value = []
     verified.get_news_by_url.return_value = None
+    # El agente real (ArticleAgent) talking con el modelo mockeado: el test
+    # afirma sobre el prompt de producción, no sobre un doble del agente.
+    ai_providers = AiProviders(
+        adapter_factory=Mock(return_value=ai_model),
+        article_agent_factory=lambda model: ArticleAgent(model),
+        article_from_content_agent_factory=Mock(),
+        tweet_agent_factory=Mock(),
+        tweet_geopolitics_agent_factory=Mock(),
+    )
     uc = ArticleUseCase(
         verified_repo=verified,
         generated_posts_repo=posts_repo,
@@ -47,6 +59,7 @@ def _use_case(ai_model):
         use_ai=True,
         ai_model=ai_model,
         seo_helpers=_seo_helpers(),
+        ai_providers=ai_providers,
     )
     return uc, posts_repo, arts_repo, verified
 

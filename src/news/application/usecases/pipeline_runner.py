@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Callable, Optional
 
 from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
+from src.shared.domain.services.ai_providers import AiProviders
 
 import logging
 from src.news.application.usecases.pipeline_log_handler import (
@@ -131,6 +132,7 @@ class PipelineRunner:
         post_editor: Callable[..., str],
         cache_loader: Callable[..., tuple[Optional[str], str]],
         seo_helpers,
+        ai_providers: AiProviders,
     ):
         self._generated_articles_repo = generated_articles_repo
         self._generated_posts_repo = generated_posts_repo
@@ -149,6 +151,7 @@ class PipelineRunner:
         self._post_editor = post_editor
         self._cache_loader = cache_loader
         self._seo_helpers = seo_helpers
+        self._ai_providers = ai_providers
 
     def run(self, ctx: PipelineContext) -> None:
         from src.news.application.usecases.pipeline_executor import update_job_status
@@ -199,6 +202,7 @@ class PipelineRunner:
                     lambda: run_content(
                         use_gemini=True,
                         mode="news",
+                        ai_providers=self._ai_providers,
                         generated_posts_repo=self._generated_posts_repo,
                         verified_news_repo=self._verified_news_repo,
                         social_truncator=self._social_truncator,
@@ -217,6 +221,7 @@ class PipelineRunner:
                     ProcessingStepName.GENERATE_ARTICLES,
                     lambda: run_articles(
                         use_gemini=True,
+                        ai_providers=self._ai_providers,
                         generated_articles_repo=self._generated_articles_repo,
                         generated_posts_repo=self._generated_posts_repo,
                         verified_news_repo=self._verified_news_repo,

@@ -28,7 +28,7 @@ from src.shared.adapters.social_post_adapter import truncate_social_post
 from src.shared.adapters.tts_text_processor import TTSTextProcessor
 from src.shared.adapters.web_search import enriquecer_con_contexto
 from src.shared.infrastructure.composition_root import (
-    create_ai_adapter,
+    create_ai_providers,
     create_audio_converter,
     create_tts_adapter,
     create_video_fetcher,
@@ -72,7 +72,7 @@ def main(argv: list = None):
         video_transcriber_factory=create_video_transcriber,
         tts_adapter_factory=create_tts_adapter,
         audio_converter=create_audio_converter(),
-        ai_adapter_factory=create_ai_adapter,
+        ai_providers=create_ai_providers(),
         social_truncator=truncate_social_post,
         post_editor=post_edit_content,
         tts_text_processor=TTSTextProcessor(),

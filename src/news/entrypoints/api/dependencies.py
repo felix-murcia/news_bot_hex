@@ -226,6 +226,7 @@ def get_article_usecase(
         clean_title as seo_clean_title,
     )
     from src.shared.domain.services.seo_helpers import SeoHelpers
+    from src.shared.infrastructure.composition_root import create_ai_providers
 
     seo_helpers = SeoHelpers(
         slugify=seo_slugify,
@@ -239,6 +240,7 @@ def get_article_usecase(
         verified_repo=verified_repo,
         generated_posts_repo=generated_posts_repo,
         generated_articles_repo=generated_articles_repo,
+        ai_providers=create_ai_providers(),
         wp_site_url=Settings.WP_SITE_URL,
         wp_default_image_url=Settings.WP_DEFAULT_IMAGE_URL,
         seo_helpers=seo_helpers,
@@ -355,6 +357,7 @@ def get_process_url_content_processor(
     from src.shared.adapters.tts_text_processor import TTSTextProcessor
     from src.shared.application.usecases.tts_from_article import TTSFromArticleUseCase
     from src.shared.infrastructure.composition_root import (
+        create_ai_providers,
         create_audio_converter,
         create_tts_adapter,
     )
@@ -368,7 +371,7 @@ def get_process_url_content_processor(
             generated_posts_repo=generated_posts_repo,
             model_provider=Settings.AI_PROVIDER,
             use_ai=True,
-            ai_config={},
+            ai_providers=create_ai_providers(),
             force_extract=True,
             cache_dir=Settings.CACHE_DIR,
             copyright_domains=Settings.COPYRIGHT_DOMAINS,
@@ -402,6 +405,7 @@ def get_process_url_usecase(
     from src.shared.application.usecases.tts_from_article import TTSFromArticleUseCase
     from src.shared.adapters.tts_text_processor import TTSTextProcessor
     from src.shared.infrastructure.composition_root import (
+        create_ai_providers,
         create_audio_converter,
         create_social_publisher,
         create_tts_adapter,
@@ -455,6 +459,7 @@ def get_process_url_usecase(
         post_editor=post_edit_content,
         cache_loader=load_content_from_cache,
         seo_helpers=seo_helpers,
+        ai_providers=create_ai_providers(),
     )
     return pipeline.execute
 

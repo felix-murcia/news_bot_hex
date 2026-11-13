@@ -4,7 +4,10 @@ logger = get_logger("audio_bot")
 from src.audio.infrastructure.adapters.audio_fetcher import AudioFetcher, download_audio
 from src.audio.application.usecases.audio_to_news import AudioToNewsUseCase
 from src.shared.application.usecases.article_from_transcript import run_from_transcript
-from src.shared.infrastructure.composition_root import create_debug_output_repository
+from src.shared.infrastructure.composition_root import (
+    create_ai_providers,
+    create_debug_output_repository,
+)
 from config.settings import Settings
 
 
@@ -71,6 +74,7 @@ def main_audio_to_news():
         has_audio_stream=AudioConverter().has_audio_stream,
         social_truncator=truncate_social_post,
         post_editor=post_edit_content,
+        ai_providers=create_ai_providers(),
         use_ai=not args.local,
         model_provider=args.model,
     )
@@ -116,6 +120,7 @@ def main_article_from_audio():
         tema=args.tema,
         llm_provider=args.model,
         source_type="audio",
+        ai_providers=create_ai_providers(),
         social_truncator=truncate_social_post,
         post_editor=post_edit_content,
         context_enricher=enriquecer_con_contexto,

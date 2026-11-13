@@ -16,6 +16,7 @@ from src.audio.domain.ports.audio_transcriber_port import AudioTranscriberPort
 from src.video.domain.ports.video_fetcher_port import VideoFetcherPort
 from src.video.domain.ports.video_transcriber_port import VideoTranscriberPort
 from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
+from src.shared.domain.services.ai_providers import AiProviders
 
 
 def create_audio_converter() -> AudioConverterPort:
@@ -36,6 +37,34 @@ def create_tts_adapter() -> TTSPort:
 def create_ai_adapter(provider: str = None) -> AIModelPort:
     from src.shared.adapters.ai.ai_factory import get_ai_adapter
     return get_ai_adapter(provider=provider)
+
+
+def create_ai_providers() -> AiProviders:
+    """Fábricas de adaptadores de IA y de agentes (B20.4d).
+
+    Único punto donde `application/` obtiene los adaptadores concretos de IA.
+    Los agentes se exponen como factories: cada uso crea una instancia nueva
+    (relee el prompt del disco), igual que antes de la inyección.
+    """
+    from src.shared.adapters.ai.ai_factory import get_ai_adapter
+    from src.shared.adapters.ai.agents import (
+        ArticleAgent,
+        ArticleFromContentAgent,
+        TweetAgent,
+        TweetGeopoliticsAgent,
+    )
+
+    return AiProviders(
+        adapter_factory=get_ai_adapter,
+        article_agent_factory=lambda ai_client: ArticleAgent(ai_client),
+        article_from_content_agent_factory=lambda ai_client, source_type: (
+            ArticleFromContentAgent(ai_client, source_type=source_type)
+        ),
+        tweet_agent_factory=lambda ai_client: TweetAgent(ai_client),
+        tweet_geopolitics_agent_factory=lambda ai_client: TweetGeopoliticsAgent(
+            ai_client
+        ),
+    )
 
 
 def create_video_generator() -> VideoGeneratorPort:

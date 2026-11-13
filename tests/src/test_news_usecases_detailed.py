@@ -3,6 +3,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime, timezone
+from ai_helpers import build_ai_providers
 
 
 class TestArticleUseCase:
@@ -50,7 +51,7 @@ class TestContentUseCaseDetailed:
         from unittest.mock import Mock
 
         for network, limit in [("bluesky", 300), ("twitter", 280), ("mastodon", 500)]:
-            use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, cache_loader=Mock(return_value=(None, "no_cache")), network=network, use_ai=False)
+            use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, cache_loader=Mock(return_value=(None, "no_cache")), network=network, use_ai=False, ai_providers=build_ai_providers())
             assert use_case.MAX_CHARS == limit
 
 
@@ -63,7 +64,7 @@ class TestContentRefusalGuard:
     sobre esa respuesta: no publicable -> RuntimeError, nada se publica.
     """
 
-    def _uc(self):
+    def _uc(self, tweet_response=None):
         from src.news.application.usecases.content import ContentUseCase
         return ContentUseCase(
             verified_repo=Mock(),
@@ -74,57 +75,49 @@ class TestContentRefusalGuard:
             network="mastodon",
             use_ai=True,
             ai_model=Mock(),
+            ai_providers=build_ai_providers(tweet_response=tweet_response),
         )
 
-    @patch("src.news.application.usecases.content.TweetGeopoliticsAgent")
-    def test_refusal_response_raises(self, mock_agent_cls):
+    def test_refusal_response_raises(self):
         """Negación marcada por el agente: no se publica, se aborta."""
         from src.shared.domain.services.tweet_response import TweetResponse
 
-        mock_agent = Mock()
-        mock_agent.generate.return_value = TweetResponse(
-            publishable=False,
-            reason="El contenido proporcionado no contiene información suficiente para generar un reporte.",
-        )
-        mock_agent_cls.return_value = mock_agent
-
         with pytest.raises(RuntimeError) as exc:
-            self._uc()._generate_tweet_ai(
+            self._uc(
+                TweetResponse(
+                    publishable=False,
+                    reason="El contenido proporcionado no contiene información suficiente para generar un reporte.",
+                )
+            )._generate_tweet_ai(
                 {"title": "Published Time: Fri, 04 Sep 2026", "tema": "geopolítica", "desc": "..."}
             )
         assert "no generó un tweet publicable" in str(exc.value)
 
-    @patch("src.news.application.usecases.content.TweetGeopoliticsAgent")
-    def test_meta_response_requesting_content_raises(self, mock_agent_cls):
+    def test_meta_response_requesting_content_raises(self):
         """Caso real de producción (BBC, 2026-10-05): el LLM devolvió
         publicable=false por respuesta meta; el caso de uso no lo publica."""
         from src.shared.domain.services.tweet_response import TweetResponse
 
-        mock_agent = Mock()
-        mock_agent.generate.return_value = TweetResponse(
-            publishable=False,
-            reason="El texto suministrado solo contiene enlaces y etiquetas de navegación.",
-        )
-        mock_agent_cls.return_value = mock_agent
-
         with pytest.raises(RuntimeError):
-            self._uc()._generate_tweet_ai(
+            self._uc(
+                TweetResponse(
+                    publishable=False,
+                    reason="El texto suministrado solo contiene enlaces y etiquetas de navegación.",
+                )
+            )._generate_tweet_ai(
                 {"title": "Georgia officials hunt for suspect in shooting",
                  "tema": "Noticias", "desc": "..."}
             )
 
-    @patch("src.news.application.usecases.content.TweetGeopoliticsAgent")
-    def test_valid_tweet_passes(self, mock_agent_cls):
+    def test_valid_tweet_passes(self):
         from src.shared.domain.services.tweet_response import TweetResponse
 
-        mock_agent = Mock()
-        mock_agent.generate.return_value = TweetResponse(
-            publishable=True,
-            text="El #BCE subió los #TiposDeInteres 25 puntos básicos hasta el 4,25%.",
-        )
-        mock_agent_cls.return_value = mock_agent
-
-        tweet = self._uc()._generate_tweet_ai({"title": "BCE sube tipos", "tema": "Economía", "desc": "..."})
+        tweet = self._uc(
+            TweetResponse(
+                publishable=True,
+                text="El #BCE subió los #TiposDeInteres 25 puntos básicos hasta el 4,25%.",
+            )
+        )._generate_tweet_ai({"title": "BCE sube tipos", "tema": "Economía", "desc": "..."})
         assert "#BCE" in tweet
 
     def test_execute_skips_item_on_generation_error(self):
@@ -147,6 +140,7 @@ class TestContentRefusalGuard:
             network="mastodon",
             use_ai=True,
             ai_model=Mock(),
+            ai_providers=build_ai_providers(),
         )
 
         def fake_gen(news_item):
@@ -270,28 +264,31 @@ class TestAudioToNewsDetailed:
         mock_model.provider = "local"
         mock_get_model.return_value = mock_model
 
-        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_audio=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, use_ai=True)
+        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_audio=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, use_ai=True, ai_providers=build_ai_providers(article_from_content_html="<h1>Test Title</h1><p>Content</p>"))
 
-        with patch('src.shared.adapters.ai.agents.ArticleFromContentAgent') as mock_agent:
-            mock_agent_instance = Mock()
-            mock_agent_instance.generate.return_value = "<h1>Test Title</h1><p>Content</p>"
-            mock_agent.return_value = mock_agent_instance
-
-            result = use_case._generate_article(
-                transcript="Test transcript content",
-                url="https://example.com",
-                tema="Test"
-            )
-            assert "article" in result
-            assert result["article"]["title"] == "Test Title"
+        result = use_case._generate_article(
+            transcript="Test transcript content",
+            url="https://example.com",
+            tema="Test"
+        )
+        assert "article" in result
+        assert result["article"]["title"] == "Test Title"
 
     def test_generate_article_fallback(self):
         from src.audio.application.usecases.audio_to_news import AudioToNewsUseCase
+        from src.shared.domain.services.ai_providers import AiProviders
 
-        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_audio=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, use_ai=True)
-        # Force exception in AI path by using invalid state
-        use_case.ai_model = Mock()
-        use_case.ai_model.generate.side_effect = Exception("AI error")
+        # El agente falla: el caso de uso debe degradar al artículo de reserva.
+        failing_agent = Mock()
+        failing_agent.generate.side_effect = Exception("AI error")
+        ai_providers = AiProviders(
+            adapter_factory=Mock(return_value=Mock()),
+            article_agent_factory=Mock(return_value=Mock()),
+            article_from_content_agent_factory=Mock(return_value=failing_agent),
+            tweet_agent_factory=Mock(return_value=Mock()),
+            tweet_geopolitics_agent_factory=Mock(return_value=Mock()),
+        )
+        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_audio=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, use_ai=True, ai_providers=ai_providers)
 
         result = use_case._generate_article(
             transcript="Line1\nLine2\nLine3\nLine4\nLine5",
@@ -309,21 +306,16 @@ class TestAudioToNewsDetailed:
         mock_model.provider = "local"
         mock_get_model.return_value = mock_model
 
-        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_audio=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, use_ai=True)
+        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_audio=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, use_ai=True, ai_providers=build_ai_providers(tweet_text="Great audio podcast about technology"))
 
-        with patch('src.shared.adapters.ai.agents.TweetAgent') as mock_agent:
-            mock_agent_instance = Mock()
-            mock_agent_instance.generate.return_value = "Great audio podcast about technology"
-            mock_agent.return_value = mock_agent_instance
-
-            article_data = {"article": {"title": "Tech Audio"}}
-            tweet = use_case._generate_tweet(article_data)
-            assert "Great audio podcast" in tweet
+        article_data = {"article": {"title": "Tech Audio"}}
+        tweet = use_case._generate_tweet(article_data)
+        assert "Great audio podcast" in tweet
 
     def test_generate_unique_slug(self):
         from src.audio.application.usecases.audio_to_news import AudioToNewsUseCase
 
-        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_audio=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, use_ai=False)
+        use_case = AudioToNewsUseCase(debug_output_repo=Mock(), cache_dir=Path("/tmp"), wp_site_url="https://test.example", copyright_domains=[], download_audio=Mock(return_value="/tmp/fake.mp3"), transcribe_audio=Mock(return_value="transcript"), has_audio_stream=Mock(return_value=True), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, use_ai=False, ai_providers=build_ai_providers())
         slug = use_case._generate_unique_slug(
             title="Test Audio Title",
             content="<p>Some content here</p>",
@@ -339,7 +331,7 @@ class TestArticleFromAudioDetailed:
     def test_slugify_audio(self):
         from src.audio.application.usecases import ArticleFromAudioUseCase
 
-        use_case = ArticleFromAudioUseCase(llm_provider="mock", social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, context_enricher=lambda t, tema="": None)
+        use_case = ArticleFromAudioUseCase(llm_provider="mock", social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, context_enricher=lambda t, tema="": None, ai_providers=build_ai_providers())
         slug = use_case._generate_unique_slug(
             "Audio Podcast Title",
             "<p>Some content for the podcast</p>",

@@ -14,6 +14,7 @@ import logging
 from src.shared.application.usecases.article_from_transcript import ArticleFromTranscriptUseCase
 from src.shared.application.usecases.base_pipeline import BasePipelineUseCase
 from src.shared.domain.ports.audio_converter_port import AudioConverterPort
+from src.shared.domain.services.ai_providers import AiProviders
 from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
 from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
 from src.news.domain.entities.processing_metric import PipelineType
@@ -34,7 +35,7 @@ class AudioPipelineUseCase(BasePipelineUseCase):
         audio_transcriber_factory: Callable[[], Any],
         tts_adapter_factory: Callable[[], Any],
         audio_converter: AudioConverterPort,
-        ai_adapter_factory: Callable[[str], Any],
+        ai_providers: AiProviders,
         social_truncator: Callable[..., str],
         post_editor: Callable[..., str],
         tts_text_processor: Any,
@@ -56,7 +57,7 @@ class AudioPipelineUseCase(BasePipelineUseCase):
             audio_transcriber_factory: Factory de transcriber de audio.
             tts_adapter_factory: Factory de adaptador TTS.
             audio_converter: Conversor de audio (instancia).
-            ai_adapter_factory: Factory de adaptador IA por proveedor.
+            ai_providers: VO con las fábricas de IA y de agentes.
             metrics_repo: Repositorio para persistir métricas.
             ai_provider: Proveedor de IA para generación de contenido.
             tts_voice: Voz TTS.
@@ -75,7 +76,7 @@ class AudioPipelineUseCase(BasePipelineUseCase):
         self._audio_transcriber_factory = audio_transcriber_factory
         self._tts_adapter_factory = tts_adapter_factory
         self._audio_converter = audio_converter
-        self._ai_adapter_factory = ai_adapter_factory
+        self._ai_providers = ai_providers
         self.metrics_repo = metrics_repo
         self._ai_provider = ai_provider
         self._tts_voice = tts_voice
@@ -154,7 +155,7 @@ class AudioPipelineUseCase(BasePipelineUseCase):
                     source_type="audio",
                     wp_site_url=self._wp_site_url,
                     wp_default_image_url=self._wp_default_image_url,
-                    ai_adapter_factory=self._ai_adapter_factory,
+                    ai_providers=self._ai_providers,
                     social_truncator=self._social_truncator,
                     post_editor=self._post_editor,
                     context_enricher=self._context_enricher,

@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Callable
 
 import logging
 from src.shared.domain.ports.debug_output_repository import DebugOutputRepository
+from src.shared.domain.services.ai_providers import AiProviders
 
 logger = logging.getLogger(__name__)
 def slugify(text: str) -> str:
@@ -35,15 +36,17 @@ class VideoToNewsUseCase:
         has_audio_stream: Callable[[str], bool],
         social_truncator: Callable[..., str],
         post_editor: Callable[..., str],
+        ai_providers: AiProviders,
         use_ai: bool = True,
         model_provider: str = "gemini",
-        ai_config: Optional[dict] = None,
         ai_model=None,
     ):
+        if ai_providers is None:
+            raise ValueError("ai_providers es requerido")
         self.use_ai = use_ai
         self.model_provider = model_provider
-        self.ai_config = ai_config or {}
         self.ai_model = ai_model
+        self._ai_providers = ai_providers
         self._debug_output_repo = debug_output_repo
         self._cache_dir = Path(cache_dir)
         self._wp_site_url = wp_site_url.rstrip("/")
@@ -147,10 +150,8 @@ class VideoToNewsUseCase:
     def _get_ai_model(self):
         """Obtiene el modelo de IA (lazy loading)."""
         if self.ai_model is None:
-            from src.shared.adapters.ai.ai_factory import get_ai_adapter
-
             provider = self.model_provider if self.use_ai else "mock"
-            self.ai_model = get_ai_adapter(provider, self.ai_config)
+            self.ai_model = self._ai_providers.adapter_factory(provider)
             logger.info(f"[VIDEO] Adapter '{provider}' instanciado")
         return self.ai_model
 
@@ -179,10 +180,10 @@ class VideoToNewsUseCase:
     ) -> Dict[str, Any]:
         """Genera artículo desde transcripción."""
         try:
-            from src.shared.adapters.ai.agents import ArticleFromContentAgent
-
             model = self._get_ai_model()
-            agent = ArticleFromContentAgent(model, source_type="transcript")
+            agent = self._ai_providers.article_from_content_agent_factory(
+                model, "transcript"
+            )
 
             content = agent.generate(transcript[:4000], tema=tema)
 
@@ -228,12 +229,10 @@ class VideoToNewsUseCase:
 
     def _generate_tweet(self, article_data: Dict) -> str:
         """Genera tweet desde artículo."""
-        from src.shared.adapters.ai.agents import TweetAgent
-
         title = article_data.get("article", {}).get("title", "Video Noticia")
 
         model = self._get_ai_model()
-        agent = TweetAgent(model)
+        agent = self._ai_providers.tweet_agent_factory(model)
         tweet = agent.generate(f"Video: {title[:100]}")
 
         tweet = self._social_truncator(tweet)

@@ -2,7 +2,7 @@ from typing import Callable, Dict, List, Optional
 
 import logging
 from src.news.domain.ports import VerifiedNewsRepository, GeneratedPostsRepository
-from src.shared.adapters.ai.agents import TweetGeopoliticsAgent
+from src.shared.domain.services.ai_providers import AiProviders
 
 logger = logging.getLogger(__name__)
 POST_LIMITS = {
@@ -19,18 +19,21 @@ class ContentUseCase:
         self,
         verified_repo: VerifiedNewsRepository,
         generated_posts_repo: GeneratedPostsRepository,
+        ai_providers: AiProviders,
         social_truncator: Callable[..., str],
         post_editor: Callable[..., str],
         cache_loader: Callable[..., tuple[Optional[str], str]],
         network: str = "bluesky",
         use_ai: bool = True,
-        ai_config: Optional[dict] = None,
         model_provider: str = "gemini",
         ai_model=None,
         mode: str = "news",
     ):
+        if ai_providers is None:
+            raise ValueError("ai_providers es requerido")
         self.verified_repo = verified_repo
         self.generated_posts_repo = generated_posts_repo
+        self._ai_providers = ai_providers
         self._social_truncator = social_truncator
         self._post_editor = post_editor
         self._cache_loader = cache_loader
@@ -38,20 +41,17 @@ class ContentUseCase:
         self.mode = mode
         self.MAX_CHARS = POST_LIMITS.get(network, 280)
         self.use_ai = use_ai
-        self.ai_config = ai_config or {}
         self.model_provider = model_provider
         self.ai_model = ai_model
 
     def _get_ai_model(self):
         """Obtiene el modelo de IA (lazy loading)."""
         if self.ai_model is None:
-            from src.shared.adapters.ai.ai_factory import get_ai_adapter
-
             if self.use_ai:
                 provider = self.model_provider
             else:
                 provider = "mock"
-            self.ai_model = get_ai_adapter(provider, self.ai_config)
+            self.ai_model = self._ai_providers.adapter_factory(provider)
             logger.info(f"[CONTENT] Adapter '{provider}' instanciado")
         return self.ai_model
 
@@ -91,7 +91,7 @@ class ContentUseCase:
         desc = news_item.get("desc", "")[:200]
 
         model = self._get_ai_model()
-        agent = TweetGeopoliticsAgent(model)
+        agent = self._ai_providers.tweet_geopolitics_agent_factory(model)
         respuesta = agent.generate(title=title, tema=tema, context=desc)
 
         if not respuesta.publishable:
@@ -181,6 +181,7 @@ class ContentGeminiUseCase(ContentUseCase):
 
     def __init__(
         self,
+        ai_providers: AiProviders,
         verified_repo: VerifiedNewsRepository,
         generated_posts_repo: GeneratedPostsRepository,
         social_truncator: Callable[..., str],
@@ -188,7 +189,6 @@ class ContentGeminiUseCase(ContentUseCase):
         cache_loader: Callable[..., tuple[Optional[str], str]],
         network: str = "bluesky",
         use_gemini: bool = True,
-        gemini_config: Optional[dict] = None,
         mode: str = "news",
         model_provider: Optional[str] = None,
         **kwargs,
@@ -197,12 +197,12 @@ class ContentGeminiUseCase(ContentUseCase):
         super().__init__(
             verified_repo=verified_repo,
             generated_posts_repo=generated_posts_repo,
+            ai_providers=ai_providers,
             social_truncator=social_truncator,
             post_editor=post_editor,
             cache_loader=cache_loader,
             network=network,
             use_ai=use_gemini,
-            ai_config=gemini_config,
             model_provider=resolved_provider,
             mode=mode,
             **kwargs,
@@ -213,10 +213,10 @@ def run_content(
     llm=None,
     network: str = "bluesky",
     use_gemini: bool = True,
-    gemini_config: Optional[Dict] = None,
     mode: str = "news",
     model_provider: str = None,
     *,
+    ai_providers: AiProviders,
     generated_posts_repo: GeneratedPostsRepository,
     verified_news_repo: VerifiedNewsRepository,
     social_truncator: Callable[..., str],
@@ -229,12 +229,12 @@ def run_content(
     use_case = ContentUseCase(
         verified_repo=verified_news_repo,
         generated_posts_repo=generated_posts_repo,
+        ai_providers=ai_providers,
         social_truncator=social_truncator,
         post_editor=post_editor,
         cache_loader=cache_loader,
         network=network,
         use_ai=use_gemini,
-        ai_config=gemini_config,
         model_provider=provider,
         mode=mode,
     )
@@ -245,6 +245,7 @@ def main():
     import argparse
     from config.settings import Settings
     from src.shared.infrastructure.composition_root import (  # TODO B11c (main/argparse)
+        create_ai_providers,
         create_generated_posts_repository,
         create_verified_news_repository,
     )
@@ -280,6 +281,7 @@ def main():
         use_gemini=not args.local,
         mode=args.mode,
         model_provider=args.model,
+        ai_providers=create_ai_providers(),
         generated_posts_repo=create_generated_posts_repository(),
         verified_news_repo=create_verified_news_repository(),
         social_truncator=social_truncator,
