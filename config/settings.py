@@ -126,6 +126,10 @@ class Settings:
     )
     OPENROUTER_REFERER = os.getenv("OPENROUTER_REFERER", SITE_DOMAIN)
     OPENROUTER_APP_TITLE = os.getenv("OPENROUTER_APP_TITLE", "news_bot")
+    # Buffer para modelos con reasoning tokens (OpenRouter free models).
+    # Los reasoning tokens consumen del mismo presupuesto que max_tokens.
+    # Default 1024 tokens extra para cubrir el razonamiento.
+    OPENROUTER_REASONING_BUFFER = int(os.getenv("OPENROUTER_REASONING_BUFFER", "1024"))
     WHISPER_MODEL = os.getenv("WHISPER_MODEL", "medium")
 
     # === Groq Transcription Configuration ===

@@ -61,16 +61,13 @@ class TweetGeopoliticsAgent:
         tema: str = "Noticias",
         context: str = "",
         temperature: float = 0.2,
-        max_tokens: int = 1024,
+        max_tokens: int = 512,
         **kwargs,
     ) -> TweetResponse:
         """
-        1024, no 256: el default era 256 y devolvia content=None con
-        finish_reason="length" — el pipeline abortaba con "Tweet generado
-        vacío". Con Gemma 4 (sin reasoning) 1024 sobra de sobra; el margen
-        queda para el caso de que OPENROUTER_MODEL apunte a un modelo con
-        razonamiento, cuyo campo `reasoning` se paga con este mismo
-        presupuesto. Los agentes de articulo usan 4096 por el mismo motivo.
+        512 tokens: valor lógico para tweet (JSON con publicable + tweet 280 chars).
+        El OpenRouterAdapter suma internamente OPENROUTER_REASONING_BUFFER (default 1024)
+        para cubrir reasoning tokens en modelos free.
         Genera un tweet estilo geopolítico.
 
         El prompt obliga al modelo a responder con JSON
@@ -122,7 +119,7 @@ class TweetGeopoliticsAgent:
         self,
         items: list[dict],
         temperature: float = 0.2,
-        max_tokens: int = 1024,
+        max_tokens: int = 512,
         **kwargs,
     ) -> list[TweetResponse]:
         """

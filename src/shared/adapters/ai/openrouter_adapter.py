@@ -83,11 +83,17 @@ class OpenRouterAdapter(AIModelPort):
             "X-OpenRouter-Title": Settings.OPENROUTER_APP_TITLE,
         }
 
+        # Añadir buffer para modelos con reasoning tokens (OpenRouter free models).
+        # Los reasoning tokens consumen del mismo presupuesto que max_tokens.
+        # El agente pide su valor lógico (ej. 280 para tweet, 4096 para artículo);
+        # el adapter suma el buffer internamente sin acoplar al dominio.
+        actual_max_tokens = max_tokens + Settings.OPENROUTER_REASONING_BUFFER
+
         data = {
             "model": self.model,
             "messages": messages,
             "temperature": temperature,
-            "max_tokens": max_tokens,
+            "max_tokens": actual_max_tokens,
         }
 
         try:
@@ -99,9 +105,21 @@ class OpenRouterAdapter(AIModelPort):
             )
             response.raise_for_status()
             result = response.json()
-            content = result.get("choices", [{}])[0].get("message", {}).get("content")
+            choices = result.get("choices", [{}])
+            first_choice = choices[0] if choices else {}
+            finish_reason = first_choice.get("finish_reason")
+            native_finish_reason = first_choice.get("native_finish_reason")
+            content = first_choice.get("message", {}).get("content")
             if not content:
-                logger.warning(f"[OPENROUTER] Empty content in response")
+                logger.warning(
+                    f"[OPENROUTER] Empty content in response "
+                    f"(finish_reason={finish_reason}, native_finish_reason={native_finish_reason})"
+                )
+                if finish_reason == "length":
+                    logger.warning(
+                        "[OPENROUTER] max_tokens agotado (finish_reason=length). "
+                        "Subir max_tokens o usar modelo sin reasoning tokens."
+                    )
                 # Try alternative response structure
                 if "output" in result:
                     content = result["output"]
