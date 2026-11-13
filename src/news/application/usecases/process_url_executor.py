@@ -51,13 +51,28 @@ class ProcessUrlJobCoordinator:
             try:
                 self._run_with_tracking(job_id, url)
             except Exception as e:
-                logger.error(f"[PROCESS_URL_JOB] {job_id} Unexpected error: {e}")
+                error_msg = str(e)
+                # Known errors: log with context, not as "Unexpected"
+                if "Artículo demasiado corto" in error_msg:
+                    logger.error(f"[PROCESS_URL_JOB] {job_id} Error en Generate Articles (paso 4): artículo corto. Causa raíz probable: content vacío (ver logs [IMAGE_QUERY] y [ARTICLE]).")
+                elif "TTS" in error_msg or "tts" in error_msg.lower():
+                    logger.error(f"[PROCESS_URL_JOB] {job_id} Error en Generate Audio (paso 7): {error_msg}")
+                elif "WordPress" in error_msg or "wordpress" in error_msg.lower():
+                    logger.error(f"[PROCESS_URL_JOB] {job_id} Error en Publish WordPress (paso 9): {error_msg}")
+                elif "Social" in error_msg or "social" in error_msg.lower():
+                    logger.error(f"[PROCESS_URL_JOB] {job_id} Error en Publish Social (paso 10): {error_msg}")
+                elif "Video" in error_msg or "video" in error_msg.lower():
+                    logger.error(f"[PROCESS_URL_JOB] {job_id} Error en Generate Video (paso 8): {error_msg}")
+                elif "Image" in error_msg or "image" in error_msg.lower():
+                    logger.error(f"[PROCESS_URL_JOB] {job_id} Error en Fetch/Enrich Images (pasos 5-6): {error_msg}")
+                else:
+                    logger.error(f"[PROCESS_URL_JOB] {job_id} Unexpected error: {error_msg}")
                 if self.job_repository.get(job_id):
                     self.job_repository.update_status(
                         job_id,
                         JobStatus.FAILED,
                         "Error en procesamiento",
-                        str(e),
+                        error_msg,
                     )
             finally:
                 teardown_pipeline_logging(log_handler)

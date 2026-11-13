@@ -135,7 +135,10 @@ class UnsplashFetcher:
             content = post.get("content") or post.get("article") or ""
             keywords = generar_keywords_visuales_con_llm(title, content)
             if not keywords:
-                logger.warning(f"[UNSPLASH] No keywords for '{title[:40]}'")
+                logger.warning(
+                    f"[FETCH_IMAGES] ⚠️ 0 imágenes para '{title[:40]}': LLM devolvió vacío (probable max_tokens insuficiente). "
+                    "Ver logs [IMAGE_QUERY]."
+                )
                 continue
 
             query = " ".join(keywords[:4])
@@ -143,7 +146,9 @@ class UnsplashFetcher:
             relevant = filter_by_relevance(raw_images, keywords)
 
             if not relevant:
-                logger.warning(f"[UNSPLASH] No relevant images for '{title[:40]}' (query: {query})")
+                logger.warning(
+                    f"[FETCH_IMAGES] 0 imágenes para '{title[:40]}': sin resultados en Unsplash (query: {query})."
+                )
                 continue
 
             selected = relevant[0]

@@ -139,7 +139,10 @@ class GoogleImagesFetcher:
 
             keywords = generar_keywords_visuales_con_llm(title, content)
             if not keywords:
-                logger.warning(f"[GOOGLE] No keywords for '{title[:40]}'")
+                logger.warning(
+                    f"[FETCH_IMAGES] ⚠️ 0 imágenes para '{title[:40]}': LLM devolvió vacío (probable max_tokens insuficiente). "
+                    "Ver logs [IMAGE_QUERY]."
+                )
                 continue
 
             query = " ".join(keywords[:4])
@@ -147,7 +150,9 @@ class GoogleImagesFetcher:
             relevant = filter_by_relevance(raw_images, keywords)
 
             if not relevant:
-                logger.warning(f"[GOOGLE] No relevant images for '{title[:40]}' (query: {query})")
+                logger.warning(
+                    f"[FETCH_IMAGES] 0 imágenes para '{title[:40]}': sin resultados en Google Images (query: {query})."
+                )
                 continue
 
             selected = relevant[0]

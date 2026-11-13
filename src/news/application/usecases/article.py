@@ -264,6 +264,13 @@ class ArticleUseCase:
             if palabras < self.MIN_WORDS:
                 # Fail-fast: publicar un artículo que no llega al estándar es peor
                 # que no publicar. El caller decide con el error.
+                url = news_item.get("url", "unknown")
+                content_len = len(content_limitado) if content_limitado else 0
+                logger.error(
+                    f"[ARTICLE] Artículo demasiado corto: {palabras} palabras (mínimo {self.MIN_WORDS}). "
+                    f"Content del VerifiedArticle: {content_len} chars. URL: {url}. "
+                    "Causa probable: VerifiedArticle sin content (posible fallo en verificación o image_query_generator)."
+                )
                 raise ArticleTooShortError(
                     f"Artículo demasiado corto tras {intentos} regeneraciones: "
                     f"{palabras} palabras, mínimo exigido {self.MIN_WORDS}"

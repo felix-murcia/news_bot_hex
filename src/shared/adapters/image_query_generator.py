@@ -75,13 +75,16 @@ def generar_keywords_visuales_con_llm(
         from src.shared.adapters.ai.ai_factory import get_ai_adapter
 
         model = get_ai_adapter(Settings.AI_PROVIDER)
-        result = model.generate(prompt=prompt, temperature=0.1, max_tokens=80)
+        result = model.generate(prompt=prompt, temperature=0.1, max_tokens=1024)
 
         raw = result.strip().split("\n")[0].strip()
         raw = raw.strip('"').strip("'").strip()
 
         if not raw:
-            logger.warning("[IMAGE_QUERY] LLM returned empty response")
+            logger.warning(
+                "[IMAGE_QUERY] LLM devolvió vacío (probable max_tokens insuficiente). "
+                "Subir max_tokens en image_query_generator.py o usar modelo sin reasoning tokens."
+            )
             return None
 
         keywords = [k.strip() for k in raw.split(",") if k.strip()]

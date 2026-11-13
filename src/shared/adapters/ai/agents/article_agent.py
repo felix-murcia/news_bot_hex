@@ -81,7 +81,11 @@ class ArticleAgent:
             **kwargs,
         )
 
-        logger.info("[ARTICLE_AGENT] Article generated successfully")
+        result_len = len(result) if result else 0
+        prompt_len = len(full_prompt)
+        logger.info(f"[ARTICLE_AGENT] Prompt: {prompt_len} chars, output: {result_len} chars")
+        if result_len < 1000:
+            logger.warning(f"[ARTICLE_AGENT] Output corto ({result_len} chars, <800 palabras esperado).")
         return result
 
     def generate_from_context(
