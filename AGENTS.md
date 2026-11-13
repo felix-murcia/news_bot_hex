@@ -26,7 +26,7 @@ permission:
 > **Stack:** Python 3.12+, FastAPI, MongoDB, FFmpeg (vía `ffmpeg-api` HTTP), Gemini/OpenRouter/Groq/Local AI, TTS (Coqui), React + TypeScript (Vite).
 > **Arquitectura:** Hexagonal (Ports & Adapters) + SOLID.
 
-> ⚠️ **AVISO — ESTADO VERIFICABLE, NO VERIFICADO HOY.** Este agente fue auditado contra el código real el **2026-10-04** y **actualizado con logs de producción el 2026-11-10** (ver B17/B18). Cuando el código contradiga una afirmación de aquí, **el código gana**. Las secciones marcadas ⚠️ contienen hallazgos que corrigen o sustituyen al inventario original. Las discrepancias resueltas están documentadas en el **Anexo A**. Las afirmaciones caducables llevan fecha y comando de re-verificación en el **Anexo B**.
+> ⚠️ **AVISO — ESTADO VERIFICABLE, NO VERIFICADO HOY.** Este agente fue auditado contra el código real el **2026-10-04** y **actualizado con logs de producción el 2026-11-10** (ver B17/B18). **B20 cerrado y verificado 2026-11-13** (C1/C2/C3 eliminados de `application/` y `shared/application/`). Cuando el código contradiga una afirmación de aquí, **el código gana**. Las secciones marcadas ⚠️ contienen hallazgos que corrigen o sustituyen al inventario original. Las discrepancias resueltas están documentadas en el **Anexo A**. Las afirmaciones caducables llevan fecha y comando de re-verificación en el **Anexo B**.
 
 ---
 
@@ -96,14 +96,16 @@ news_bot_hex/
 ├── src/
 │   ├── news/                        # Contexto: pipeline de noticias RSS
 │   │   ├── domain/
-│   │   │   ├── entities/            # article.py:Article, timer_config.py:TimerConfig (dataclasses sin comportamiento)
+│   │   │   ├── entities/            # article.py:Article, timer_config.py:TimerConfig, pipeline_job.py (VOs pipeline)
 │   │   │   ├── ports/               # ArticleRepository, VerifiedNewsRepository, ContentExtractor,
 │   │   │   │                        #   ScoringConfigRepository, FakeNewsModel
-│   │   │   └── services/            # validation_rules.py ⚠️ ÚNICO leak: config.logging_config (línea 11)
+│   │   │   └── services/            # validation_rules.py ⚠️ leak: config.logging_config (línea 11);
+│   │   │                            #   date_utils.py, scoring.py (puras, B20.3b1);
+│   │   │                            #   seo_helpers.py, ai_providers.py, wp_helpers.py, image_providers.py (VOs B20)
 │   │   ├── application/
 │   │   │   └── usecases/            # FetchRSSNews, FullVerify, SoftVerify, ArticleFromNews, ContentFromNews,
-│   │   │                            #   ProcessUrlJobCoordinator, pipeline_executor,
-│   │   │                            #   news_to_news, process_url_pipeline
+│   │   │                            #   ProcessUrlJobCoordinator, pipeline_executor, pipeline_runner,
+│   │   │                            #   news_to_news, process_url_pipeline, article_from_news
 │   │   ├── infrastructure/adapters/ # mongo_repositories.py, mongo_metrics_repository.py,
 │   │   │                            #   content_extractor.py, FeedparserRSSFetcher, ScoringEngine,
 │   │   │                            #   NewsValidatorAdapter, systemd_timer_adapter.py
@@ -135,8 +137,8 @@ news_bot_hex/
 │       │   └── seo_optimizer.py / translator.py / categorizacion.py / abbreviation_dict.py
 │       ├── infrastructure/
 │       │   ├── startup_validator.py    # validate_startup_infrastructure()
-│       │   └── composition_root.py     # RAÍZ compartida de wiring
-│       ├── application/usecases/article_from_transcript.py  # Compartido (audio/video → artículo)
+│       │   └── composition_root.py     # RAÍZ compartida (create_ai_providers, create_wp_helpers, create_image_providers, create_audio_converter_url_getter, create_social_publisher)
+│       ├── application/usecases/      # base_pipeline.py, article_from_transcript.py, tts_from_article.py
 │       └── utils/                   # number_to_words, tweet truncation, spell check, post-editor
 ├── frontend/                        # React + TS (Vite), dev en 5173
 ├── scripts/                         # run_pipeline.sh, install_timer.sh, train_news_validator.py,
@@ -500,12 +502,16 @@ systemctl --user status news-bot-pipeline.timer
 | **B20.3c** (adaptadores audio/video en `audio_to_news.py`/`video_to_news.py`) | `grep -n "infrastructure.adapters" src/audio/application/usecases/audio_to_news.py src/video/application/usecases/video_to_news.py` → vacío; `grep "import has_audio_stream"` → vacío; `validate_video` → `_validate_video` método en `VideoToNewsUseCase` | **CERRADO** (2026-11-12: callables `download_audio|download_mp3, transcribe_audio, has_audio_stream` inyectados; `has_audio_stream` desde `AudioConverter`; bug latente ImportError/silenciamiento en validate corregido; wiring CLI/API + 18 tests; guard 310 passed, suite unitaria 627 passed 0 failed) |
 | **B20.4d** (T1 AI: `get_ai_adapter` + agentes concretos en `application/`) | `grep -rn "from src.shared.adapters.ai.ai_factory import\|from src.shared.adapters.ai.agents import" src/*/application/ src/shared/application/` → vacío; `pytest tests/test_architecture.py -q` → 318 passed; suite unitaria 0 failed | **CERRADO** (2026-11-13: VO `AiProviders` (`src/shared/domain/services/ai_providers.py`) con `adapter_factory` + 4 agent factories; `create_ai_providers()` en `composition_root`; 8 use-cases reciben `ai_providers` (obligatorio, sin default); `ai_config` eliminado de las firmas (siempre `{}`); fallback locator de `news_to_news.py` eliminado (se mantiene el `try/except` de negocio); propagado por `run`/`run_content`/`run_from_news`/`process_news_url`/`PipelineRunner`/`ProcessUrlPipeline`/`execute_pipeline_async`/pipelines audio-video; wiring en entrypoints; tests migrados a `tests/ai_helpers.build_ai_providers()`) |
 | **B20.4e** (T6 WordPress + T8 infra URL en `application/`) | `grep -rn "wordpress_publisher\|wordpress_token_manager\|audio_converter_factory" src/*/application/ src/shared/application/` → vacío; `pytest tests/test_architecture.py -q` → 322 passed; suite unitaria 0 failed | **CERRADO** (2026-11-13: VO `WpHelpers` (`src/shared/domain/services/wp_helpers.py`) con 8 callables (`get_valid_wp_token`, `publish_post`, `ensure_category`, `ensure_tag`, `upload_image_from_url`, `upload_audio`, `rest_url`, `get_headers`); `create_wp_helpers()` en `composition_root`; `BasePipelineUseCase.__init__` recibe `wp_helpers` (opcional, `RuntimeError` si falta al publicar) y lo propaga a `AudioPipelineUseCase`/`VideoPipelineUseCase` (obligatorio); TTS: `TTSFromArticleUseCase` recibe `audio_converter_url_getter` (`create_audio_converter_url_getter()` en `composition_root`); wiring en 4 entrypoints audio/video + 4 `TTSFromArticleUseCase`; tests con `tests/wp_helpers.build_wp_helpers()`) |
+| **B20.4f** (T5 imágenes + T7 social en `base_pipeline.py`) | `grep -rn "src.shared.adapters" src/*/application/ src/shared/application/` → solo quedan los `main()`/argparse de B11c; `pytest tests/test_architecture.py -q` → 326 passed; suite unitaria 0 failed | **CERRADO** (2026-11-13: VO `ImageProviders` (`src/shared/domain/services/image_providers.py`) con 4 factories `mode -> adapter` (`enricher`, `wikimedia`, `google`, `unsplash`); `create_image_providers()` en `composition_root`; `BasePipelineUseCase` recibe `image_providers` (opcional, `RuntimeError` si falta) y `social_publisher` (inyectado, cierra la doble vía de B13: el pipeline no crea `SocialMediaPublisher()` lazy); eliminados los params `enable_bluesky/mastodon/facebook` de la base (el facade se configura en el composition root); wiring en 4 entrypoints audio/video; tests con `tests/image_helpers.build_image_providers()`) |
+| **B20.5** (limpiar allowlist) | `pytest tests/test_architecture.py -q` → 326 passed; suite unitaria 0 failed | **CERRADO** (2026-11-13: ALLOWED_IMPORTS limpiada — eliminadas entradas de T1/T5/T6/T7/T8 ya inyectadas; conservados solo imports de `main()`/argparse B11c; movidos imports inline a top-level en 7 ficheros: `article_from_news.py`, `news_to_news.py`, `process_url_pipeline.py`, `pipeline_log_handler.py`, `pipeline_runner.py`, `tts_from_article.py`, `article_from_transcript.py`, `template_renderer.py`; tests actualizados para parchear donde se usan las funciones) |
 | **B20.4c-bug** (`article.py:main()` llamaba a `run()` sin `seo_helpers` → `TypeError`; `article_from_news.py:main()` sin `translator` → `TypeError`) | `grep -n "seo_helpers=seo_helpers" src/news/application/usecases/article.py`; `grep -n "translator=translate_text" src/news/application/usecases/article_from_news.py` | — | **PARCIALMENTE CERRADO** (2026-11-13, en B20.4d: ambos `main()` construyen ya sus dependencias). **Pendiente (B11c):** `article_from_news.py:main()` sigue usando `NEWS_ARTICLES_PATH`, nombre no definido → `NameError` al imprimir el resultado |
 
 ### Baseline de suite (2026-11-13)
 
-> **Baseline suite unitaria (2026-11-13, tras B20.4e):**
-> - `pytest tests/ -m "not integration" -q` → **2 failed, 1083 passed, 30 skipped, 79 deselected, 11 errors**. Los 2 fallos y los 11 errores son **preexistentes y ambientales** (verificados con `git stash` sobre HEAD): `tests/test_no_dead_code.py::test_pyflakes_reports_no_unused_imports` (imports sin usar preexistentes en `full_verify_usecase.py`, `pipeline_job.py`, `pipeline_executor.py`, `audio_to_news.py`, `video_to_news.py`) y `tests/test_ci_seed_fixture.py` (Mongo `mongodb:27017` no resoluble).
+> **Baseline suite unitaria (2026-11-13, tras B20.5):**
+> - `pytest tests/ -m "not integration" -q` → **2 failed, 1087 passed, 30 skipped, 79 deselected, 11 errors**. Los 2 fallos y los 11 errores son **preexistentes y ambientales** (verificados con `git stash` sobre HEAD): `tests/test_no_dead_code.py::test_pyflakes_reports_no_unused_imports` (imports sin usar preexistentes en `full_verify_usecase.py`, `pipeline_job.py`, `pipeline_executor.py`, `audio_to_news.py`, `video_to_news.py`) y `tests/test_ci_seed_fixture.py` (Mongo `mongodb:27017` no resoluble).
 > - `pytest tests/src/ -m "not integration" -q` → **0 failed**.
-> - `pytest tests/test_architecture.py -q` → **322 passed**.
+> - `pytest tests/test_architecture.py -q` → **326 passed**.
 > - Tests de integración (Mongo): `pytest -m integration` → requieren Mongo levantado; documentados como B23.
+
+> **Estado B20 (2026-11-13):** C1, C2, C3 eliminados de `application/` y `shared/application/`. 4 VOs en `domain/services/` (`SeoHelpers`, `AiProviders`, `WpHelpers`, `ImageProviders`). Allowlist `test_architecture.py` reducida a solo `main()`/argparse B11c. Suite unitaria 0 failed, guard tests 326 passed.
