@@ -7,6 +7,7 @@ Uses modular routers for clean organization.
 
 import os
 import logging
+from urllib.parse import urlparse
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -32,7 +33,9 @@ class EndpointFilter(logging.Filter):
         # Bail out rather than guess if some other formatter emits a different shape.
         if not isinstance(args, tuple) or len(args) < 3:
             return True
-        return args[2] not in self.SILENCED_PATHS
+        # args[2] is the full path including query string; compare only the path portion
+        path = urlparse(args[2]).path
+        return path not in self.SILENCED_PATHS
 
 logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
 
