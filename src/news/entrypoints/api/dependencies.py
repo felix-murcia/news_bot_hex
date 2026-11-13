@@ -359,6 +359,7 @@ def get_process_url_content_processor(
     from src.shared.infrastructure.composition_root import (
         create_ai_providers,
         create_audio_converter,
+        create_audio_converter_url_getter,
         create_tts_adapter,
     )
 
@@ -384,7 +385,10 @@ def get_process_url_content_processor(
             cache_saver=save_content_to_cache,
             translator=translate_text,
             tts_usecase=TTSFromArticleUseCase(
-                create_tts_adapter(), create_audio_converter(), TTSTextProcessor()
+                create_tts_adapter(),
+                create_audio_converter(),
+                TTSTextProcessor(),
+                create_audio_converter_url_getter(),
             ),
         )
 
@@ -407,6 +411,7 @@ def get_process_url_usecase(
     from src.shared.infrastructure.composition_root import (
         create_ai_providers,
         create_audio_converter,
+        create_audio_converter_url_getter,
         create_social_publisher,
         create_tts_adapter,
         create_video_generator,
@@ -438,7 +443,10 @@ def get_process_url_usecase(
         generate_excerpt=generate_excerpt,
     )
     tts_usecase = TTSFromArticleUseCase(
-        create_tts_adapter(), create_audio_converter(), TTSTextProcessor()
+        create_tts_adapter(),
+        create_audio_converter(),
+        TTSTextProcessor(),
+        create_audio_converter_url_getter(),
     )
     pipeline = ProcessUrlPipeline(
         content_extractor=content_extractor,

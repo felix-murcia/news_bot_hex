@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
 from config.settings import Settings
 from ai_helpers import build_ai_providers
+from wp_helpers import build_wp_helpers
 
 sys.path.insert(
     0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -136,6 +137,7 @@ class TestVideoPipeline:
             tts_text_processor=Mock(),
             context_enricher=lambda t, tema="": None,
             ai_providers=build_ai_providers(),
+            wp_helpers=build_wp_helpers(),
         )
         assert pipeline.video_generator is mock_generator
 

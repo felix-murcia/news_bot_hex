@@ -15,6 +15,7 @@ from src.shared.application.usecases.article_from_transcript import ArticleFromT
 from src.shared.application.usecases.base_pipeline import BasePipelineUseCase
 from src.shared.domain.ports.audio_converter_port import AudioConverterPort
 from src.shared.domain.services.ai_providers import AiProviders
+from src.shared.domain.services.wp_helpers import WpHelpers
 from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
 from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
 from src.news.domain.entities.processing_metric import PipelineType
@@ -36,6 +37,7 @@ class AudioPipelineUseCase(BasePipelineUseCase):
         tts_adapter_factory: Callable[[], Any],
         audio_converter: AudioConverterPort,
         ai_providers: AiProviders,
+        wp_helpers: WpHelpers,
         social_truncator: Callable[..., str],
         post_editor: Callable[..., str],
         tts_text_processor: Any,
@@ -58,6 +60,7 @@ class AudioPipelineUseCase(BasePipelineUseCase):
             tts_adapter_factory: Factory de adaptador TTS.
             audio_converter: Conversor de audio (instancia).
             ai_providers: VO con las fábricas de IA y de agentes.
+            wp_helpers: VO con las funciones de publicación en WordPress.
             metrics_repo: Repositorio para persistir métricas.
             ai_provider: Proveedor de IA para generación de contenido.
             tts_voice: Voz TTS.
@@ -70,6 +73,7 @@ class AudioPipelineUseCase(BasePipelineUseCase):
             no_publish=no_publish,
             wp_site_url=wp_site_url,
             audio_converter=audio_converter,
+            wp_helpers=wp_helpers,
         )
         self.video_generator = video_generator
         self._audio_fetcher_factory = audio_fetcher_factory

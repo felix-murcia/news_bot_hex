@@ -481,6 +481,7 @@ def main_pipeline():
     from src.shared.adapters.tts_text_processor import TTSTextProcessor
     from src.shared.infrastructure.composition_root import (
         create_audio_converter,
+        create_audio_converter_url_getter,
         create_tts_adapter,
     )
 
@@ -490,7 +491,10 @@ def main_pipeline():
     updated_articles_tts = None
     if articles:
         tts_usecase = TTSFromArticleUseCase(
-            create_tts_adapter(), create_audio_converter(), TTSTextProcessor()
+            create_tts_adapter(),
+            create_audio_converter(),
+            TTSTextProcessor(),
+            create_audio_converter_url_getter(),
         )
         updated_articles_tts = tts_usecase.execute_batch(articles)
         for article in updated_articles_tts:

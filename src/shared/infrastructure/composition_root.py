@@ -17,6 +17,7 @@ from src.video.domain.ports.video_fetcher_port import VideoFetcherPort
 from src.video.domain.ports.video_transcriber_port import VideoTranscriberPort
 from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
 from src.shared.domain.services.ai_providers import AiProviders
+from src.shared.domain.services.wp_helpers import WpHelpers
 
 
 def create_audio_converter() -> AudioConverterPort:
@@ -65,6 +66,47 @@ def create_ai_providers() -> AiProviders:
             ai_client
         ),
     )
+
+
+def create_wp_helpers() -> WpHelpers:
+    """Funciones de publicación en WordPress (B20.4e).
+
+    Único punto donde `application/` obtiene el adaptador de WordPress. Las
+    funciones se inyectan como callables; el caso de uso no importa nada de
+    `src.shared.adapters.wordpress_publisher` ni de `wordpress_token_manager`.
+    """
+    from src.shared.adapters.wordpress_publisher import (
+        ensure_category,
+        ensure_tag,
+        get_headers,
+        publish_post,
+        rest_url,
+        upload_audio,
+        upload_image_from_url,
+    )
+    from src.shared.adapters.wordpress_token_manager import get_valid_wp_token
+
+    return WpHelpers(
+        get_valid_wp_token=get_valid_wp_token,
+        publish_post=publish_post,
+        ensure_category=ensure_category,
+        ensure_tag=ensure_tag,
+        upload_image_from_url=upload_image_from_url,
+        upload_audio=upload_audio,
+        rest_url=rest_url,
+        get_headers=get_headers,
+    )
+
+
+def create_audio_converter_url_getter():
+    """Callable que devuelve la URL del servicio de conversión de audio (B20.4e).
+
+    `application/` no importa `audio_converter_factory`: recibe el callable
+    inyectado y lo invoca donde lo necesita.
+    """
+    from src.shared.adapters.audio_converter_factory import get_audio_converter_url
+
+    return get_audio_converter_url
 
 
 def create_video_generator() -> VideoGeneratorPort:

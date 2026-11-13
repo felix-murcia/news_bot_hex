@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
 from ai_helpers import build_ai_providers
+from wp_helpers import build_wp_helpers
 
 # Add project root to path
 sys.path.insert(
@@ -259,6 +260,7 @@ class TestAudioPipeline:
             tts_adapter_factory=lambda: Mock(),
             audio_converter=Mock(),
             ai_providers=build_ai_providers(),
+            wp_helpers=build_wp_helpers(),
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
@@ -276,6 +278,7 @@ class TestAudioPipeline:
             tts_adapter_factory=lambda: Mock(),
             audio_converter=Mock(),
             ai_providers=build_ai_providers(),
+            wp_helpers=build_wp_helpers(),
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
@@ -324,6 +327,7 @@ class TestAudioPipeline:
             tts_text_processor=Mock(),
             context_enricher=lambda t, tema="": None,
             ai_providers=build_ai_providers(),
+            wp_helpers=build_wp_helpers(),
         )
         with patch.object(pipeline, "_enrich_with_images", side_effect=lambda arts: arts), \
              patch.object(pipeline, "_track_temp_file"):
@@ -366,6 +370,7 @@ class TestVideoPipeline:
             tts_text_processor=Mock(),
             context_enricher=lambda t, tema="": None,
             ai_providers=build_ai_providers(),
+            wp_helpers=build_wp_helpers(),
         )
         assert pipeline.no_publish is True
         assert pipeline.mode == "video"
@@ -535,6 +540,7 @@ class TestErrorHandling:
             tts_text_processor=Mock(),
             context_enricher=lambda t, tema="": None,
             ai_providers=build_ai_providers(),
+            wp_helpers=build_wp_helpers(),
         )
 
         with pytest.raises(RuntimeError, match="Error in audio download"):
@@ -563,6 +569,7 @@ class TestErrorHandling:
             tts_text_processor=Mock(),
             context_enricher=lambda t, tema="": None,
             ai_providers=build_ai_providers(),
+            wp_helpers=build_wp_helpers(),
         )
 
         with pytest.raises(RuntimeError, match="Error in audio download/transcription"):

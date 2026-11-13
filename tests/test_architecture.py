@@ -124,20 +124,17 @@ ALLOWED_IMPORTS: dict[str, set[str]] = {
         "src.shared.adapters.social_post_adapter",  # TODO B20
     },
     "shared/application/usecases/base_pipeline.py": {
-        "src.shared.adapters.wordpress_token_manager",  # TODO B20
         "src.shared.adapters.image_enricher",  # TODO B20
         "src.shared.adapters.publishers.social",  # TODO B20
         "src.shared.adapters.wikimedia_fetcher",  # TODO B20
         "src.shared.adapters.google_images_fetcher",  # TODO B20
         "src.shared.adapters.unsplash_fetcher",  # TODO B20
-        "src.shared.adapters.wordpress_publisher",  # TODO B20
     },
     "shared/application/usecases/tts_from_article.py": {
         "src.shared.adapters.tts_text_processor",  # TODO B20
         "shutil",  # TODO B20
         "uuid",  # TODO B20
         "datetime",  # TODO B20
-        "src.shared.adapters.audio_converter_factory",  # TODO B20
     },
     "video/application/usecases/video_pipeline.py": {
         "src.shared.adapters.tts_text_processor",  # TODO B20

@@ -15,6 +15,7 @@ from typing import Dict, Any, List, Optional
 import logging
 
 from src.shared.domain.ports.audio_converter_port import AudioConverterPort
+from src.shared.domain.services.wp_helpers import WpHelpers
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ class BasePipelineUseCase(ABC):
         enable_facebook: bool = True,
         wp_site_url: str = "",
         audio_converter: AudioConverterPort = None,
+        wp_helpers: WpHelpers = None,
     ):
         self.mode = mode
         self.no_publish = no_publish
@@ -48,6 +50,7 @@ class BasePipelineUseCase(ABC):
         self._enable_facebook = enable_facebook
         self._wp_site_url = wp_site_url
         self._audio_converter = audio_converter
+        self._wp_helpers = wp_helpers
         self._temp_files: List[str] = []
         self._wp_validated = False
 
@@ -55,10 +58,11 @@ class BasePipelineUseCase(ABC):
         """Validate WordPress token lazily (fail fast on first publish attempt)."""
         if self._wp_validated or self.no_publish:
             return
-        from src.shared.adapters.wordpress_token_manager import get_valid_wp_token
+        if self._wp_helpers is None:
+            raise RuntimeError("wp_helpers no inyectado en BasePipelineUseCase")
 
         try:
-            get_valid_wp_token()
+            self._wp_helpers.get_valid_wp_token()
             logger.info(f"[{self.mode.upper()} PIPELINE] WordPress token validated")
         except RuntimeError as e:
             logger.error(f"[{self.mode.upper()} PIPELINE] WordPress token error: {e}")
@@ -169,15 +173,9 @@ class BasePipelineUseCase(ABC):
 
         self._validate_wordpress_token()
 
-        from src.shared.adapters.wordpress_publisher import (
-            publish_post,
-            ensure_category,
-            ensure_tag,
-            upload_image_from_url,
-            upload_audio,
-            rest_url,
-            get_headers,
-        )
+        if self._wp_helpers is None:
+            raise RuntimeError("wp_helpers no inyectado en BasePipelineUseCase")
+        wp = self._wp_helpers
 
         step_start = time.time()
         logger.info(
@@ -198,14 +196,14 @@ class BasePipelineUseCase(ABC):
             if topic in topic_normalization:
                 topic = "Noticias"
 
-            category_id = ensure_category(topic)
+            category_id = wp.ensure_category(topic)
             logger.debug(f"WordPress category: '{topic}' (id={category_id})")
 
             # Handle tags
             labels = article.get("labels", [])
             precomputed_tags = article.get("hashtags", [])
             all_tags = list(set(labels + precomputed_tags))
-            tag_ids = [ensure_tag(t) for t in all_tags if isinstance(t, str)]
+            tag_ids = [wp.ensure_tag(t) for t in all_tags if isinstance(t, str)]
             tag_ids = [tid for tid in tag_ids if tid is not None]
             logger.debug(f"WordPress tags: {len(tag_ids)} tags")
 
@@ -214,7 +212,7 @@ class BasePipelineUseCase(ABC):
             featured_image_id = None
             if image_url and self._wp_site_url and self._wp_site_url not in image_url:
                 try:
-                    featured_image_id = upload_image_from_url(
+                    featured_image_id = wp.upload_image_from_url(
                         image_url,
                         alt_text=article.get("alt_text"),
                         credit=article.get("image_credit"),
@@ -224,7 +222,7 @@ class BasePipelineUseCase(ABC):
                     logger.warning(f"Failed to upload featured image: {e}")
             elif image_url:
                 try:
-                    featured_image_id = upload_image_from_url(
+                    featured_image_id = wp.upload_image_from_url(
                         image_url,
                         alt_text=article.get("alt_text"),
                         credit=article.get("image_credit"),
@@ -296,13 +294,13 @@ class BasePipelineUseCase(ABC):
                     logger.info(
                         f"[{self.mode.upper()}] Subiendo audio MP3 a WordPress: {audio_path} ({final_size:.1f} MB)"
                     )
-                    audio_id = upload_audio(audio_path)
+                    audio_id = wp.upload_audio(audio_path)
                     if audio_id:
                         # Obtener URL del audio desde WordPress
                         try:
                             media_resp = requests.get(
-                                rest_url(f"media/{audio_id}"),
-                                headers=get_headers(),
+                                wp.rest_url(f"media/{audio_id}"),
+                                headers=wp.get_headers(),
                                 timeout=15,
                             )
                             if media_resp.status_code == 200:
@@ -331,7 +329,7 @@ class BasePipelineUseCase(ABC):
 
             # Publish
             article_title = article.get("title") or "Untitled"
-            wordpress_url = publish_post(
+            wordpress_url = wp.publish_post(
                 title=article_title,
                 content=content,
                 categories=[category_id] if category_id else None,

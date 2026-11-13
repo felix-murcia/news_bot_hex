@@ -3,7 +3,7 @@
 import re
 import requests
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import logging
 from src.shared.domain.ports.tts_port import TTSPort
@@ -111,10 +111,22 @@ class TTSFromArticleUseCase:
         tts_adapter: TTSPort,
         audio_converter: AudioConverterPort,
         tts_text_processor: Any,
+        audio_converter_url_getter: Callable[[], str],
     ):
+        """
+        Args:
+            tts_adapter: Adaptador de TTS.
+            audio_converter: Conversor de audio (instancia).
+            tts_text_processor: Procesador de texto para TTS.
+            audio_converter_url_getter: Callable que devuelve la URL del
+                servicio de conversión de audio (usado al concatenar
+                fragmentos). Inyectado para no importar el factory de
+                adaptadores desde `application/` (B20.4e).
+        """
         self._tts = tts_adapter
         self._converter = audio_converter
         self._tts_text_processor = tts_text_processor
+        self._audio_converter_url_getter = audio_converter_url_getter
 
     def execute(self, article: Dict[str, Any]) -> Dict[str, Any]:
         """Genera audio TTS para un artículo, dividiendo en fragmentos si es necesario."""
@@ -161,8 +173,9 @@ class TTSFromArticleUseCase:
                 output_file = f"/tmp/audios/concatenated_{timestamp}_{uuid.uuid4().hex[:8]}.mp3"
                 Path(output_file).parent.mkdir(parents=True, exist_ok=True)
 
-                from src.shared.adapters.audio_converter_factory import get_audio_converter_url
-                audio_path = concatenate_audio_files(audio_paths, output_file, get_audio_converter_url())
+                audio_path = concatenate_audio_files(
+                    audio_paths, output_file, self._audio_converter_url_getter()
+                )
 
                 for frag_path in audio_paths:
                     try:

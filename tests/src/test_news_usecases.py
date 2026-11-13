@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 
 from ai_helpers import build_ai_providers
+from wp_helpers import build_wp_helpers
 
 
 class TestNewsToNewsUseCase:
@@ -266,6 +267,7 @@ class TestAudioPipelineUseCase:
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
             context_enricher=lambda t, tema="": None,
+            wp_helpers=build_wp_helpers(),
         )
         with patch.object(pipeline, "_enrich_with_images", side_effect=lambda arts: arts), \
              patch.object(pipeline, "_track_temp_file"):
@@ -293,6 +295,7 @@ class TestAudioPipelineUseCase:
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
             context_enricher=lambda t, tema="": None,
+            wp_helpers=build_wp_helpers(),
         )
         with pytest.raises(RuntimeError, match="Error in audio download"):
             pipeline.run("https://example.com/audio", "Test")

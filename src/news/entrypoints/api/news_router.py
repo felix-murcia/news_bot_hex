@@ -376,6 +376,7 @@ def news_full_pipeline(
         from src.shared.infrastructure.composition_root import (
             create_ai_providers,
             create_audio_converter,
+            create_audio_converter_url_getter,
             create_social_publisher,
             create_tts_adapter,
             create_video_generator,
@@ -387,7 +388,10 @@ def news_full_pipeline(
 
         job_id = create_job()
         tts_usecase = TTSFromArticleUseCase(
-            create_tts_adapter(), create_audio_converter(), TTSTextProcessor()
+            create_tts_adapter(),
+            create_audio_converter(),
+            TTSTextProcessor(),
+            create_audio_converter_url_getter(),
         )
         from src.shared.adapters.cache_manager import load_content_from_cache
         from src.shared.adapters.content_post_editor import post_edit_content

@@ -33,6 +33,7 @@ from src.shared.infrastructure.composition_root import (
     create_tts_adapter,
     create_video_fetcher,
     create_video_generator,
+    create_wp_helpers,
     create_video_transcriber,
 )
 
@@ -73,6 +74,7 @@ def main(argv: list = None):
         tts_adapter_factory=create_tts_adapter,
         audio_converter=create_audio_converter(),
         ai_providers=create_ai_providers(),
+        wp_helpers=create_wp_helpers(),
         social_truncator=truncate_social_post,
         post_editor=post_edit_content,
         tts_text_processor=TTSTextProcessor(),
