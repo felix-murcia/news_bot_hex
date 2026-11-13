@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from typing import List, Set
 from bson import ObjectId
+from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 
 from src.news.domain.entities.article import Article
 from src.news.domain.entities.verified_article import VerifiedArticle
@@ -18,6 +19,14 @@ from src.news.domain.ports import (
 )
 
 from config.logging_config import get_logger
+
+
+# Tracking query parameters to strip for URL normalization
+TRACKING_QUERY_PARAMS = frozenset({
+    "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+    "traffic_source", "fbclid", "gclid", "msclkid", "ref", "source",
+    "share", "cid", "variant", "segment", "mc_cid", "mc_eid",
+})
 
 logger = get_logger("news_bot.infra.news_adapters")
 
@@ -117,11 +126,61 @@ class MongoVerifiedNewsRepository(VerifiedNewsRepository):
             logger.error(f"Error retrieving verified news: {e}")
             return []
 
+    @staticmethod
+    def _normalize_url(url: str) -> str:
+        """Normalize URL for comparison: strip tracking params, trailing slash, lowercase scheme/host/path."""
+        try:
+            parsed = urlparse(url)
+            # Lowercase scheme, host, and path
+            scheme = parsed.scheme.lower()
+            netloc = parsed.netloc.lower()
+            path = parsed.path.rstrip("/").lower() or "/"
+            # Strip tracking query parameters
+            query_params = parse_qsl(parsed.query, keep_blank_values=True)
+            filtered_params = [(k, v) for k, v in query_params if k.lower() not in TRACKING_QUERY_PARAMS]
+            query = urlencode(filtered_params)
+            # Reconstruct normalized URL
+            normalized = urlunparse((scheme, netloc, path, parsed.params, query, ""))
+            return normalized
+        except Exception:
+            return url.strip().rstrip("/").lower()
+
+    def _get_url_variants(self, url: str) -> List[str]:
+        """Generate URL variants to try for matching."""
+        normalized = self._normalize_url(url)
+        variants = [url, normalized]
+        # Also try with/without trailing slash
+        if url.endswith("/"):
+            variants.append(url.rstrip("/"))
+        else:
+            variants.append(url + "/")
+        if normalized.endswith("/"):
+            variants.append(normalized.rstrip("/"))
+        else:
+            variants.append(normalized + "/")
+        # Deduplicate preserving order
+        seen = set()
+        unique = []
+        for v in variants:
+            if v not in seen:
+                seen.add(v)
+                unique.append(v)
+        return unique
+
     def get_news_by_url(self, url: str) -> VerifiedArticle | None:
         try:
+            # Try exact match first (fast path)
             raw = self._collection.find_one({"url": url}, {"_id": 0})
             if raw:
                 return VerifiedArticle.from_dict(raw)
+            # Try normalized variants
+            for variant in self._get_url_variants(url):
+                if variant == url:
+                    continue
+                raw = self._collection.find_one({"url": variant}, {"_id": 0})
+                if raw:
+                    logger.debug(f"[VERIFIED_REPO] Matched URL via variant: {variant} (original: {url})")
+                    return VerifiedArticle.from_dict(raw)
             return None
         except Exception as e:
             logger.error(f"Error retrieving news by URL: {e}")
