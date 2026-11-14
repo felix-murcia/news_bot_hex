@@ -273,8 +273,8 @@ class TestVideoPathPropagation:
             ai_providers=build_ai_providers(),
         )
 
-        with patch("src.news.application.usecases.content.run_content"), \
-             patch("src.news.application.usecases.article.run"), \
+        with patch("src.news.application.usecases.process_url_pipeline.run_content"), \
+             patch("src.news.application.usecases.process_url_pipeline.run_article"), \
              patch("os.path.exists", return_value=True):
             result = pipeline.execute("https://example.com/news/1")
 
@@ -340,8 +340,8 @@ class TestVideoPathPropagation:
             ai_providers=build_ai_providers(),
         )
 
-        with patch("src.news.application.usecases.content.run_content"), \
-             patch("src.news.application.usecases.article.run"), \
+        with patch("src.news.application.usecases.process_url_pipeline.run_content"), \
+             patch("src.news.application.usecases.process_url_pipeline.run_article"), \
              patch("os.path.exists", return_value=True):
             pipeline.execute("https://example.com/news/1")
 

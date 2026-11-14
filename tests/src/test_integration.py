@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
 from ai_helpers import build_ai_providers
 from wp_helpers import build_wp_helpers
+from image_helpers import build_image_providers
 
 # Add project root to path
 sys.path.insert(
@@ -261,6 +262,8 @@ class TestAudioPipeline:
             audio_converter=Mock(),
             ai_providers=build_ai_providers(),
             wp_helpers=build_wp_helpers(),
+            image_providers=build_image_providers(),
+            social_publisher=Mock(),
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
@@ -279,6 +282,8 @@ class TestAudioPipeline:
             audio_converter=Mock(),
             ai_providers=build_ai_providers(),
             wp_helpers=build_wp_helpers(),
+            image_providers=build_image_providers(),
+            social_publisher=Mock(),
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
@@ -328,6 +333,8 @@ class TestAudioPipeline:
             context_enricher=lambda t, tema="": None,
             ai_providers=build_ai_providers(),
             wp_helpers=build_wp_helpers(),
+            image_providers=build_image_providers(),
+            social_publisher=Mock(),
         )
         with patch.object(pipeline, "_enrich_with_images", side_effect=lambda arts: arts), \
              patch.object(pipeline, "_track_temp_file"):
@@ -371,6 +378,8 @@ class TestVideoPipeline:
             context_enricher=lambda t, tema="": None,
             ai_providers=build_ai_providers(),
             wp_helpers=build_wp_helpers(),
+            image_providers=build_image_providers(),
+            social_publisher=Mock(),
         )
         assert pipeline.no_publish is True
         assert pipeline.mode == "video"
@@ -541,6 +550,8 @@ class TestErrorHandling:
             context_enricher=lambda t, tema="": None,
             ai_providers=build_ai_providers(),
             wp_helpers=build_wp_helpers(),
+            image_providers=build_image_providers(),
+            social_publisher=Mock(),
         )
 
         with pytest.raises(RuntimeError, match="Error in audio download"):
@@ -570,6 +581,8 @@ class TestErrorHandling:
             context_enricher=lambda t, tema="": None,
             ai_providers=build_ai_providers(),
             wp_helpers=build_wp_helpers(),
+            image_providers=build_image_providers(),
+            social_publisher=Mock(),
         )
 
         with pytest.raises(RuntimeError, match="Error in audio download/transcription"):

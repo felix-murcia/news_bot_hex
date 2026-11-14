@@ -17,6 +17,7 @@ import types
 from unittest.mock import patch
 
 from src.news.application.usecases import pipeline_executor
+from src.news.application.usecases import pipeline_runner
 
 
 from src.shared.adapters.seo_optimizer import (
@@ -282,9 +283,9 @@ def _capture_steps(
 
     steps = []
     with patch.object(
-        pipeline_executor, "add_step",
+        pipeline_runner, "add_step",
         side_effect=lambda job, name, status: steps.append((name, status)),
-    ), patch.object(pipeline_executor, "update_job_status"), scenario:
+    ), patch.object(pipeline_runner, "update_job_status"), scenario:
         _run_pipeline(
             job_id,
             articles_repo=mock_articles_repo,
@@ -378,7 +379,7 @@ class TestAudioFailureIsEnrichment:
         tts_usecase = Mock()
         tts_usecase.execute_batch.side_effect = _Boom("TTS exploded")
 
-        with patch.object(pipeline_executor, "update_job_status") as update_status, \
+        with patch.object(pipeline_runner, "update_job_status") as update_status, \
              _audio_fails():
             _run_pipeline(
                 "job-audio-5",
@@ -466,7 +467,7 @@ class TestVideoFailureIsEnrichment:
         mock_metrics_repo = Mock(spec=MetricsRepositoryPort)
         mock_metrics_repo.save.return_value = None
 
-        with patch.object(pipeline_executor, "update_job_status") as update_status, \
+        with patch.object(pipeline_runner, "update_job_status") as update_status, \
              _video_fails():
             _run_pipeline(
                 "job-video-5",
@@ -511,7 +512,7 @@ class TestCriticalFailureAborts:
             "pipeline should abort after RSS failure"
         )
 
-        with patch.object(pipeline_executor, "update_job_status") as update_status:
+        with patch.object(pipeline_runner, "update_job_status") as update_status:
             _run_pipeline(
                 "job-rss-2",
                 articles_repo=mock_articles_repo,
