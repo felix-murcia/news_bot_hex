@@ -223,7 +223,8 @@ class PipelineRunner:
                 if not success:
                     raise RuntimeError(f"Fallo crítico en Verification: {error}")
 
-                # Step 3: Generate Posts (CRITICAL)
+                # Step 4: Generate Posts (ENRICHMENT) - calls LLM, may take 30-60s
+                logger.info(f"[PIPELINE-JOB] {ctx.job_id} Iniciando GENERATE_POSTS (llamadas a LLM)...")
                 success, error = _execute_step(
                     ctx.job_id,
                     ProcessingStepName.GENERATE_POSTS,
@@ -241,9 +242,10 @@ class PipelineRunner:
                     step_results,
                 )
                 if not success:
-                    raise RuntimeError(f"Fallo crítico en Posts: {error}")
+                    raise RuntimeError(f"Fallo en Posts: {error}")
 
-                # Step 4: Generate Articles (CRITICAL)
+                # Step 5: Generate Articles (CRITICAL) - calls LLM, may take 60-120s
+                logger.info(f"[PIPELINE-JOB] {ctx.job_id} Iniciando GENERATE_ARTICLES (llamadas a LLM)...")
                 success, error = _execute_step(
                     ctx.job_id,
                     ProcessingStepName.GENERATE_ARTICLES,
