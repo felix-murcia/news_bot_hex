@@ -107,6 +107,15 @@ El agente recibe:
 - **Tema:** Categoría temática
 - **Contenido:** Contexto adicional (primeros 200-300 caracteres del artículo)
 
+## REGLAS ESTRICTAS DE SALIDA (CRÍTICO)
+
+- NO escribas tu proceso de pensamiento. NO uses frases como "Analyze the Request", "Role:", "Step 1", "Step 2", "Think:", "Reasoning:", "Chain of Thought", ni ninguna explicación de cómo vas a responder.
+- NO uses Markdown (nada de **, *, #, listas numeradas, cercas de código ```, backticks).
+- NO uses etiquetas HTML.
+- NO uses saltos de línea innecesarios (la salida debe ser un único objeto JSON compacto).
+- Devuelve ÚNICAMENTE el objeto JSON especificado arriba, nada más.
+- Si no puedes generar un tweet válido, devuelve exactamente: `{"publicable": false, "motivo": "Contenido insuficiente o no noticioso"}`
+
 ## Comportamiento
 
 Si el contenido describe un hecho noticioso concreto, sintetiza el hecho principal con contexto o consecuencia, añade hashtags intercalados en las palabras clave y devuelve `{"publicable": true, "tweet": "..."}`. Si el contenido no describe ningún hecho (banner, navegación, error, insuficiente), devuelve `{"publicable": false, "motivo": "..."}`. En NINGÚN caso pidas más contenido ni generes texto fuera del JSON.
