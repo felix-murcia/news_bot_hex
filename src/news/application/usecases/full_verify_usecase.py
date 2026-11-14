@@ -14,6 +14,7 @@ from src.news.domain.ports import (
 )
 
 import logging
+import time
 from typing import Callable
 
 from src.news.domain.services.date_utils import (
@@ -65,7 +66,10 @@ class FullVerifyNewsUseCase:
         self._limits = self._config.get("limits", {"ttl_days": 30, "max_urls": 1000})
 
     def execute(self) -> dict:
+        t0 = time.time()
+        logger.info(f"[FULL_VERIFY] Iniciando verificación masiva")
         config = self._scoring_config_repo.get_scoring_config()
+        logger.info(f"[FULL_VERIFY] Config cargado en {(time.time()-t0)*1000:.0f}ms")
         scoring_rules = config.get("scoring_rules", {})
         source_prioritarias = set(config.get("source_prioritarias", set()))
         weights = config.get("weights", {})
@@ -79,6 +83,7 @@ class FullVerifyNewsUseCase:
         )
 
         raw_articles = self.generated_articles_repo.load_all()
+        logger.info(f"[FULL_VERIFY] {len(raw_articles)} artículos cargados en {(time.time()-t0)*1000:.0f}ms")
         articles_to_process = []
         for article in raw_articles:
             url = article.get("original_url") or article.get("url")
@@ -86,11 +91,13 @@ class FullVerifyNewsUseCase:
                 articles_to_process.append(article)
 
         if not articles_to_process:
+            logger.warning(f"[FULL_VERIFY] No hay artículos nuevos para procesar")
             return {
                 "status": "error",
                 "message": "No hay artículos nuevos para procesar.",
             }
 
+        logger.info(f"[FULL_VERIFY] {len(articles_to_process)} artículos para verificar en {(time.time()-t0)*1000:.0f}ms")
         verified = []
         for article in articles_to_process:
             title = article.get("title", "")
@@ -143,8 +150,8 @@ class FullVerifyNewsUseCase:
             )
             verified.append(verified_article)
 
+        logger.info(f"[FULL_VERIFY] {len(verified)} artículos verificados en {(time.time()-t0)*1000:.0f}ms")
         verificadas_sorted = sort_verified_news([v.to_dict() for v in verified])
-
         deduplicated = deduplicate_by_similarity(verificadas_sorted)
 
         recent_topics = self._published_urls_repo.get_recent_topics(hours=24)
@@ -155,6 +162,7 @@ class FullVerifyNewsUseCase:
             diversified = apply_frozen_terms_penalty(diversified, frozen_terms)
 
         diversified_sorted = sort_verified_news(diversified)
+        logger.info(f"[FULL_VERIFY] Ordenación y deduplicación completadas en {(time.time()-t0)*1000:.0f}ms")
 
         self._verified_repo.save_verified_all(
             [VerifiedArticle.from_dict(v) for v in diversified_sorted]
@@ -163,6 +171,7 @@ class FullVerifyNewsUseCase:
         top = diversified_sorted[0] if diversified_sorted else None
         if not top:
             self._verified_repo.delete_all_news()
+            logger.warning(f"[FULL_VERIFY] Ninguna noticia pasó el filtro")
             return {"status": "warning", "message": "Ninguna noticia pasó el filtro."}
 
         url = top.get("url")
@@ -187,6 +196,8 @@ class FullVerifyNewsUseCase:
 
         self._verified_repo.delete_all_news()
         self._verified_repo.insert_news([VerifiedArticle.from_dict(top)])
+
+        logger.info(f"[FULL_VERIFY] Completado en {(time.time()-t0)*1000:.0f}ms → top: {top.get('title','')[:60]}")
 
         return {
             "status": "success",
