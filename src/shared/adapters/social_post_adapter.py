@@ -90,6 +90,47 @@ def _has_any_hashtags(text: str) -> bool:
     return bool(re.search(r"#\w+", text))
 
 
+def _looks_like_broken_json(text: str) -> bool:
+    """Detecta si el texto parece JSON roto/malformado que no debería publicarse.
+
+    Criterios:
+    - Empieza por "{" y contiene "publicable" o "tweet" (estructura del contrato)
+    - Es solo "{" o "}" (claramente JSON roto)
+    - Contiene "{" y "}" pero no parece texto natural (ratio de símbolos alto)
+    - Es solo una URL truncada con "..." al final sin texto legible antes
+    """
+    if not text:
+        return False
+    t = text.strip()
+    
+    # Caso obvio: solo llaves (JSON roto minimal)
+    if t in ("{", "}", "{}", '{"publicable"', '{"tweet"'):
+        return True
+    
+    # JSON obvio del contrato del agente (incluso si está truncado)
+    if t.startswith("{") and ("publicable" in t or '"tweet"' in t or "'tweet'" in t):
+        return True
+    
+    # Texto que es mayormente símbolos de JSON (no lenguaje natural)
+    if "{" in t and "}" in t:
+        # Contar caracteres alfanuméricos vs símbolos
+        alnum = sum(c.isalnum() or c.isspace() for c in t)
+        symbols = len(t) - alnum
+        if len(t) > 20 and symbols / len(t) > 0.3:
+            return True
+    
+    # URL truncada huérfana: "Más info: https://..." o "https://..." solo con "..."
+    if t.endswith("...") and ("http://" in t or "https://" in t):
+        # Quitar la URL y los "...", ver si queda texto legible
+        without_url = re.sub(r"https?://\S+", "", t)
+        without_url = without_url.replace("...", "").strip()
+        # Si queda menos de 10 chars legibles, es una URL truncada sin contenido
+        if len(without_url) < 10:
+            return True
+    
+    return False
+
+
 def truncate_social_post(text: str, limit: Optional[int] = None) -> str:
     """Trunca un texto social respetando hashtags y el límite más estricto.
 
@@ -97,9 +138,19 @@ def truncate_social_post(text: str, limit: Optional[int] = None) -> str:
     If trailing hashtags are found, moves them inline first.
     If still over the limit, removes '#' from inline hashtags right-to-left,
     then falls back to text truncation.
+    
+    Seguridad: rechaza JSON roto y URLs truncadas huérfanas antes de truncar.
     """
     tweet = inline_hashtags(text)
     tweet = (tweet or "").strip()
+    
+    # Validación de seguridad: no procesar JSON roto ni URLs truncadas
+    if _looks_like_broken_json(tweet):
+        raise ValueError(
+            f"Texto rechazado por parecer JSON malformado o URL truncada sin contenido: "
+            f"{tweet[:100]}"
+        )
+    
     limit = get_social_post_limit(limit)
     if len(tweet) <= limit:
         return tweet

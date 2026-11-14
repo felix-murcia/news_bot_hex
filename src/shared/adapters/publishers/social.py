@@ -4,6 +4,7 @@ Publishes articles to Bluesky, Mastodon and Facebook (real implementations).
 X and LinkedIn are simulated.
 """
 
+import re
 from config.logging_config import get_logger
 
 logger = get_logger("news_bot.social")
@@ -70,6 +71,34 @@ class SocialMediaPublisher:
                 results.append({"platform": "Facebook", "status": "success", "detail": res})
             except Exception as e:
                 results.append({"platform": "Facebook", "status": "error", "error": str(e)})
+
+        def _looks_like_broken_json(text: str) -> bool:
+            """Filtro final de seguridad: detecta JSON roto antes de publicar."""
+            if not text:
+                return False
+            t = text.strip()
+            if t.startswith("{") and ("publicable" in t or '"tweet"' in t or "'tweet'" in t):
+                return True
+            # URL truncada huérfana
+            if t.endswith("...") and ("http://" in t or "https://" in t):
+                without_url = re.sub(r"https?://\S+", "", t)
+                without_url = without_url.replace("...", "").strip()
+                if len(without_url) < 10:
+                    return True
+            return False
+
+        # Validación final de seguridad antes de publicar en cualquier plataforma
+        if _looks_like_broken_json(tweet):
+            logger.error(
+                f"PELIGRO: Intento de publicar JSON crudo o URL truncada. "
+                f"Abortando publicación. Texto: {tweet[:120]}"
+            )
+            results.append({
+                "platform": "ALL",
+                "status": "blocked",
+                "error": "Contenido rechazado por validación de seguridad (JSON malformado o URL truncada)"
+            })
+            return results
 
         # Bluesky (real)
         if self._bluesky:
