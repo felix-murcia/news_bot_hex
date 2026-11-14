@@ -1,6 +1,9 @@
 """Use case para generar audio TTS desde artículos."""
 
 import re
+import shutil
+import uuid
+from datetime import datetime
 import requests
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -66,7 +69,6 @@ def concatenate_audio_files(audio_paths: List[str], output_path: str, ffmpeg_bas
         return None
 
     if len(audio_paths) == 1:
-        import shutil
         shutil.copy(audio_paths[0], output_path)
         return output_path
 
@@ -167,8 +169,6 @@ class TTSFromArticleUseCase:
                 return article
 
             if len(audio_paths) > 1:
-                import uuid
-                from datetime import datetime
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
                 output_file = f"/tmp/audios/concatenated_{timestamp}_{uuid.uuid4().hex[:8]}.mp3"
                 Path(output_file).parent.mkdir(parents=True, exist_ok=True)

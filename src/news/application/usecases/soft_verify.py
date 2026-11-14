@@ -159,7 +159,7 @@ class SoftVerifyUseCase:
         passes = content_length >= min_chars or (strategy == "strict" and score >= 15)
 
         if passes:
-            candidate["extracted_content"] = content or ""
+            candidate["content"] = content or ""
             candidate["extracted_content_length"] = content_length
             candidate["extraction_method"] = method
             candidate["selection_reason"] = f"{prefix}: {content_length} chars >= {min_chars}"
@@ -175,7 +175,7 @@ class SoftVerifyUseCase:
 
         cached_content, _ = self._cache_loader(url)
         if cached_content:
-            selected_news["extracted_content"] = cached_content
+            selected_news["content"] = cached_content
             selected_news["extracted_content_length"] = len(cached_content)
 
         if not _save_verified_news(self._verified_repo, selected_news):

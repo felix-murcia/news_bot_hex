@@ -13,7 +13,10 @@ from typing import Callable, Optional
 
 import logging
 from src.news.application.usecases.metrics_collector import MetricsCollector
+from src.news.application.usecases.content import run_content
+from src.news.application.usecases.article import run as run_article
 from src.news.domain.entities.processing_metric import PipelineType
+from src.news.domain.entities.verified_article import VerifiedArticle
 from src.news.domain.ports import GeneratedArticlesRepository, GeneratedPostsRepository, VerifiedNewsRepository
 from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
 from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
@@ -104,8 +107,6 @@ class ProcessUrlPipeline:
 
         # ── Step 2: Save as VerifiedArticle → verified_news ────────────────
         def save_verified():
-            from src.news.domain.entities.verified_article import VerifiedArticle
-
             # Prioridad: 'Title:' de Jina (metadato de la página) > primera
             # línea del cuerpo > la URL. En páginas con banner de cookies la
             # primera línea era el banner ("Continue without agreeing →").
@@ -148,7 +149,6 @@ class ProcessUrlPipeline:
 
         # ── Step 3: Generate Posts (same as automatic pipeline) ─────────────
         def generate_posts():
-            from src.news.application.usecases.content import run_content
             posts = run_content(
                 use_gemini=True,
                 mode="news",
@@ -179,8 +179,6 @@ class ProcessUrlPipeline:
         # read generated_articles. Run them in parallel and join before
         # Enrich Images. Both are critical: exceptions propagate via .result().
         def generate_articles():
-            from src.news.application.usecases.article import run as run_article
-
             generated = run_article(
                 use_gemini=True,
                 ai_providers=self._ai_providers,

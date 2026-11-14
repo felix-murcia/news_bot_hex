@@ -11,6 +11,7 @@ Respects hexagonal architecture:
 """
 
 import re
+import unicodedata
 from typing import Any, Callable, Dict, Optional
 
 import logging
@@ -32,7 +33,6 @@ SOURCE_LABEL = {
 
 def _slugify(text: str) -> str:
     """Generate a clean slug from text."""
-    import unicodedata
     text = text.lower()
     text = unicodedata.normalize("NFKD", text)
     text = text.encode("ascii", "ignore").decode("ascii")

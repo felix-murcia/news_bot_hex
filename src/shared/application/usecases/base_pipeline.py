@@ -15,6 +15,7 @@ from typing import Dict, Any, List, Optional
 import logging
 
 from src.shared.domain.ports.audio_converter_port import AudioConverterPort
+from src.shared.domain.services.image_providers import ImageProviders
 from src.shared.domain.services.wp_helpers import WpHelpers
 
 logger = logging.getLogger(__name__)
@@ -34,23 +35,32 @@ class BasePipelineUseCase(ABC):
         self,
         mode: str,
         no_publish: bool = False,
-        enable_bluesky: bool = True,
-        enable_mastodon: bool = True,
-        enable_facebook: bool = True,
         wp_site_url: str = "",
         audio_converter: AudioConverterPort = None,
         wp_helpers: WpHelpers = None,
+        image_providers: ImageProviders = None,
+        social_publisher: Any = None,
     ):
+        """
+        Args:
+            mode: Modo del pipeline ("audio", "video", "news").
+            no_publish: Si True, omite publicación en WordPress y redes.
+            wp_site_url: URL base del sitio WordPress.
+            audio_converter: Conversor de audio (instancia).
+            wp_helpers: VO con las funciones de publicación en WordPress.
+            image_providers: VO con las factories de proveedores de imágenes.
+            social_publisher: Publisher social (facade `SocialMediaPublisher`)
+                ya configurado. Inyectado: el pipeline no crea adaptadores
+                de publicación por su cuenta (B20.4f).
+        """
         self.mode = mode
         self.no_publish = no_publish
         self._image_enricher = None
-        self._social_publisher = None
-        self._enable_bluesky = enable_bluesky
-        self._enable_mastodon = enable_mastodon
-        self._enable_facebook = enable_facebook
+        self._social_publisher = social_publisher
         self._wp_site_url = wp_site_url
         self._audio_converter = audio_converter
         self._wp_helpers = wp_helpers
+        self._image_providers = image_providers
         self._temp_files: List[str] = []
         self._wp_validated = False
 
@@ -72,21 +82,21 @@ class BasePipelineUseCase(ABC):
 
     @property
     def image_enricher(self):
-        """Lazy-loaded image enricher."""
+        """Image enricher (lazy). Creado por la factory inyectada."""
         if self._image_enricher is None:
-            from src.shared.adapters.image_enricher import ImageEnricher
-            self._image_enricher = ImageEnricher(mode=self.mode)
+            if self._image_providers is None:
+                raise RuntimeError(
+                    "image_providers no inyectado en BasePipelineUseCase"
+                )
+            self._image_enricher = self._image_providers.enricher_factory(self.mode)
         return self._image_enricher
 
     @property
     def social_publisher(self):
-        """Lazy-loaded social media publisher."""
+        """Publisher social inyectado (facade `SocialMediaPublisher`)."""
         if self._social_publisher is None:
-            from src.shared.adapters.publishers.social import SocialMediaPublisher
-            self._social_publisher = SocialMediaPublisher(
-                enable_bluesky=self._enable_bluesky,
-                enable_mastodon=self._enable_mastodon,
-                enable_facebook=self._enable_facebook,
+            raise RuntimeError(
+                "social_publisher no inyectado en BasePipelineUseCase"
             )
         return self._social_publisher
 
@@ -124,28 +134,25 @@ class BasePipelineUseCase(ABC):
         step_start = time.time()
         logger.info("Image enrichment started: Wikimedia Commons → Google Images → Unsplash")
 
-        try:
-            from src.shared.adapters.wikimedia_fetcher import WikimediaFetcher
+        if self._image_providers is None:
+            raise RuntimeError("image_providers no inyectado en BasePipelineUseCase")
 
-            wikimedia_fetcher = WikimediaFetcher()
+        try:
+            wikimedia_fetcher = self._image_providers.wikimedia_factory(self.mode)
             articles = wikimedia_fetcher.fetch_for_posts(articles)
             logger.debug("Wikimedia fetch completed")
         except Exception as e:
             logger.warning(f"Wikimedia enrichment failed: {e}")
 
         try:
-            from src.shared.adapters.google_images_fetcher import GoogleImagesFetcher
-
-            google_fetcher = GoogleImagesFetcher(mode=self.mode)
+            google_fetcher = self._image_providers.google_factory(self.mode)
             articles = google_fetcher.fetch_for_posts(articles)
             logger.debug("Google Images fetch completed")
         except Exception as e:
             logger.warning(f"Google Images enrichment failed: {e}")
 
         try:
-            from src.shared.adapters.unsplash_fetcher import UnsplashFetcher
-
-            unsplash_fetcher = UnsplashFetcher(mode=self.mode)
+            unsplash_fetcher = self._image_providers.unsplash_factory(self.mode)
             articles = unsplash_fetcher.fetch_for_posts(articles)
             logger.debug("Unsplash fetch completed (last resort)")
         except Exception as e:

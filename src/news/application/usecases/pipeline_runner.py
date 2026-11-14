@@ -17,6 +17,7 @@ from src.news.application.usecases.pipeline_log_handler import (
     setup_pipeline_logging,
     teardown_pipeline_logging,
 )
+from src.news.application.usecases.pipeline_executor import add_step, update_job_status
 from src.news.application.usecases.content import run_content
 from src.news.application.usecases.article import run as run_articles
 from src.news.domain.entities.pipeline_job import (
@@ -63,8 +64,6 @@ def _execute_step(
     step_results: list,
 ) -> tuple[bool, str | None]:
     """Execute a single pipeline step. Returns (success, error_message)."""
-    from src.news.application.usecases.pipeline_executor import add_step
-
     is_critical = step_name.is_critical()
     add_step(job_id, step_name, ProcessingStepStatus.RUNNING)
     step_start_ns = time.time_ns()
@@ -154,8 +153,6 @@ class PipelineRunner:
         self._ai_providers = ai_providers
 
     def run(self, ctx: PipelineContext) -> None:
-        from src.news.application.usecases.pipeline_executor import update_job_status
-
         log_handler = None
         try:
             try:

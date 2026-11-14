@@ -7,6 +7,7 @@ from src.news.domain.ports import ContentExtractor, GeneratedArticlesRepository,
 import logging
 from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
 from src.shared.domain.services.ai_providers import AiProviders
+from src.news.application.usecases.article_from_news import ArticleFromNewsUseCase
 
 logger = logging.getLogger(__name__)
 def slugify(text: str) -> str:
@@ -75,10 +76,6 @@ class NewsToNewsUseCase:
 
     def _get_article_generator(self):
         if self.article_generator is None:
-            from src.news.application.usecases.article_from_news import (
-                ArticleFromNewsUseCase,
-            )
-
             self.article_generator = ArticleFromNewsUseCase(
                 ai_providers=self._ai_providers,
                 use_ai=self.use_ai,

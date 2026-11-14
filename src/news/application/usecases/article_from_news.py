@@ -1,4 +1,6 @@
 import os
+import re
+import traceback
 from typing import Any, Callable, Dict
 
 import logging
@@ -111,7 +113,6 @@ class ArticleFromNewsUseCase:
             title = extracted_title
             
         # Remove <h1> tag from body so it's not rendered in WP
-        import re
         article_body = re.sub(r"<h1>.*?</h1>", "", article_body, flags=re.DOTALL)
         # Remove any leading 'Título:' that the AI might have outputted instead of in an <h1>
         article_body = re.sub(r"^(<[^>]+>)*\s*T[íi]tulo:\s*", r"\1", article_body, flags=re.IGNORECASE).strip()
@@ -218,7 +219,6 @@ Requisitos:
 
     def _extract_title_from_html(self, html: str) -> str:
         """Extract title from HTML <h1> tag if present, stripping generic 'Titulo' prefixes."""
-        import re
         match = re.search(r"<h1[^>]*>([^<]+)</h1>", html, re.IGNORECASE)
         if match:
             title = match.group(1).strip()
@@ -229,8 +229,6 @@ Requisitos:
         return ""
 
     def _generate_slug(self, title: str) -> str:
-        import re
-
         slug = title.lower()
         slug = re.sub(r"[^\w\s-]", "", slug)
         slug = re.sub(r"[\s_-]+", "-", slug)
@@ -343,8 +341,6 @@ def main():
 
     except Exception as e:
         logger.error(f"❌ Error: {e}")
-        import traceback
-
         traceback.print_exc()
 
 
