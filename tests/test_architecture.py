@@ -48,105 +48,51 @@ INFRASTRUCTURE_PREFIXES = (
 # que capturen ImportError/ModuleNotFoundError (están permitidos por el helper).
 # Imports inline existentes en application/ + domain/ allowlisteados hasta B20.
 ALLOWED_IMPORTS: dict[str, set[str]] = {
-    "audio/application/usecases/audio_pipeline.py": {
-        "src.shared.adapters.tts_text_processor",  # TODO B20
-        "pathlib",  # TODO B20
-        "src.shared.adapters.social_post_adapter",  # TODO B20
-    },
-    "audio/application/usecases/audio_to_news.py": {
-        "config.settings",  # TODO B20
-        "src.shared.adapters.social_post_adapter",  # TODO B20
-        "src.shared.adapters.content_post_editor",  # TODO B20
-        "argparse",  # TODO B20
-    },
+    "audio/application/usecases/audio_pipeline.py": set(),
+    "audio/application/usecases/audio_to_news.py": set(),
     "news/application/usecases/__init__.py": set(),
     "news/application/usecases/article.py": {
-        "config.settings",  # TODO B11c (argparse)
-        "src.shared.adapters.seo_optimizer",  # TODO B11c (main/argparse)
-        "src.shared.domain.services.seo_helpers",  # TODO B11c (main/argparse)
-        "src.shared.infrastructure.composition_root",  # TODO B11c (main/argparse)
-        "argparse",  # TODO B20
+        "config.settings",  # B11c (main/argparse)
+        "src.shared.adapters.seo_optimizer",  # B11c (main/argparse)
+        "src.shared.domain.services.seo_helpers",  # B11c (main/argparse)
+        "src.shared.infrastructure.composition_root",  # B11c (main/argparse)
+        "argparse",  # B11c (main/argparse)
     },
     "news/application/usecases/article_from_news.py": {
-        "config.settings",  # TODO B11c (argparse)
-        "src.shared.adapters.seo_optimizer",  # TODO B11c (main/argparse)
-        "src.shared.adapters.translator",  # TODO B11c (main/argparse)
-        "src.shared.infrastructure.composition_root",  # TODO B11c (main/argparse)
-        "src.shared.adapters.content_post_editor",  # TODO B20
-        "re",  # TODO B20
-        "src.shared.adapters.social_post_adapter",  # TODO B20
-        "argparse",  # TODO B20
-        "time",  # TODO B20
-        "traceback",  # TODO B20
+        "config.settings",  # B11c (main/argparse)
+        "src.shared.adapters.translator",  # B11c (main/argparse)
+        "src.shared.infrastructure.composition_root",  # B11c (main/argparse)
+        "src.shared.adapters.content_post_editor",  # B11c (main/argparse)
+        "src.shared.adapters.social_post_adapter",  # B11c (main/argparse)
+        "argparse",  # B11c (main/argparse)
+        "time",  # B11c (main/argparse)
+        "os",  # B11c (main/argparse - os.path.exists)
     },
     "news/application/usecases/cleanup.py": {
-        "src.news.infrastructure.adapters",  # TODO B20
+        "src.news.infrastructure.adapters",  # B11c (main/argparse)
     },
     "news/application/usecases/content.py": {
-        "src.shared.adapters.social_post_adapter",  # TODO B20
-        "src.shared.adapters.content_post_editor",  # TODO B20
-        "config.settings",  # TODO B11c (argparse)
-        "src.shared.infrastructure.composition_root",  # TODO B11c (main/argparse)
-        "argparse",  # TODO B20
+        "config.settings",  # B11c (main/argparse)
+        "src.shared.infrastructure.composition_root",  # B11c (main/argparse)
+        "src.shared.adapters.social_post_adapter",  # B11c (main/argparse)
+        "src.shared.adapters.content_post_editor",  # B11c (main/argparse)
+        "argparse",  # B11c (main/argparse)
     },
     "news/application/usecases/full_verify_usecase.py": set(),
-    "news/application/usecases/news_to_news.py": {
-        "src.news.application.usecases.article_from_news",  # TODO B20
-        "src.shared.adapters.social_post_adapter",  # TODO B20
-        "src.shared.application.usecases.tts_from_article",  # TODO B20
-        "argparse",  # TODO B20
-        "src.shared.infrastructure.composition_root",  # TODO B20
-        "src.news.infrastructure.adapters",  # TODO B20
-        "traceback",  # TODO B20
-    },
-    "news/application/usecases/pipeline_log_handler.py": {
-        "src.news.application.usecases.pipeline_job",  # TODO B20
-    },
-    "news/application/usecases/pipeline_runner.py": {
-        "src.news.application.usecases.pipeline_executor",  # TODO B20
-        "os",  # TODO B20
-    },
-    "news/application/usecases/process_url_pipeline.py": {
-        "src.news.domain.entities.verified_article",  # TODO B20
-        "src.news.application.usecases.content",  # TODO B20
-        "src.news.application.usecases.article",  # TODO B20
-    },
+    "news/application/usecases/news_to_news.py": set(),
+    "news/application/usecases/pipeline_log_handler.py": set(),
+    "news/application/usecases/pipeline_runner.py": set(),
+    "news/application/usecases/process_url_pipeline.py": set(),
     "news/application/usecases/soft_verify.py": {
-        "src.shared.adapters.cache_manager",  # TODO B11c (main/argparse)
-        "src.news.infrastructure.adapters",  # TODO B11c (main/argparse repos)
+        "src.shared.adapters.cache_manager",  # B11c (main/argparse)
+        "src.news.infrastructure.adapters",  # B11c (main/argparse repos)
     },
-    "news/domain/services/template_renderer.py": {
-        "urllib.parse",  # TODO B20
-    },
-    "shared/application/usecases/article_from_transcript.py": {
-        "unicodedata",  # TODO B20
-        "src.shared.adapters.content_post_editor",  # TODO B20
-        "src.shared.adapters.social_post_adapter",  # TODO B20
-    },
-    "shared/application/usecases/base_pipeline.py": {
-        "src.shared.adapters.image_enricher",  # TODO B20
-        "src.shared.adapters.publishers.social",  # TODO B20
-        "src.shared.adapters.wikimedia_fetcher",  # TODO B20
-        "src.shared.adapters.google_images_fetcher",  # TODO B20
-        "src.shared.adapters.unsplash_fetcher",  # TODO B20
-    },
-    "shared/application/usecases/tts_from_article.py": {
-        "src.shared.adapters.tts_text_processor",  # TODO B20
-        "shutil",  # TODO B20
-        "uuid",  # TODO B20
-        "datetime",  # TODO B20
-    },
-    "video/application/usecases/video_pipeline.py": {
-        "src.shared.adapters.tts_text_processor",  # TODO B20
-        "pathlib",  # TODO B20
-        "src.shared.adapters.social_post_adapter",  # TODO B20
-    },
-    "video/application/usecases/video_to_news.py": {
-        "config.settings",  # TODO B20
-        "src.shared.adapters.social_post_adapter",  # TODO B20
-        "src.shared.adapters.content_post_editor",  # TODO B20
-        "argparse",  # TODO B20
-    },
+    "news/domain/services/template_renderer.py": set(),
+    "shared/application/usecases/article_from_transcript.py": set(),
+    "shared/application/usecases/base_pipeline.py": set(),
+    "shared/application/usecases/tts_from_article.py": set(),
+    "video/application/usecases/video_pipeline.py": set(),
+    "video/application/usecases/video_to_news.py": set(),
 }
 
 
