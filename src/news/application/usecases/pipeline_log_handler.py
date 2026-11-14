@@ -2,6 +2,7 @@
 
 import logging
 from typing import Optional
+from src.news.application.usecases.pipeline_job import update_job_log
 
 
 class PipelineJobLogHandler(logging.Handler):
@@ -30,8 +31,6 @@ class PipelineJobLogHandler(logging.Handler):
             record: LogRecord to process
         """
         try:
-            from src.news.application.usecases.pipeline_job import update_job_log
-
             # Format the log message
             msg = self.format(record)
 
