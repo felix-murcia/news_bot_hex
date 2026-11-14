@@ -17,7 +17,7 @@ from src.news.application.usecases.pipeline_log_handler import (
     setup_pipeline_logging,
     teardown_pipeline_logging,
 )
-from src.news.application.usecases.pipeline_executor import add_step, update_job_status
+from src.news.application.usecases.pipeline_job import add_step, update_job_status
 from src.news.application.usecases.content import run_content
 from src.news.application.usecases.article import run as run_articles
 from src.news.domain.entities.pipeline_job import (
@@ -63,14 +63,32 @@ def _execute_step(
     metrics_steps: list,
     step_results: list,
 ) -> tuple[bool, str | None]:
-    """Execute a single pipeline step. Returns (success, error_message)."""
+    """Execute a single pipeline step. Returns (success, error_message).
+
+    Detects both exceptions and error dict returns (e.g., {"status": "error", ...}).
+    """
     is_critical = step_name.is_critical()
     add_step(job_id, step_name, ProcessingStepStatus.RUNNING)
     step_start_ns = time.time_ns()
 
     try:
-        step_func()
+        result = step_func()
         step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
+
+        # Check if result is an error dict (e.g., {"status": "error", ...})
+        if isinstance(result, dict) and result.get("status") == "error":
+            error_msg = result.get("message", "Unknown error")
+            logger.error(f"[PIPELINE-JOB] {job_id} {step_name.value} falló: {error_msg}")
+            add_step(job_id, step_name, ProcessingStepStatus.ERROR)
+            record_step_metric(metrics_steps, step_name.value, "FAILED", step_duration_ms, error_msg)
+            step_results.append(PipelineStepResult(
+                name=step_name,
+                status=ProcessingStepStatus.ERROR,
+                error=error_msg,
+                critical=is_critical,
+            ))
+            return False, error_msg
+
         add_step(job_id, step_name, ProcessingStepStatus.OK)
         record_step_metric(metrics_steps, step_name.value, "OK", step_duration_ms)
         step_results.append(PipelineStepResult(
@@ -117,6 +135,7 @@ class PipelineRunner:
         generated_posts_repo,
         verified_news_repo,
         rss_fetch_runner: Callable[[], dict],
+        prepare_articles_runner: Callable[[], dict],
         full_verify_runner: Callable[[], dict],
         metrics_repo,
         social_publisher,
@@ -137,6 +156,7 @@ class PipelineRunner:
         self._generated_posts_repo = generated_posts_repo
         self._verified_news_repo = verified_news_repo
         self._rss_fetch_runner = rss_fetch_runner
+        self._prepare_articles_runner = prepare_articles_runner
         self._full_verify_runner = full_verify_runner
         self._metrics_repo = metrics_repo
         self._social_publisher = social_publisher
@@ -181,7 +201,18 @@ class PipelineRunner:
                 if not success:
                     raise RuntimeError(f"Fallo crítico en RSS: {error}")
 
-                # Step 2: Full Verification (CRITICAL)
+                # Step 2: Prepare Articles (CRITICAL) - transform raw_news -> generated_articles
+                success, error = _execute_step(
+                    ctx.job_id,
+                    ProcessingStepName.PREPARE_ARTICLES,
+                    self._prepare_articles_runner,
+                    metrics_steps,
+                    step_results,
+                )
+                if not success:
+                    raise RuntimeError(f"Fallo crítico en Prepare Articles: {error}")
+
+                # Step 3: Full Verification (CRITICAL)
                 success, error = _execute_step(
                     ctx.job_id,
                     ProcessingStepName.FULL_VERIFICATION,
@@ -230,7 +261,7 @@ class PipelineRunner:
                 if not success:
                     raise RuntimeError(f"Fallo crítico en Articles: {error}")
 
-                # Step 5: Fetch Images (ENRICHMENT)
+                # Step 6: Fetch Images (ENRICHMENT)
                 success, error = _execute_step(
                     ctx.job_id,
                     ProcessingStepName.FETCH_IMAGES,
@@ -242,7 +273,7 @@ class PipelineRunner:
                     step_results,
                 )
 
-                # Step 6: Enrich Images (ENRICHMENT)
+                # Step 7: Enrich Images (ENRICHMENT)
                 success, error = _execute_step(
                     ctx.job_id,
                     ProcessingStepName.ENRICH_IMAGES,
@@ -251,7 +282,7 @@ class PipelineRunner:
                     step_results,
                 )
 
-                # Step 7: Generate Audio (ENRICHMENT)
+                # Step 8: Generate Audio (ENRICHMENT)
                 def _run_audio():
                     articles = self._generated_articles_repo.load_all()
 
@@ -272,7 +303,7 @@ class PipelineRunner:
                     step_results,
                 )
 
-                # Step 8: Generate Video (ENRICHMENT)
+                # Step 9: Generate Video (ENRICHMENT)
                 def _run_video():
                     articles = self._generated_articles_repo.load_all()
 
@@ -299,7 +330,7 @@ class PipelineRunner:
                     step_results,
                 )
 
-                # Step 9: WordPress (CRITICAL)
+                # Step 10: WordPress (CRITICAL)
                 success, error = _execute_step(
                     ctx.job_id,
                     ProcessingStepName.PUBLISH_WORDPRESS,
@@ -310,7 +341,7 @@ class PipelineRunner:
                 if not success:
                     raise RuntimeError(f"Fallo crítico en WordPress: {error}")
 
-                # Step 10: Social Networks (CRITICAL)
+                # Step 11: Social Networks (CRITICAL)
                 def _run_social():
                     self._social_publisher.publish_all()
                     logger.info(f"[PIPELINE-JOB] {ctx.job_id} Redes sociales completadas (facade)")

@@ -10,6 +10,7 @@ from src.news.application.usecases import (
     VerifyNewsUseCase,
     FullVerifyNewsUseCase,
 )
+from src.news.application.usecases.prepare_articles_for_verify import PrepareArticlesUseCase
 from src.news.application.usecases.soft_verify import (
     main as main_soft_verify,
     clear_verified_news_wrapper,
@@ -71,6 +72,25 @@ def main_rss():
     existing = total - new
     logger.info(
         f"[RSS] Capturadas {total} noticias ({new} nuevas, {existing} existentes) desde fuentes RSS → MongoDB"
+    )
+    return result
+
+
+def main_prepare_articles():
+    """Punto de entrada para preparar artículos (raw_news → generated_articles)."""
+    from src.news.infrastructure.adapters.mongo_repositories import MongoGeneratedArticlesRepository
+    article_repo = MongoArticleRepository()
+    generated_articles_repo = MongoGeneratedArticlesRepository()
+
+    use_case = PrepareArticlesUseCase(article_repo, generated_articles_repo)
+    result = use_case.execute()
+
+    if result["status"] == "error":
+        logger.error(f"[PREPARE] Error: {result['message']}")
+        return result
+
+    logger.info(
+        f"[PREPARE] {result.get('processed', 0)} artículos preparados para verificación → generated_articles"
     )
     return result
 

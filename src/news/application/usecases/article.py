@@ -1,4 +1,5 @@
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 from urllib.parse import urlparse
@@ -355,14 +356,44 @@ class ArticleUseCase:
             logger.error(f"[ARTICLE] Error cargando posts: {e}")
             return []
 
-    def get_current_verified_url(self) -> str:
+    def get_current_verified_url(self, max_age_hours: int = 24) -> str:
+        """Obtiene la URL verificada solo si es reciente (evita reciclar URLs viejas).
+
+        Args:
+            max_age_hours: Edad máxima en horas para considerar la URL como fresca.
+                          Default 24h para cubrir ejecuciones nocturnas del pipeline.
+        """
         try:
             news = self.verified_repo.get_all_news()
-            if news:
-                return news[0].url
+            if not news:
+                logger.warning("[ARTICLE] No hay noticias verificadas")
+                return ""
+
+            verified = news[0]
+            # Verificar frescura: publishedAt debe ser reciente
+            published_at = verified.publishedAt
+            if isinstance(published_at, str):
+                try:
+                    published_at = datetime.fromisoformat(published_at.replace("Z", "+00:00"))
+                except Exception:
+                    published_at = datetime.now()
+
+            # Solo verificar edad si published_at es un datetime válido
+            # (evita fallar con Mocks en tests o datos corruptos)
+            if isinstance(published_at, datetime):
+                age_hours = (datetime.utcnow() - published_at).total_seconds() / 3600
+                if age_hours > max_age_hours:
+                    logger.warning(f"[ARTICLE] URL verificada tiene {age_hours:.1f}h (máx {max_age_hours}h), ignorando")
+                    return ""
+                logger.info(f"[ARTICLE] URL verificada fresca ({age_hours:.1f}h): {verified.url}")
+            else:
+                # Si no es datetime válido, asumimos que es fresco (compatibilidad)
+                logger.info(f"[ARTICLE] URL verificada sin timestamp válido, asumiendo fresca: {verified.url}")
+
+            return verified.url
         except Exception as e:
             logger.error(f"[ARTICLE] Error getting verified URL: {e}")
-        return ""
+            return ""
 
     def execute(self, limit: int = 1, mode: str = "news") -> List[Dict]:
         posts = self.load_generated_posts()

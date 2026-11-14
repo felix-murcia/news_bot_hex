@@ -32,6 +32,7 @@ class ProcessingStepName(str, Enum):
     INITIALIZING = "Inicializando"
     PROCESSING_URL = "Procesando URL"
     RSS_FETCH = "RSS Fetch"
+    PREPARE_ARTICLES = "Prepare Articles"
     FULL_VERIFICATION = "Full Verification"
     GENERATE_POSTS = "Generate Posts"
     GENERATE_ARTICLES = "Generate Articles"
@@ -46,11 +47,12 @@ class ProcessingStepName(str, Enum):
     def is_critical(self) -> bool:
         """Return True if this step is critical (failure aborts the pipeline).
 
-        Critical steps: RSS fetch, verification, article generation, WordPress/social publish.
+        Critical steps: RSS fetch, prepare articles, verification, article generation, WordPress/social publish.
         Enrichment steps (posts, images, audio, video): failure continues with PARTIAL.
         """
         return self in {
             ProcessingStepName.RSS_FETCH,
+            ProcessingStepName.PREPARE_ARTICLES,
             ProcessingStepName.FULL_VERIFICATION,
             ProcessingStepName.GENERATE_ARTICLES,
             ProcessingStepName.PUBLISH_WORDPRESS,

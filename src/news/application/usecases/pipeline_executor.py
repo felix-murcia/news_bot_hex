@@ -24,6 +24,7 @@ def execute_pipeline_async(
     generated_posts_repo,
     verified_news_repo,
     rss_fetch_runner,
+    prepare_articles_runner,
     full_verify_runner,
     metrics_repo,
     social_publisher,
@@ -44,7 +45,7 @@ def execute_pipeline_async(
     Execute pipeline in background thread with job tracking and metrics collection.
 
     Enrichment steps (images, audio, video) don't abort on failure - they mark PARTIAL.
-    Critical steps (RSS, verification, posts, articles, WordPress, social) abort on failure.
+    Critical steps (RSS, prepare articles, verification, posts, articles, WordPress, social) abort on failure.
 
     Args:
         job_id: Unique job identifier
@@ -52,6 +53,7 @@ def execute_pipeline_async(
         generated_posts_repo: Repository for generated posts (injected)
         verified_news_repo: Repository for verified news (injected)
         rss_fetch_runner: Callable para fetch RSS (inyectado)
+        prepare_articles_runner: Callable para preparar artículos (inyectado)
         full_verify_runner: Callable para verificación completa (inyectado)
         metrics_repo: Repository for metrics (injected)
         social_publisher: Publisher social inyectado
@@ -77,6 +79,7 @@ def execute_pipeline_async(
         generated_posts_repo,
         verified_news_repo,
         rss_fetch_runner,
+        prepare_articles_runner,
         full_verify_runner,
         metrics_repo,
         social_publisher,

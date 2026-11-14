@@ -135,6 +135,7 @@ def _run_pipeline(
     posts_repo=None,
     verified_repo=None,
     rss_fetch_runner=None,
+    prepare_articles_runner=None,
     full_verify_runner=None,
     metrics_repo=None,
     tts_usecase=None,
@@ -204,6 +205,8 @@ def _run_pipeline(
         vg = Mock()
         vg.is_available.return_value = False
         video_generator_factory = Mock(return_value=vg)
+    if prepare_articles_runner is None:
+        prepare_articles_runner = Mock(return_value={"status": "success", "processed": 1})
 
     started = pipeline_executor.execute_pipeline_async(
         job_id,
@@ -211,6 +214,7 @@ def _run_pipeline(
         mock_posts_repo,
         mock_verified_repo,
         rss_fetch_runner,
+        prepare_articles_runner,
         full_verify_runner,
         mock_metrics_repo,
         social_publisher,
@@ -255,6 +259,7 @@ def _capture_steps(
     scenario,
     video_scenario=False,
     rss_fetch_runner=None,
+    prepare_articles_runner=None,
     full_verify_runner=None,
 ):
     """Run the pipeline recording every (step_name, status) pair."""
@@ -290,6 +295,7 @@ def _capture_steps(
             job_id,
             articles_repo=mock_articles_repo,
             rss_fetch_runner=rss_fetch_runner,
+            prepare_articles_runner=Mock(return_value={"status": "success", "processed": 1}),
             full_verify_runner=full_verify_runner,
             metrics_repo=mock_metrics_repo,
             tts_usecase=tts_usecase,

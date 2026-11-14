@@ -370,7 +370,7 @@ def news_full_pipeline(
     try:
         from src.news.application.usecases.pipeline_job import create_job
         from src.news.application.usecases.pipeline_executor import execute_pipeline_async
-        from src.news.entrypoints.cli import main_rss, main_full_verify
+        from src.news.entrypoints.cli import main_rss, main_prepare_articles, main_full_verify
         from src.shared.application.usecases.tts_from_article import TTSFromArticleUseCase
         from src.shared.adapters.tts_text_processor import TTSTextProcessor
         from src.shared.infrastructure.composition_root import (
@@ -421,6 +421,7 @@ def news_full_pipeline(
             generated_posts_repo,
             verified_news_repo,
             main_rss,
+            main_prepare_articles,
             main_full_verify,
             metrics_repo,
             create_social_publisher(),
