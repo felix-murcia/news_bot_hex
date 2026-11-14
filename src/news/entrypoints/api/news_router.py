@@ -387,6 +387,8 @@ def news_full_pipeline(
         )
 
         job_id = create_job()
+        from src.news.infrastructure.adapters.content_extractor import JinaContentExtractor
+        content_extractor = JinaContentExtractor()
         tts_usecase = TTSFromArticleUseCase(
             create_tts_adapter(),
             create_audio_converter(),
@@ -436,6 +438,7 @@ def news_full_pipeline(
             cache_loader=load_content_from_cache,
             seo_helpers=seo_helpers,
             ai_providers=create_ai_providers(),
+            content_extractor=content_extractor,
         )
 
         if not started:

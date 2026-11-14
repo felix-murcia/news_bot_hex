@@ -1,7 +1,9 @@
 """Async pipeline executor - thin wrapper that starts PipelineRunner in a daemon thread."""
 
 import threading
+from typing import Optional
 
+from src.news.domain.ports import ContentExtractor
 from src.shared.domain.services.ai_providers import AiProviders
 
 from src.news.application.usecases.pipeline_job import (
@@ -40,6 +42,7 @@ def execute_pipeline_async(
     cache_loader,
     seo_helpers,
     ai_providers: AiProviders,
+    content_extractor: Optional[ContentExtractor] = None,
 ) -> bool:
     """
     Execute pipeline in background thread with job tracking and metrics collection.
@@ -94,6 +97,7 @@ def execute_pipeline_async(
         cache_loader=cache_loader,
         seo_helpers=seo_helpers,
         ai_providers=ai_providers,
+        content_extractor=content_extractor,
     )
 
     def _target():

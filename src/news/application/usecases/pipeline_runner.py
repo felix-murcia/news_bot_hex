@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Callable, Optional
 
+from src.news.domain.ports import ContentExtractor
 from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
 from src.shared.domain.services.ai_providers import AiProviders
 
@@ -151,6 +152,7 @@ class PipelineRunner:
         cache_loader: Callable[..., tuple[Optional[str], str]],
         seo_helpers,
         ai_providers: AiProviders,
+        content_extractor: Optional[ContentExtractor] = None,
     ):
         self._generated_articles_repo = generated_articles_repo
         self._generated_posts_repo = generated_posts_repo
@@ -171,6 +173,7 @@ class PipelineRunner:
         self._cache_loader = cache_loader
         self._seo_helpers = seo_helpers
         self._ai_providers = ai_providers
+        self._content_extractor = content_extractor
 
     def run(self, ctx: PipelineContext) -> None:
         log_handler = None
@@ -256,6 +259,7 @@ class PipelineRunner:
                         generated_posts_repo=self._generated_posts_repo,
                         verified_news_repo=self._verified_news_repo,
                         seo_helpers=self._seo_helpers,
+                        content_extractor=self._content_extractor,
                     ),
                     metrics_steps,
                     step_results,

@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 from urllib.parse import urlparse
 
 import logging
-from src.news.domain.ports import VerifiedNewsRepository, GeneratedPostsRepository, GeneratedArticlesRepository
+from src.news.domain.ports import VerifiedNewsRepository, GeneratedPostsRepository, GeneratedArticlesRepository, ContentExtractor
 from src.news.domain.services.template_renderer import TemplateRenderer
 from src.shared.domain.services.ai_providers import AiProviders
 from src.shared.domain.services.seo_helpers import SeoHelpers
@@ -148,6 +148,7 @@ class ArticleUseCase:
         wp_site_url: str = "",
         wp_default_image_url: str = "",
         seo_helpers: SeoHelpers = None,
+        content_extractor: Optional[ContentExtractor] = None,
     ):
         if seo_helpers is None:
             raise ValueError("seo_helpers es requerido")
@@ -163,6 +164,7 @@ class ArticleUseCase:
         self._wp_default_image_url = wp_default_image_url
         self._seo_helpers = seo_helpers
         self._ai_providers = ai_providers
+        self._content_extractor = content_extractor
         self._template_renderer = None
 
     def _get_ai_model(self):
@@ -191,17 +193,32 @@ class ArticleUseCase:
         return self._generate_fallback(news_item), ""
 
     def _get_full_content(self, news_item: Dict) -> str:
-        """Get full content from verified_news based on URL matching (DIP: usa repositorio inyectado)."""
+        """Get full content from verified_news based on URL matching (DIP: usa repositorio inyectado).
+        If not in DB and content_extractor available, extract from source (Jina)."""
+        url = news_item.get("url", "")
+        # Intenta obtener por URL primaria desde BD
         try:
-            url = news_item.get("url", "")
-            # Intenta obtener por URL primaria
             verified = self.verified_repo.get_news_by_url(url)
-            if verified:
-                return verified.content or verified.desc or ""
-            # Nota: Si necesitara búsqueda por original_url, habría que añadir un método al puerto
+            if verified and verified.content:
+                return verified.content
+            if verified and verified.desc:
+                return verified.desc
         except Exception as e:
-            logger.warning(f"[ARTICLE] Error getting full content: {e}")
-        return ""
+            logger.warning(f"[ARTICLE] Error getting full content from DB: {e}")
+
+        # Si no hay contenido en BD y tenemos extractor, extraer de la fuente
+        if self._content_extractor and url:
+            try:
+                logger.info(f"[ARTICLE] Extrayendo contenido completo con Jina para: {url[:80]}...")
+                contenido, _, _ = self._content_extractor.extract(url)
+                if contenido:
+                    logger.info(f"[ARTICLE] Contenido extraído: {len(contenido)} caracteres")
+                    return contenido
+            except Exception as e:
+                logger.warning(f"[ARTICLE] Error extrayendo contenido con Jina: {e}")
+
+        # Fallback: desc del news_item
+        return news_item.get("desc", "")
 
     def _generate_with_ai(self, news_item: Dict, mode: str) -> tuple[str, str]:
         """Devuelve (html, title_es): el LLM traduce el contenido a español por
@@ -528,6 +545,7 @@ def run(
     generated_posts_repo: GeneratedPostsRepository,
     verified_news_repo: VerifiedNewsRepository,
     seo_helpers: SeoHelpers,
+    content_extractor: Optional[ContentExtractor] = None,
 ) -> List[Dict]:
     provider_for_log = model_provider or "auto"
     logger.info(f"[ARTICLE] Ejecutando (provider: {provider_for_log})")
@@ -541,6 +559,7 @@ def run(
         wp_site_url=wp_site_url,
         wp_default_image_url=wp_default_image_url,
         seo_helpers=seo_helpers,
+        content_extractor=content_extractor,
     )
     return use_case.execute(limit=limit, mode=mode)
 

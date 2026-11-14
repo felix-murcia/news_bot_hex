@@ -118,7 +118,6 @@ def main_full_verify():
     published_urls_repo = MongoPublishedUrlsRepository()
     keywords_repo = MongoKeywordsRepository()
     scoring_config_repo = MongoScoringConfigRepository()
-    content_extractor = JinaContentExtractor()
 
     # Classic validator: TF-IDF + LogisticRegression (CPU, fast)
     fake_news_model = ClassicNewsValidatorAdapter()
@@ -138,7 +137,6 @@ def main_full_verify():
         scoring_config_repo=scoring_config_repo,
         categorizer=categorizar_noticia,
         frozen_terms_extractor=extract_frozen_terms,
-        content_extractor=content_extractor,
         fake_news_model=fake_news_model,
         frozen_terms_repo=frozen_terms_repo,
     )

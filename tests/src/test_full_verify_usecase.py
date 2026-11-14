@@ -75,9 +75,6 @@ def test_full_verify_saves_extracted_content():
         "limits": {"ttl_days": 30, "max_urls": 1000},
     }
 
-    extractor = Mock(spec=ContentExtractor)
-    extractor.extract.return_value = (extracted, "jina", "Título original")
-
     usecase = FullVerifyNewsUseCase(
         generated_articles_repo=articles_repo,
         verified_news_repo=verified_repo,
@@ -86,16 +83,17 @@ def test_full_verify_saves_extracted_content():
         scoring_config_repo=scoring_config_repo,
         categorizer=lambda title, desc: "Noticias",
         frozen_terms_extractor=lambda title: [],
-        content_extractor=extractor,
     )
 
     result = usecase.execute()
 
-    # Verificar que insert_news fue llamado con VerifiedArticle que tiene el content extraído
+    # Verificar que insert_news fue llamado con VerifiedArticle SIN contenido extraído (Jina se llama en ArticleUseCase)
     verified_repo.insert_news.assert_called_once()
     saved_articles = verified_repo.insert_news.call_args[0][0]
     assert len(saved_articles) == 1
     saved_article = saved_articles[0]
     assert isinstance(saved_article, VerifiedArticle)
-    assert saved_article.content == extracted
-    assert saved_article.content != "Descripción corta del RSS"  # No la desc del RSS
+    # FullVerify ya no extrae contenido con Jina → content está vacío (default)
+    # ArticleUseCase llamará a Jina cuando necesite el contenido completo
+    assert saved_article.content == ""  # Default vacío, Jina se extrae en paso de artículo
+    assert saved_article.content != extracted  # No es el contenido extraído por Jina

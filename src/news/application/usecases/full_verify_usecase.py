@@ -8,7 +8,6 @@ from src.news.domain.ports import (
     PublishedUrlsRepository,
     KeywordsRepository,
     ScoringConfigRepository,
-    ContentExtractor,
     FakeNewsModel,
     FrozenTermsRepository,
     GeneratedArticlesRepository,
@@ -46,7 +45,6 @@ class FullVerifyNewsUseCase:
         scoring_config_repo: ScoringConfigRepository,
         categorizer: Callable[[str, str], str],
         frozen_terms_extractor: Callable[[str], list[str]],
-        content_extractor: Optional[ContentExtractor] = None,
         fake_news_model: Optional[FakeNewsModel] = None,
         frozen_terms_repo: Optional[FrozenTermsRepository] = None,
         config: Optional[Dict] = None,
@@ -58,7 +56,6 @@ class FullVerifyNewsUseCase:
         self._scoring_config_repo = scoring_config_repo
         self._categorizer = categorizer
         self._frozen_terms_extractor = frozen_terms_extractor
-        self._content_extractor = content_extractor
         self._fake_news_model = fake_news_model
         self._frozen_terms_repo = frozen_terms_repo
         self._config = config or {}
@@ -169,20 +166,8 @@ class FullVerifyNewsUseCase:
             return {"status": "warning", "message": "Ninguna noticia pasó el filtro."}
 
         url = top.get("url")
-        if url and self._content_extractor:
-            contenido, _, _titulo = self._content_extractor.extract(url)
-            if contenido:
-                top["content"] = contenido  # Guardar contenido extraído para ArticleUseCase
-            if len(contenido or "") >= weights.get("min_chars", 1000):
-                published_urls.add(url)
-                self._published_urls_repo.save_urls(
-                    published_urls,
-                    limits.get("ttl_days", 30),
-                    limits.get("max_urls", 1000),
-                )
-
-        url = top.get("url")
-        if url and url not in published_urls:
+        if url:
+            # La noticia pasó el filtro de verificación → marcar como publicada
             published_urls.add(url)
             self._published_urls_repo.save_urls(
                 published_urls,
