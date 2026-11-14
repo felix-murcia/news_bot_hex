@@ -17,6 +17,7 @@ from src.video.domain.ports.video_fetcher_port import VideoFetcherPort
 from src.video.domain.ports.video_transcriber_port import VideoTranscriberPort
 from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
 from src.shared.domain.services.ai_providers import AiProviders
+from src.shared.domain.services.image_providers import ImageProviders
 from src.shared.domain.services.wp_helpers import WpHelpers
 
 
@@ -65,6 +66,26 @@ def create_ai_providers() -> AiProviders:
         tweet_geopolitics_agent_factory=lambda ai_client: TweetGeopoliticsAgent(
             ai_client
         ),
+    )
+
+
+def create_image_providers() -> ImageProviders:
+    """Factories de proveedores de imágenes (B20.4f).
+
+    Único punto donde `application/` obtiene los adaptadores de imágenes.
+    Cada factory recibe el `mode` del pipeline y devuelve el adaptador
+    listo, igual que se instanciaban inline antes de la inyección.
+    """
+    from src.shared.adapters.google_images_fetcher import GoogleImagesFetcher
+    from src.shared.adapters.image_enricher import ImageEnricher
+    from src.shared.adapters.unsplash_fetcher import UnsplashFetcher
+    from src.shared.adapters.wikimedia_fetcher import WikimediaFetcher
+
+    return ImageProviders(
+        enricher_factory=lambda mode: ImageEnricher(mode=mode),
+        wikimedia_factory=lambda mode: WikimediaFetcher(),
+        google_factory=lambda mode: GoogleImagesFetcher(mode=mode),
+        unsplash_factory=lambda mode: UnsplashFetcher(mode=mode),
     )
 
 
