@@ -452,8 +452,9 @@ class ProcessUrlPipelineTestBase:
         ctx = {}
         with contextlib.ExitStack() as stack:
             p = lambda *a, **k: stack.enter_context(patch(*a, **k))  # noqa: E731
-            ctx["run_content"] = p("src.news.application.usecases.content.run_content")
-            ctx["run_article"] = p("src.news.application.usecases.article.run")
+            # Parchear donde se usan (process_url_pipeline), no donde se definen
+            ctx["run_content"] = p("src.news.application.usecases.process_url_pipeline.run_content")
+            ctx["run_article"] = p("src.news.application.usecases.process_url_pipeline.run_article")
             ctx["images_unsplash"] = Mock()
             ctx["images_google"] = Mock()
             ctx["image_enricher"] = Mock()

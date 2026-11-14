@@ -7,6 +7,7 @@ from datetime import datetime
 from config.settings import Settings
 from ai_helpers import build_ai_providers
 from wp_helpers import build_wp_helpers
+from image_helpers import build_image_providers
 
 sys.path.insert(
     0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -150,6 +151,8 @@ class TestAudioPipeline:
             context_enricher=lambda t, tema="": None,
             ai_providers=build_ai_providers(),
             wp_helpers=build_wp_helpers(),
+            image_providers=build_image_providers(),
+            social_publisher=Mock(),
         )
         assert pipeline.video_generator is mock_generator
 
@@ -201,6 +204,8 @@ class TestAudioPipelineUseCase:
             audio_converter=Mock(),
             ai_providers=build_ai_providers(),
             wp_helpers=build_wp_helpers(),
+            image_providers=build_image_providers(),
+            social_publisher=Mock(),
             social_truncator=lambda t, limit=None: t,
             post_editor=lambda c, editor=None: c,
             tts_text_processor=Mock(),
@@ -214,7 +219,8 @@ class TestAudioPipelineUseCase:
         pipeline = self._make_pipeline(no_publish=True)
         assert pipeline.no_publish is True
         assert pipeline._image_enricher is None
-        assert pipeline._social_publisher is None
+        # El publisher social se inyecta (B20.4f): ya no se crea lazy.
+        assert pipeline._social_publisher is not None
 
     def test_audio_pipeline_with_publish(self):
         """Test AudioPipelineUseCase with publish enabled."""

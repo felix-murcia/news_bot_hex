@@ -7,6 +7,7 @@ from datetime import datetime
 from config.settings import Settings
 from ai_helpers import build_ai_providers
 from wp_helpers import build_wp_helpers
+from image_helpers import build_image_providers
 
 sys.path.insert(
     0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -138,6 +139,8 @@ class TestVideoPipeline:
             context_enricher=lambda t, tema="": None,
             ai_providers=build_ai_providers(),
             wp_helpers=build_wp_helpers(),
+            image_providers=build_image_providers(),
+            social_publisher=Mock(),
         )
         assert pipeline.video_generator is mock_generator
 
