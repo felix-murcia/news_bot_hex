@@ -3,6 +3,10 @@ Tweet Geopolitics Agent.
 
 Agente genérico para generar tweets estilo geopolítico (The Economist).
 Funciona con cualquier proveedor de IA a través de AIModelPort.
+
+El modelo SOLO redacta. No evalúa publicabilidad.
+La validación de calidad (no JSON, no URLs truncadas, longitud) la hace el sistema
+(truncate_social_post + _validate_social_text en content.py), no el modelo.
 """
 
 import logging
@@ -65,15 +69,13 @@ class TweetGeopoliticsAgent:
         **kwargs,
     ) -> TweetResponse:
         """
-        512 tokens: valor lógico para tweet (JSON con publicable + tweet 280 chars).
+        512 tokens: valor lógico para tweet (JSON con tweet 280 chars).
         El OpenRouterAdapter suma internamente OPENROUTER_REASONING_BUFFER (default 1024)
         para cubrir reasoning tokens en modelos free.
         Genera un tweet estilo geopolítico.
 
-        El prompt obliga al modelo a responder con JSON
-        {"publicable": bool, "tweet"/"motivo"}; `validar_tweet` lo comprueba
-        y decide si hay un tweet publicable (comprobación determinista, con
-        segunda capa por patrones si no hay JSON).
+        El prompt obliga al modelo a responder con JSON {"tweet": "..."}.
+        `validar_tweet` extrae el tweet y valida que no esté vacío.
 
         Args:
             title: Título de la noticia.
@@ -84,7 +86,7 @@ class TweetGeopoliticsAgent:
             **kwargs: Argumentos adicionales pasados al adapter.
 
         Returns:
-            TweetResponse: publishable + text (el tweet) o reason (motivo).
+            TweetResponse: publishable + text (el tweet) o reason (motivo técnico).
         """
         logger.info(f"[TWEET_GEOPOLITICS] Generating tweet for: {title[:80]}...")
 
@@ -100,37 +102,6 @@ class TweetGeopoliticsAgent:
         )
 
         respuesta = validar_tweet(result, title=title)
-
-        # Seguridad extra: si la respuesta cruda parece JSON roto (tiene { pero
-        # validar_tweet no pudo extraer JSON válido), rechazarla como no publicable.
-        # Esto evita que JSON truncado ("{"publicable": true, "tweet": "Hola...") se
-        # publique como texto plano.
-        if respuesta.publishable:
-            raw_stripped = result.strip()
-            # Caso 1: empieza por { y contiene "publicable" (contrato del agente)
-            # Caso 2: solo { o } (JSON obviamente roto)
-            # Caso 3: parece JSON (tiene { y } pero ratio de símbolos alto)
-            looks_like_broken_json = False
-            if raw_stripped.startswith("{") and "publicable" in raw_stripped:
-                looks_like_broken_json = True
-            elif raw_stripped in ("{", "}", "{}", '{"publicable"', '{"tweet"'):
-                looks_like_broken_json = True
-            elif raw_stripped.startswith("{") and raw_stripped.endswith("}") and len(raw_stripped) > 10:
-                # JSON-like pero validar_tweet no lo parseó -> probablemente truncado
-                alnum = sum(c.isalnum() or c.isspace() for c in raw_stripped)
-                symbols = len(raw_stripped) - alnum
-                if symbols / len(raw_stripped) > 0.3:
-                    looks_like_broken_json = True
-            
-            if looks_like_broken_json:
-                logger.warning(
-                    f"[TWEET_GEOPOLITICS] Respuesta parece JSON malformado, "
-                    f"rechazando: {raw_stripped[:120]}"
-                )
-                return TweetResponse(
-                    publishable=False,
-                    reason="Respuesta parece JSON malformado (truncado o inválido)"
-                )
 
         if respuesta.publishable:
             if len(respuesta.text) > self.MAX_CHARS:
