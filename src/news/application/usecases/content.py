@@ -129,7 +129,8 @@ class ContentUseCase:
         if not respuesta.publishable:
             logger.error(
                 f"[CONTENT] La IA no generó un tweet publicable para: "
-                f"{title[:80]}... (tema: {tema}). Motivo: {respuesta.reason[:160]}"
+                f"{title[:80]}... (tema: {tema}). Motivo: {respuesta.reason[:160]}. "
+                f"Texto crudo del agente: {repr(respuesta.text[:200])}"
             )
             raise RuntimeError(
                 f"La IA no generó un tweet publicable para '{title[:80]}...': "

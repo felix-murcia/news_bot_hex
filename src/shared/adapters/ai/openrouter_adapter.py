@@ -110,11 +110,20 @@ class OpenRouterAdapter(AIModelPort):
             finish_reason = first_choice.get("finish_reason")
             native_finish_reason = first_choice.get("native_finish_reason")
             content = first_choice.get("message", {}).get("content")
+            reasoning_content = first_choice.get("message", {}).get("reasoning_content")
+            
             if not content:
                 logger.warning(
                     f"[OPENROUTER] Empty content in response "
-                    f"(finish_reason={finish_reason}, native_finish_reason={native_finish_reason})"
+                    f"(finish_reason={finish_reason}, native_finish_reason={native_finish_reason}). "
+                    f"Raw response keys: {list(result.keys())}. "
+                    f"Raw content: {repr(content)}"
                 )
+                if reasoning_content:
+                    logger.warning(
+                        f"[OPENROUTER] Reasoning content (primeros 200 chars): "
+                        f"{repr(reasoning_content[:200])}"
+                    )
                 if finish_reason == "length":
                     logger.warning(
                         "[OPENROUTER] max_tokens agotado (finish_reason=length). "

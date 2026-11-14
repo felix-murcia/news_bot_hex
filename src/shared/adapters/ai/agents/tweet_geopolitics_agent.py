@@ -101,6 +101,37 @@ class TweetGeopoliticsAgent:
 
         respuesta = validar_tweet(result, title=title)
 
+        # Seguridad extra: si la respuesta cruda parece JSON roto (tiene { pero
+        # validar_tweet no pudo extraer JSON válido), rechazarla como no publicable.
+        # Esto evita que JSON truncado ("{"publicable": true, "tweet": "Hola...") se
+        # publique como texto plano.
+        if respuesta.publishable:
+            raw_stripped = result.strip()
+            # Caso 1: empieza por { y contiene "publicable" (contrato del agente)
+            # Caso 2: solo { o } (JSON obviamente roto)
+            # Caso 3: parece JSON (tiene { y } pero ratio de símbolos alto)
+            looks_like_broken_json = False
+            if raw_stripped.startswith("{") and "publicable" in raw_stripped:
+                looks_like_broken_json = True
+            elif raw_stripped in ("{", "}", "{}", '{"publicable"', '{"tweet"'):
+                looks_like_broken_json = True
+            elif raw_stripped.startswith("{") and raw_stripped.endswith("}") and len(raw_stripped) > 10:
+                # JSON-like pero validar_tweet no lo parseó -> probablemente truncado
+                alnum = sum(c.isalnum() or c.isspace() for c in raw_stripped)
+                symbols = len(raw_stripped) - alnum
+                if symbols / len(raw_stripped) > 0.3:
+                    looks_like_broken_json = True
+            
+            if looks_like_broken_json:
+                logger.warning(
+                    f"[TWEET_GEOPOLITICS] Respuesta parece JSON malformado, "
+                    f"rechazando: {raw_stripped[:120]}"
+                )
+                return TweetResponse(
+                    publishable=False,
+                    reason="Respuesta parece JSON malformado (truncado o inválido)"
+                )
+
         if respuesta.publishable:
             if len(respuesta.text) > self.MAX_CHARS:
                 logger.warning(
@@ -109,9 +140,9 @@ class TweetGeopoliticsAgent:
                 )
             logger.info("[TWEET_GEOPOLITICS] Tweet generated successfully")
         else:
-            logger.warning(
-                f"[TWEET_GEOPOLITICS] Respuesta no publicable para {title[:60]}...: "
-                f"{respuesta.reason[:120]}"
+            logger.error(
+                f"[TWEET_GEOPOLITICS] Respuesta no publicable para '{title[:80]}...': "
+                f"{respuesta.reason[:160]}. Texto crudo (primeros 200 chars): {repr(result[:200])}"
             )
         return respuesta
 
