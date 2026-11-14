@@ -125,6 +125,8 @@ def video_pipeline(
             create_video_fetcher,
             create_video_generator,
             create_video_transcriber,
+            create_image_providers,
+            create_social_publisher,
             create_wp_helpers,
         )
 
@@ -137,6 +139,8 @@ def video_pipeline(
             audio_converter=create_audio_converter(),
             ai_providers=create_ai_providers(),
             wp_helpers=create_wp_helpers(),
+            image_providers=create_image_providers(),
+            social_publisher=create_social_publisher(),
             social_truncator=truncate_social_post,
             post_editor=post_edit_content,
             tts_text_processor=TTSTextProcessor(),
