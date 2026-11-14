@@ -1,3 +1,4 @@
+import re
 from typing import Callable, Dict, List, Optional
 
 import logging
@@ -78,14 +79,45 @@ class ContentUseCase:
         except Exception as e:
             logger.error(f"[CONTENT] Error guardando posts: {e}")
 
-    def _generate_tweet_ai(self, news_item: Dict) -> str:
-        """Genera el tweet con IA y lo devuelve.
+    def _validate_social_text(self, text: str, title: str) -> str:
+        """Validación estricta fail-fast: lanza ValueError si el texto no es plano.
 
-        El agente responde con JSON {"publicable": bool, ...} (ver
-        src/shared/domain/services/tweet_response.py): la publicabilidad la
-        declara el modelo y la decide `validar_tweet`, sin listas de frases.
-        Si no hay tweet publicable se lanza RuntimeError y no se publica nada.
+        NO hay sanitización, NO hay heurísticas, NO hay fallbacks.
+        Si el LLM devuelve cualquier carácter de formato, se rechaza y se para.
         """
+        if not text or not text.strip():
+            raise ValueError(
+                f"[FAIL-FAST] Post rechazado para '{title[:80]}'. "
+                f"Motivo: El LLM devolvió un texto vacío. "
+                f"Texto crudo: {repr(text[:100])}"
+            )
+
+        # Lista negra estricta: JSON, HTML, Markdown, saltos de línea, pipes, backticks, tildes
+        forbidden_chars = {'{', '}', '[', ']', '<', '>', '*', '+', '|', '`', '~', '\\', '\n', '\r', '\t'}
+        
+        for char in forbidden_chars:
+            if char in text:
+                raise ValueError(
+                    f"[FAIL-FAST] Post rechazado para '{title[:80]}'. "
+                    f"Motivo: Carácter de formato no permitido '{char}' (U+{ord(char):04X}). "
+                    f"Texto crudo: {repr(text[:100])}"
+                )
+
+        # Hashtags son válidos solo si van precedidos de espacio o inicio de línea
+        # (se validan en post-editor; aquí solo bloqueamos '#' suelto en medio de palabra)
+        if '#' in text:
+            # Permitir #hashtag al inicio o tras espacio; rechazar # en medio de palabra
+            if re.search(r'(?<!\s)#(?!\w)', text) or re.search(r'\w#\w', text):
+                raise ValueError(
+                    f"[FAIL-FAST] Post rechazado para '{title[:80]}'. "
+                    f"Motivo: Uso inválido de '#' (no es hashtag válido). "
+                    f"Texto crudo: {repr(text[:100])}"
+                )
+
+        return text
+
+    def _generate_tweet_ai(self, news_item: Dict) -> str:
+        """Genera el tweet con IA y lo devuelve. Fail-fast estricto."""
         title = news_item.get("title", "")
         tema = news_item.get("tema", "Noticias")
         desc = news_item.get("desc", "")[:200]
@@ -104,20 +136,19 @@ class ContentUseCase:
                 f"{respuesta.reason}. No se publica contenido de baja calidad."
             )
 
+        # Validación estricta FAIL-FAST sobre el texto crudo del agente
+        # Si falla, la excepción propaga y PARA el pipeline (no se catcha en execute)
+        self._validate_social_text(respuesta.text, title)
+
+        # Truncar (solo longitud, sin validación extra - ya validamos arriba)
         tweet = self._social_truncator(respuesta.text, limit=self.MAX_CHARS)
         tweet = tweet.strip()
 
-        # Aplicar post-edición automática
+        # Post-edición (solo limpieza ligera, no validación)
         tweet = self._post_editor(tweet)
 
-        if not tweet:
-            logger.error(
-                f"[CONTENT] Tweet generado vacío para: {title[:80]}... "
-                f"(tema: {tema}). Se aborta la publicación."
-            )
-            raise RuntimeError(
-                f"Tweet vacío para '{title[:80]}...'. No se publica contenido de baja calidad."
-            )
+        # Validación final estricta tras post-editor
+        self._validate_social_text(tweet, title)
 
         return tweet
 
@@ -145,17 +176,10 @@ class ContentUseCase:
             url = news_item.get("url", "")
             item_title = news_item.get("title", "")
 
-            try:
-                if self.use_ai:
-                    tweet = self._generate_tweet_ai(news_item)
-                else:
-                    tweet = self._generate_tweet_fallback(news_item)
-            except Exception as e:
-                logger.warning(
-                    f"[CONTENT] ⏭️ Se omite la noticia '{item_title[:80]}...' ({url}) "
-                    f"por error en la generación del tweet: {e}"
-                )
-                continue
+            if self.use_ai:
+                tweet = self._generate_tweet_ai(news_item)
+            else:
+                tweet = self._generate_tweet_fallback(news_item)
 
             post = {
                 "tweet": tweet,

@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch, MagicMock
 
 from ai_helpers import build_ai_providers
 from wp_helpers import build_wp_helpers
+from image_helpers import build_image_providers
 
 
 class TestNewsToNewsUseCase:
@@ -169,6 +170,120 @@ class TestContentUseCase:
         use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), ai_providers=build_ai_providers(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, cache_loader=Mock(return_value=(None, "no_cache")), network="facebook", use_ai=False)
         assert use_case.MAX_CHARS == 63206
 
+    def test_validate_social_text_passes_clean_text(self):
+        """Texto plano limpio pasa la validación."""
+        from src.news.application.usecases.content import ContentUseCase
+        from unittest.mock import Mock
+
+        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), ai_providers=build_ai_providers(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, cache_loader=Mock(return_value=(None, "no_cache")), network="bluesky", use_ai=False)
+        
+        clean_text = "El #BCE subió los #TiposDeInteres 25 puntos básicos. #Economía"
+        result = use_case._validate_social_text(clean_text, "Título de prueba")
+        assert result == clean_text
+
+    def test_validate_social_text_fails_on_json(self):
+        """JSON del LLM lanza ValueError."""
+        from src.news.application.usecases.content import ContentUseCase
+        from unittest.mock import Mock
+        import pytest
+
+        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), ai_providers=build_ai_providers(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, cache_loader=Mock(return_value=(None, "no_cache")), network="bluesky", use_ai=False)
+        
+        with pytest.raises(ValueError, match="FAIL-FAST"):
+            use_case._validate_social_text('{"publicable": true, "tweet": "Hola"}', "Título")
+
+    def test_validate_social_text_fails_on_newline(self):
+        """Saltos de línea lanzan ValueError."""
+        from src.news.application.usecases.content import ContentUseCase
+        from unittest.mock import Mock
+        import pytest
+
+        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), ai_providers=build_ai_providers(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, cache_loader=Mock(return_value=(None, "no_cache")), network="bluesky", use_ai=False)
+        
+        with pytest.raises(ValueError, match="FAIL-FAST"):
+            use_case._validate_social_text("Hola\nmundo", "Título")
+
+    def test_validate_social_text_fails_on_html(self):
+        """Etiquetas HTML lanzan ValueError."""
+        from src.news.application.usecases.content import ContentUseCase
+        from unittest.mock import Mock
+        import pytest
+
+        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), ai_providers=build_ai_providers(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, cache_loader=Mock(return_value=(None, "no_cache")), network="bluesky", use_ai=False)
+        
+        with pytest.raises(ValueError, match="FAIL-FAST"):
+            use_case._validate_social_text("<p>Hola</p>", "Título")
+
+    def test_validate_social_text_fails_on_markdown(self):
+        """Markdown (asteriscos, backticks) lanza ValueError."""
+        from src.news.application.usecases.content import ContentUseCase
+        from unittest.mock import Mock
+        import pytest
+
+        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), ai_providers=build_ai_providers(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, cache_loader=Mock(return_value=(None, "no_cache")), network="bluesky", use_ai=False)
+        
+        with pytest.raises(ValueError, match="FAIL-FAST"):
+            use_case._validate_social_text("**Bold** text", "Título")
+        
+        with pytest.raises(ValueError, match="FAIL-FAST"):
+            use_case._validate_social_text("`code`", "Título")
+
+    def test_validate_social_text_fails_on_pipes(self):
+        """Pipes (tablas markdown) lanzan ValueError."""
+        from src.news.application.usecases.content import ContentUseCase
+        from unittest.mock import Mock
+        import pytest
+
+        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), ai_providers=build_ai_providers(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, cache_loader=Mock(return_value=(None, "no_cache")), network="bluesky", use_ai=False)
+        
+        with pytest.raises(ValueError, match="FAIL-FAST"):
+            use_case._validate_social_text("Col1 | Col2", "Título")
+
+    def test_validate_social_text_fails_on_empty(self):
+        """Texto vacío lanza ValueError."""
+        from src.news.application.usecases.content import ContentUseCase
+        from unittest.mock import Mock
+        import pytest
+
+        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), ai_providers=build_ai_providers(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, cache_loader=Mock(return_value=(None, "no_cache")), network="bluesky", use_ai=False)
+        
+        with pytest.raises(ValueError, match="FAIL-FAST"):
+            use_case._validate_social_text("", "Título")
+        
+        with pytest.raises(ValueError, match="FAIL-FAST"):
+            use_case._validate_social_text("   ", "Título")
+
+    def test_validate_social_text_allows_valid_hashtags(self):
+        """Hashtags válidos (# al inicio o tras espacio) son permitidos."""
+        from src.news.application.usecases.content import ContentUseCase
+        from unittest.mock import Mock
+
+        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), ai_providers=build_ai_providers(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, cache_loader=Mock(return_value=(None, "no_cache")), network="bluesky", use_ai=False)
+        
+        # Hashtags válidos
+        valid = "#Noticias importante #Economía hoy"
+        result = use_case._validate_social_text(valid, "Título")
+        assert result == valid
+        
+        # Hashtag al inicio
+        valid2 = "#Primera noticia del día"
+        result = use_case._validate_social_text(valid2, "Título")
+        assert result == valid2
+
+    def test_validate_social_text_rejects_invalid_hashtag(self):
+        """# en medio de palabra (no hashtag válido) lanza ValueError."""
+        from src.news.application.usecases.content import ContentUseCase
+        from unittest.mock import Mock
+        import pytest
+
+        use_case = ContentUseCase(verified_repo=Mock(), generated_posts_repo=Mock(), ai_providers=build_ai_providers(), social_truncator=lambda t, limit=None: t, post_editor=lambda c, editor=None: c, cache_loader=Mock(return_value=(None, "no_cache")), network="bluesky", use_ai=False)
+        
+        with pytest.raises(ValueError, match="FAIL-FAST"):
+            use_case._validate_social_text("Hola#mundo", "Título")
+        
+        with pytest.raises(ValueError, match="FAIL-FAST"):
+            use_case._validate_social_text("test#hash", "Título")
+
 
 class TestSoftVerifyUseCase:
     """Test SoftVerifyUseCase."""
@@ -268,6 +383,8 @@ class TestAudioPipelineUseCase:
             tts_text_processor=Mock(),
             context_enricher=lambda t, tema="": None,
             wp_helpers=build_wp_helpers(),
+            image_providers=build_image_providers(),
+            social_publisher=Mock(),
         )
         with patch.object(pipeline, "_enrich_with_images", side_effect=lambda arts: arts), \
              patch.object(pipeline, "_track_temp_file"):
@@ -296,6 +413,8 @@ class TestAudioPipelineUseCase:
             tts_text_processor=Mock(),
             context_enricher=lambda t, tema="": None,
             wp_helpers=build_wp_helpers(),
+            image_providers=build_image_providers(),
+            social_publisher=Mock(),
         )
         with pytest.raises(RuntimeError, match="Error in audio download"):
             pipeline.run("https://example.com/audio", "Test")
