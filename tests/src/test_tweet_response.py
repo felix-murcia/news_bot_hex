@@ -161,3 +161,27 @@ class TestAgenteDevuelveTweetResponse:
         resp = self._agente(TWEET_BUELO).generate(title="BCE sube tipos", tema="x")
         assert resp.publishable is True
         assert resp.text == TWEET_BUELO
+
+    def test_json_truncado_rechaza_no_publica_crudo(self):
+        """JSON truncado (ej. '{"publicable": true, "tweet": "Hola...') NO se
+        publica como texto plano. El agente debe detectarlo y devolver negativa."""
+        raw_truncado = '{"publicable": true, "tweet": "Esto es un tweet truncado'
+        resp = self._agente(raw_truncado).generate(title="Título noticia", tema="Economía")
+        assert isinstance(resp, TweetResponse)
+        assert resp.publishable is False
+        assert "JSON malformado" in resp.reason
+        # El texto crudo NO debe filtrarse como tweet publicable
+        assert resp.text == ""
+
+    def test_solo_llave_abierta_rechaza(self):
+        """Respuesta cruda '{' (solo llave) debe rechazarse."""
+        resp = self._agente('{').generate(title="T", tema="x")
+        assert resp.publishable is False
+        assert "JSON malformado" in resp.reason
+
+    def test_json_con_llave_publicable_pero_sin_cerrar_rechaza(self):
+        """'{"publicable": true, "tweet": "Hola" -> sin cerrar'."""
+        raw = '{"publicable": true, "tweet": "Hola'
+        resp = self._agente(raw).generate(title="T", tema="x")
+        assert resp.publishable is False
+        assert "JSON malformado" in resp.reason

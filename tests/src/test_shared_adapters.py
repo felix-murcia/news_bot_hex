@@ -814,3 +814,50 @@ class TestCoquiTTSAdapter:
         with patch("config.settings.Settings.COQUI_API_URL", "http://localhost:5002"):
             adapter = CoquiTTSAdapter()
             assert adapter.is_available() is False
+
+
+class TestSocialPostAdapterSecurity:
+    """Tests de seguridad para truncate_social_post:
+    debe rechazar JSON malformado y URLs truncadas huérfanas."""
+
+    def test_json_truncado_lanza_valueerror(self):
+        from src.shared.adapters.social_post_adapter import truncate_social_post
+        raw = '{"publicable": true, "tweet": "Hola mundo...'
+        with pytest.raises(ValueError, match="JSON malformado"):
+            truncate_social_post(raw)
+
+    def test_solo_llave_abierta_lanza_valueerror(self):
+        from src.shared.adapters.social_post_adapter import truncate_social_post
+        with pytest.raises(ValueError, match="JSON malformado"):
+            truncate_social_post("{")
+
+    def test_json_con_publicable_lanza_valueerror(self):
+        from src.shared.adapters.social_post_adapter import truncate_social_post
+        raw = '{"publicable": true, "tweet": "Texto"}'
+        with pytest.raises(ValueError, match="JSON malformado"):
+            truncate_social_post(raw)
+
+    def test_url_truncada_huerfana_lanza_valueerror(self):
+        from src.shared.adapters.social_post_adapter import truncate_social_post
+        raw = "Más info: https://example.com/very/long/url/that/gets/truncated..."
+        with pytest.raises(ValueError, match="URL truncada"):
+            truncate_social_post(raw)
+
+    def test_tweet_limpio_pasa_sin_error(self):
+        from src.shared.adapters.social_post_adapter import truncate_social_post
+        tweet = "El #BCE subió los #TiposDeInteres 25 puntos básicos. #Economía"
+        result = truncate_social_post(tweet)
+        assert result == tweet
+
+    def test_tweet_con_hashtags_inline_y_texto_limpio_pasa(self):
+        from src.shared.adapters.social_post_adapter import truncate_social_post
+        tweet = "Noticia importante sobre #Economía y #Política hoy."
+        result = truncate_social_post(tweet)
+        assert "Economía" in result
+        assert "Política" in result
+
+    def test_texto_largo_con_solo_simbolos_rechaza(self):
+        from src.shared.adapters.social_post_adapter import truncate_social_post
+        raw = "{{{{{{{{{{}}}}}}}}}} " + "a" * 10
+        with pytest.raises(ValueError, match="JSON malformado"):
+            truncate_social_post(raw)
