@@ -7,6 +7,7 @@ Template content is injected — no file system or HTTP dependencies.
 
 import re
 import unicodedata
+from urllib.parse import urlparse
 from collections import defaultdict
 from datetime import datetime
 from typing import Dict
@@ -26,7 +27,6 @@ class TemplateRenderer:
     def _get_domain(url: str) -> str:
         """Extract domain from URL."""
         try:
-            from urllib.parse import urlparse
             return urlparse(url).netloc or url
         except Exception:
             return url
