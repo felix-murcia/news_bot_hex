@@ -447,16 +447,21 @@ class ArticleUseCase:
             logger.error(f"[ARTICLE] Error getting verified URL: {e}")
             return ""
 
-    def execute(self, limit: int = 1, mode: str = "news") -> List[Dict]:
+    def execute(
+        self, limit: int = 1, mode: str = "news", candidate_url: Optional[str] = None
+    ) -> List[Dict]:
         posts = self.load_generated_posts()
         if not posts:
             logger.warning("[ARTICLE] No hay posts para procesar")
             return []
 
-        current_url = self.get_current_verified_url()
-        if not current_url:
-            logger.warning("[ARTICLE] No hay URL verificada")
-            return []
+        if candidate_url:
+            current_url = candidate_url
+        else:
+            current_url = self.get_current_verified_url()
+            if not current_url:
+                logger.warning("[ARTICLE] No hay URL verificada")
+                return []
 
         aligned_posts = [
             p for p in posts if (p.get("url") or "").strip() == current_url
@@ -581,6 +586,7 @@ def run(
     verified_news_repo: VerifiedNewsRepository,
     seo_helpers: SeoHelpers,
     content_extractor: Optional[ContentExtractor] = None,
+    candidate_url: Optional[str] = None,
 ) -> List[Dict]:
     provider_for_log = model_provider or "auto"
     logger.info(f"[ARTICLE] Ejecutando (provider: {provider_for_log})")
@@ -596,7 +602,7 @@ def run(
         seo_helpers=seo_helpers,
         content_extractor=content_extractor,
     )
-    return use_case.execute(limit=limit, mode=mode)
+    return use_case.execute(limit=limit, mode=mode, candidate_url=candidate_url)
 
 
 def main():

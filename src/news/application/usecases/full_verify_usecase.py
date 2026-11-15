@@ -34,6 +34,12 @@ from src.news.domain.services.scoring import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Número de candidatas (mejor puntuadas) que se conservan para el fallback.
+# Si la #1 falla (fecha vieja, artículo vacío, WP falla), se intenta con la #2, etc.
+CANDIDATE_LIMIT = 5
+
+
 class FullVerifyNewsUseCase:
     """Caso de uso para verificación completa de noticias (DIP: inyección de repositorios)."""
 
@@ -196,14 +202,19 @@ class FullVerifyNewsUseCase:
                 self._frozen_terms_repo.freeze_terms(terms, title)
 
         self._verified_repo.delete_all_news()
-        self._verified_repo.insert_news([VerifiedArticle.from_dict(top)])
+        # Guardar las top N candidatas (no solo la #1) para permitir fallback.
+        candidates = diversified_sorted[:CANDIDATE_LIMIT]
+        self._verified_repo.insert_news(
+            [VerifiedArticle.from_dict(v) for v in candidates]
+        )
 
-        logger.info(f"[FULL_VERIFY] Completado en {(time.time()-t0)*1000:.0f}ms → top: {top.get('title','')[:60]}")
+        logger.info(f"[FULL_VERIFY] Completado en {(time.time()-t0)*1000:.0f}ms → top: {top.get('title','')[:60]} ({len(candidates)} candidatas)")
 
         return {
             "status": "success",
             "processed": len(raw_articles),
             "verified": len(verified),
             "deduplicated": len(deduplicated),
-            "saved": 1,
+            "saved": len(candidates),
+            "candidates": candidates,
         }

@@ -245,6 +245,7 @@ def run_content(
     use_gemini: bool = True,
     mode: str = "news",
     model_provider: str = None,
+    limit: int = 1,
     *,
     ai_providers: AiProviders,
     generated_posts_repo: GeneratedPostsRepository,
@@ -256,7 +257,7 @@ def run_content(
     """Función principal para generar tweets."""
     # Pasa model_provider tal cual (puede ser None); el factory resuelve el default
     provider_for_log = model_provider or "auto"
-    logger.info(f"[CONTENT] Ejecutando (provider: {provider_for_log}, red: {network})")
+    logger.info(f"[CONTENT] Ejecutando (provider: {provider_for_log}, red: {network}, límite: {limit})")
     use_case = ContentUseCase(
         verified_repo=verified_news_repo,
         generated_posts_repo=generated_posts_repo,
@@ -269,7 +270,7 @@ def run_content(
         model_provider=model_provider,
         mode=mode,
     )
-    return use_case.execute()
+    return use_case.execute(limit=limit)
 
 
 def main():

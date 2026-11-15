@@ -21,10 +21,12 @@ class PipelineContext:
     provider: str = "local"
     article: Any = None
     post: Any = None
+    posts: Any = None
     images: Any = None
     audio_path: Any = None
     video_path: Any = None
     wp_url: Any = None
+    candidates: Any = None
 
 # Imports del código de producción
 from src.news.domain.entities.pipeline_job import (
@@ -151,6 +153,58 @@ class TestPipelineFullFlow:
         assert "publish" in fakes.social_publisher.calls, "SocialPublisher.publish no llamado (single-item)"
         # wordpress_runner se ejecuta en el paso 10 (PUBLISH_WORDPRESS)
         # Si el test llega aquí, el paso pasó (status=OK), así que se ejecutó
+
+    def test_pipeline_fallback_a_segunda_candidata(self):
+        """Si la candidata #1 tiene fecha vieja (se descarta), se publica la #2."""
+        fakes = build_pipeline_fakes()
+        test_articles = [
+            {
+                "_id": "art-0",
+                "title": "Artículo viejo",
+                "url": "https://example.com/article/0",
+                "desc": "Description 0",
+                "publishedAt": "2020-01-01T00:00:00Z",  # muy viejo → descartado por freshness
+                "source": "Test Source",
+                "status": "pending",
+            },
+            {
+                "_id": "art-1",
+                "title": "Artículo reciente",
+                "url": "https://example.com/article/1",
+                "desc": "Description 1",
+                "publishedAt": datetime.now(timezone.utc).isoformat(),  # reciente
+                "source": "Test Source",
+                "status": "pending",
+            },
+        ]
+        fakes.generated_articles_repo.save_all(test_articles)
+
+        # WP runner que registra qué artículo publicó y siempre tiene éxito.
+        published_urls = []
+
+        def wordpress_runner(article: Optional[Dict] = None, post: Optional[Dict] = None):
+            published_urls.append(
+                (
+                    article.get("original_url") if article else None,
+                    post.get("url") if post else None,
+                )
+            )
+            return {"status": "success", "published": 1, "url": "https://fake.wordpress.com/post/1"}
+
+        runner = self._build_runner(fakes, wordpress_runner=wordpress_runner)
+        result = self._run_pipeline(runner, "test-job")
+
+        assert result.status == JobStatus.COMPLETED, (
+            f"Expected COMPLETED, got {result.status}: {result.error}"
+        )
+        assert result.error is None
+        assert "publish" in fakes.social_publisher.calls, "Social publish no llamado"
+        # Se publicó el artículo reciente (art-1), no el viejo (art-0).
+        assert published_urls, "WordPress runner no fue llamado"
+        assert published_urls[-1][0] == "https://example.com/article/1", (
+            f"Se publicó {published_urls[-1][0]} en lugar de article/1"
+        )
+        assert published_urls[-1][1] == "https://example.com/article/1"
 
     def test_pipeline_aborts_on_critical_failure(self):
         """Test 2: Fallo en paso crítico (WordPress) → FAILED, aborta."""

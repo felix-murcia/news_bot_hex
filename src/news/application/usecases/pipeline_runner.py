@@ -6,7 +6,7 @@ Extraído de execute_pipeline_async (B2). Mantiene toda la lógica original sin 
 import os
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Callable, Dict, List, Optional
 
 from src.news.domain.ports import ContentExtractor
@@ -43,10 +43,12 @@ class PipelineContext:
     provider: Optional[str] = None
     article: Optional[dict] = None
     post: Optional[dict] = None
+    posts: Optional[list] = None
     images: Optional[list] = None
     audio_path: Optional[str] = None
     video_path: Optional[str] = None
     wp_url: Optional[str] = None
+    candidates: Optional[list] = None
 
 
 def _format_duration(milliseconds: int) -> str:
@@ -57,6 +59,29 @@ def _format_duration(milliseconds: int) -> str:
     seconds = total_seconds % 60
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
+
+def _candidate_is_fresh(candidate: dict, max_age_hours: int = 24) -> bool:
+    """Devuelve True si la candidata es reciente (no hay que rechazarla por fecha).
+
+    No se rechaza por error de parseo: si la fecha no se puede leer, se asume fresca.
+    """
+
+    published_at = candidate.get("publishedAt")
+    if not published_at:
+        return True
+    if isinstance(published_at, str):
+        try:
+            published_at = datetime.fromisoformat(
+                published_at.replace("Z", "+00:00")
+            )
+        except ValueError:
+            return True  # fecha no parseable → no rechazar
+    if isinstance(published_at, datetime):
+        if published_at.tzinfo is None:
+            published_at = published_at.replace(tzinfo=timezone.utc)
+        age_hours = (datetime.now(timezone.utc) - published_at).total_seconds() / 3600
+        return age_hours <= max_age_hours
+    return True
 
 def _execute_step(
     job_id: str,
@@ -218,12 +243,22 @@ class PipelineRunner:
                 if not success:
                     raise RuntimeError(f"Fallo crítico en Prepare Articles: {error}")
 
+                # Capturar el resultado de Full Verify (para leer las candidatas top N).
+                full_verify_result: Dict = {}
+
                 # Step 3: Full Verification (CRITICAL)
                 logger.info(f"[PIPELINE-JOB] {ctx.job_id} Iniciando FULL_VERIFICATION...")
+
+                def _run_full_verify():
+                    result = self._full_verify_runner()
+                    if isinstance(result, dict):
+                        full_verify_result.update(result)
+                    return result
+
                 success, error = _execute_step(
                     ctx.job_id,
                     ProcessingStepName.FULL_VERIFICATION,
-                    self._full_verify_runner,
+                    _run_full_verify,
                     metrics_steps,
                     step_results,
                 )
@@ -231,11 +266,19 @@ class PipelineRunner:
                 if not success:
                     raise RuntimeError(f"Fallo crítico en Verification: {error}")
 
-                # Step 4: Generate Posts (ENRICHMENT) - calls LLM, may take 30-60s
+                # Lista de candidatas ordenadas (top N) para fallback. Si la #1 falla,
+                # se intenta con la #2, etc., hasta encontrar una publicable.
+                ctx.candidates = full_verify_result.get("candidates", []) or []
+                logger.info(
+                    f"[PIPELINE-JOB] {ctx.job_id} Candidatas disponibles: {len(ctx.candidates)}"
+                )
+
+                # Step 4: Generate Posts (ENRICHMENT) - posts para todas las candidatas
                 logger.info(f"[PIPELINE-JOB] {ctx.job_id} Iniciando GENERATE_POSTS (llamadas a LLM)...")
-                posts_result: List[Dict] = []
+                all_posts: List[Dict] = []
 
                 def _run_posts():
+                    limit = len(ctx.candidates) if ctx.candidates else 1
                     posts = run_content(
                         use_gemini=True,
                         mode="news",
@@ -245,11 +288,12 @@ class PipelineRunner:
                         social_truncator=self._social_truncator,
                         post_editor=self._post_editor,
                         cache_loader=self._cache_loader,
+                        limit=limit,
                     )
                     if isinstance(posts, list):
-                        posts_result.extend(posts)
+                        all_posts.extend(posts)
                     elif posts:
-                        posts_result.append(posts)
+                        all_posts.append(posts)
                     return None
 
                 success, error = _execute_step(
@@ -260,7 +304,8 @@ class PipelineRunner:
                     step_results,
                 )
                 logger.info(f"[PIPELINE-JOB] {ctx.job_id} GENERATE_POSTS terminó (success={success}, error={error})")
-                ctx.post = posts_result[0] if posts_result else None
+                ctx.posts = all_posts
+                ctx.post = all_posts[0] if all_posts else None
                 if ctx.post:
                     logger.info(
                         f"[PIPELINE-JOB] {ctx.job_id} Post ganador capturado: url={ctx.post.get('url')}"
@@ -268,11 +313,121 @@ class PipelineRunner:
                 if not success:
                     raise RuntimeError(f"Fallo en Posts: {error}")
 
-                # Step 5: Generate Articles (CRITICAL) - calls LLM, may take 60-120s
+                # Si Full Verify no devolvió candidatas, usar el post del paso 4
+                # como candidata única (compatibilidad con el flujo original).
+                if not ctx.candidates and ctx.post:
+                    ctx.candidates = [{"url": ctx.post.get("url")}]
+
+                # --- Bucle de candidatas (pasos 5 y 10 por candidata) ---
+                # Se intenta generar artículo + WordPress para cada candidata hasta que
+                # una tenga éxito. Si ninguna funciona, se aborta (FAILED) sin publicar.
+                winner_found = False
+                last_wp_error = None
+                for candidate in (ctx.candidates or []):
+                    candidate_url = candidate.get("url") or ""
+                    if not candidate_url:
+                        continue
+
+                    # Freshness: omitir candidatas con fecha > 24h.
+                    if not _candidate_is_fresh(candidate):
+                        logger.info(
+                            f"[PIPELINE-JOB] {ctx.job_id} Candidata omitida (fecha no reciente): {candidate_url}"
+                        )
+                        continue
+
+                    # Post asociado a esta candidata (generado en el paso 4).
+                    ctx.post = next(
+                        (
+                            p
+                            for p in (ctx.posts or [])
+                            if (p.get("url") or "") == candidate_url
+                        ),
+                        None,
+                    )
+                    if not ctx.post:
+                        continue
+
+                    # Paso 5 (intento): generar artículo para esta candidata.
+                    try:
+                        articles = run_articles(
+                            use_gemini=True,
+                            ai_providers=self._ai_providers,
+                            generated_articles_repo=self._generated_articles_repo,
+                            generated_posts_repo=self._generated_posts_repo,
+                            verified_news_repo=self._verified_news_repo,
+                            seo_helpers=self._seo_helpers,
+                            content_extractor=self._content_extractor,
+                            candidate_url=candidate_url,
+                        )
+                        ctx.article = (
+                            articles[0] if isinstance(articles, list) and articles else None
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"[PIPELINE-JOB] {ctx.job_id} Error generando artículo para {candidate_url}: {e}"
+                        )
+                        ctx.article = None
+                        continue
+                    if not ctx.article:
+                        continue
+
+                    # Paso 10 (intento): publicar en WordPress para esta candidata.
+                    try:
+                        wp_result = self._wordpress_runner(ctx.article, ctx.post)
+                        wp_url = wp_result.get("url") if isinstance(wp_result, dict) else ""
+                    except Exception as e:
+                        last_wp_error = str(e)
+                        logger.error(
+                            f"[PIPELINE-JOB] {ctx.job_id} Error publicando en WP para {candidate_url}: {e}"
+                        )
+                        wp_url = ""
+                    if wp_url:
+                        ctx.wp_url = wp_url
+                        winner_found = True
+                        logger.info(
+                            f"[PIPELINE-JOB] {ctx.job_id} Candidata ganadora: {candidate_url} (WP: {wp_url})"
+                        )
+                        break
+                    ctx.wp_url = None
+
+                if not winner_found:
+                    msg = (
+                        f"WordPress falló en todas las candidatas: {last_wp_error}"
+                        if last_wp_error
+                        else "Ninguna candidata generó un artículo publicable en WordPress; "
+                        "el pipeline finaliza sin publicar."
+                    )
+
+                    def _run_wp_fail():
+                        return {"status": "error", "message": msg}
+
+                    _execute_step(
+                        ctx.job_id,
+                        ProcessingStepName.PUBLISH_WORDPRESS,
+                        _run_wp_fail,
+                        metrics_steps,
+                        step_results,
+                    )
+                    raise RuntimeError(msg)
+
+                # URL de la ganadora para imágenes/enriquecimiento.
+                winning_url = (
+                    ctx.article.get("original_url")
+                    if ctx.article
+                    else (ctx.post.get("url") if ctx.post else "")
+                ) or ""
+                logger.info(
+                    f"[PIPELINE-JOB] {ctx.job_id} Noticia ganadora para enriquecimiento: {winning_url}"
+                )
+
+                # Step 5 (registro): Generar Articles (ya generado en el bucle; no se regenera dos veces).
                 logger.info(f"[PIPELINE-JOB] {ctx.job_id} Iniciando GENERATE_ARTICLES (llamadas a LLM)...")
                 articles_result: List[Dict] = []
 
                 def _run_articles():
+                    if ctx.article is not None:
+                        # Artículo ya generado en el bucle de candidatas.
+                        return None
                     articles = run_articles(
                         use_gemini=True,
                         ai_providers=self._ai_providers,
@@ -296,32 +451,12 @@ class PipelineRunner:
                     step_results,
                 )
                 logger.info(f"[PIPELINE-JOB] {ctx.job_id} GENERATE_ARTICLES terminó (success={success}, error={error})")
-                ctx.article = articles_result[0] if articles_result else None
                 if ctx.article:
                     logger.info(
-                        f"[PIPELINE-JOB] {ctx.job_id} Artículo ganador capturado: original_url={ctx.article.get('original_url')}"
+                        f"[PIPELINE-JOB] {ctx.job_id} Artículo ganador: original_url={ctx.article.get('original_url')}"
                     )
                 if not success:
                     raise RuntimeError(f"Fallo crítico en Articles: {error}")
-
-                # Determinar la noticia ganadora: las imágenes solo se buscan/enriquecen para ella.
-                winning_url = ""
-                try:
-                    verified_news = self._verified_news_repo.get_all_news()
-                    if verified_news and isinstance(verified_news, list) and verified_news:
-                        first = verified_news[0]
-                        winning_url = getattr(first, "url", "") or ""
-                        logger.info(
-                            f"[PIPELINE-JOB] {ctx.job_id} Noticia ganadora para imágenes: {winning_url}"
-                        )
-                    else:
-                        logger.warning(
-                            f"[PIPELINE-JOB] {ctx.job_id} No hay noticia ganadora; pasos de imagen se omiten"
-                        )
-                except Exception as e:
-                    logger.warning(
-                        f"[PIPELINE-JOB] {ctx.job_id} No se pudo obtener la noticia ganadora: {e}"
-                    )
 
                 # Step 6: Fetch Images (ENRICHMENT) - solo noticia ganadora
                 def _run_fetch_images():

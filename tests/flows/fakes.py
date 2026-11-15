@@ -578,7 +578,7 @@ def make_full_verify_runner(
                 
                 verified_repo.insert_news([FakeVerifiedArticle(a)])
         
-        return {"status": "ok", "verified": len(articles), "saved": len(articles)}
+        return {"status": "ok", "verified": len(articles), "saved": len(articles), "candidates": articles}
     return runner
 
 
