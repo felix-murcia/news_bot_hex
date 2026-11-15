@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import List, Set
+from typing import List, Optional, Set
 from bson import ObjectId
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 
@@ -569,6 +569,15 @@ class MongoGeneratedArticlesRepository(GeneratedArticlesRepository):
         except Exception as e:
             logger.error(f"Error marking articles as verified: {e}")
             return False
+
+    def get_by_original_url(self, url: str) -> Optional[dict]:
+        """Obtiene un artículo generado por su URL original (single-item)."""
+        try:
+            article = self._collection.find_one({"original_url": url})
+            return article
+        except Exception as e:
+            logger.error(f"Error getting article by original_url {url}: {e}")
+            return None
 
     def delete_all(self) -> bool:
         try:

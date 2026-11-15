@@ -62,6 +62,13 @@ class FakeGeneratedArticlesRepository:
             return True
         return False
 
+    def get_by_original_url(self, url: str) -> Optional[dict]:
+        """Obtiene un artículo por su URL original (single-item)."""
+        for a in self._articles.values():
+            if a.get("original_url") == url or a.get("url") == url:
+                return a
+        return None
+
     # Helper para tests
     def add_article(self, article: Dict[str, Any]) -> None:
         aid = article.get("_id") or article.get("id") or article.get("url")
@@ -474,6 +481,14 @@ class FakeTtsUseCase:
             updated.append(a_copy)
         return updated
 
+    def execute(self, article: Dict[str, Any]) -> Dict[str, Any]:
+        """Single-item TTS (nuevo contrato para pipeline single-item)."""
+        self.calls.append(f"execute:1 article")
+        article_id = article.get("_id") or article.get("id") or article.get("url") or "unknown"
+        a_copy = article.copy()
+        a_copy["tts_audio_path"] = f"/tmp/audio/{article_id}.mp3"
+        return a_copy
+
 
 @dataclass
 class FakeSocialPublisher:
@@ -482,6 +497,15 @@ class FakeSocialPublisher:
 
     def publish_all(self) -> List[Dict[str, Any]]:
         self.calls.append("publish_all")
+        return [
+            {"platform": "bluesky", "success": True, "url": "https://bluesky.example.com/post/1"},
+            {"platform": "mastodon", "success": True, "url": "https://mastodon.example.com/@user/1"},
+            {"platform": "facebook", "success": True, "url": "https://facebook.example.com/post/1"},
+        ]
+
+    def publish(self, post: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Publica un solo post (single-item)."""
+        self.calls.append("publish")
         return [
             {"platform": "bluesky", "success": True, "url": "https://bluesky.example.com/post/1"},
             {"platform": "mastodon", "success": True, "url": "https://mastodon.example.com/@user/1"},
@@ -580,9 +604,9 @@ def make_image_enricher_runner() -> Callable:
 
 
 def make_wordpress_runner() -> Callable:
-    """Runner que simula publicación WordPress."""
-    def runner() -> None:
-        pass
+    """Runner que simula publicación WordPress (single-item, recibe article y post)."""
+    def runner(article: Optional[Dict[str, Any]] = None, post: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        return {"status": "success", "published": 1, "url": "https://fake.wordpress.com/post/1"}
     return runner
 
 
@@ -641,6 +665,7 @@ class PipelineFakes:
     video_generator_factory: Callable[[], FakeVideoGenerator]
 
     rss_fetch_runner: Callable
+    prepare_articles_runner: Callable
     full_verify_runner: Callable
     image_unsplash_runner: Callable
     image_google_runner: Callable
@@ -678,6 +703,7 @@ def build_pipeline_fakes() -> PipelineFakes:
 
     # Runners (callables de pasos)
     rss_fetch_runner = make_rss_fetch_runner(article_repo)
+    prepare_articles_runner = lambda: {"status": "ok", "prepared": 0}
     full_verify_runner = make_full_verify_runner(generated_articles_repo, verified_news_repo)
     image_unsplash_runner = make_image_unsplash_runner()
     image_google_runner = make_image_google_runner()
@@ -707,6 +733,7 @@ def build_pipeline_fakes() -> PipelineFakes:
         social_publisher=social_publisher,
         video_generator_factory=video_generator_factory,
         rss_fetch_runner=rss_fetch_runner,
+        prepare_articles_runner=prepare_articles_runner,
         full_verify_runner=full_verify_runner,
         image_unsplash_runner=image_unsplash_runner,
         image_google_runner=image_google_runner,

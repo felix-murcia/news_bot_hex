@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from src.news.domain.entities.article import Article
 from src.news.domain.entities.verified_article import VerifiedArticle
 from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
@@ -183,6 +183,11 @@ class GeneratedArticlesRepository(ABC):
     @abstractmethod
     def mark_verified(self, urls: List[str]) -> bool:
         """Marca artículos como 'verified' para no reprocesarlos."""
+        pass
+
+    @abstractmethod
+    def get_by_original_url(self, url: str) -> Optional[dict]:
+        """Obtiene un artículo generado por su URL original (para single-item)."""
         pass
 
     @abstractmethod

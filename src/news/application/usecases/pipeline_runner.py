@@ -7,7 +7,7 @@ import os
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Callable, Optional
+from typing import Callable, Dict, List, Optional
 
 from src.news.domain.ports import ContentExtractor
 from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
@@ -146,7 +146,7 @@ class PipelineRunner:
         image_unsplash_runner: Callable[[], None],
         image_google_runner: Callable[[], None],
         image_enricher_runner: Callable[[], None],
-        wordpress_runner: Callable[[], None],
+        wordpress_runner: Callable[[dict, dict], Optional[dict]],
         video_generator_factory: Callable[[], VideoGeneratorPort],
         *,
         social_truncator: Callable[..., str],
@@ -232,10 +232,10 @@ class PipelineRunner:
 
                 # Step 4: Generate Posts (ENRICHMENT) - calls LLM, may take 30-60s
                 logger.info(f"[PIPELINE-JOB] {ctx.job_id} Iniciando GENERATE_POSTS (llamadas a LLM)...")
-                success, error = _execute_step(
-                    ctx.job_id,
-                    ProcessingStepName.GENERATE_POSTS,
-                    lambda: run_content(
+                posts_result: List[Dict] = []
+
+                def _run_posts():
+                    posts = run_content(
                         use_gemini=True,
                         mode="news",
                         ai_providers=self._ai_providers,
@@ -244,20 +244,35 @@ class PipelineRunner:
                         social_truncator=self._social_truncator,
                         post_editor=self._post_editor,
                         cache_loader=self._cache_loader,
-                    ),
+                    )
+                    if isinstance(posts, list):
+                        posts_result.extend(posts)
+                    elif posts:
+                        posts_result.append(posts)
+                    return None
+
+                success, error = _execute_step(
+                    ctx.job_id,
+                    ProcessingStepName.GENERATE_POSTS,
+                    _run_posts,
                     metrics_steps,
                     step_results,
                 )
                 logger.info(f"[PIPELINE-JOB] {ctx.job_id} GENERATE_POSTS terminó (success={success}, error={error})")
+                ctx.post = posts_result[0] if posts_result else None
+                if ctx.post:
+                    logger.info(
+                        f"[PIPELINE-JOB] {ctx.job_id} Post ganador capturado: url={ctx.post.get('url')}"
+                    )
                 if not success:
                     raise RuntimeError(f"Fallo en Posts: {error}")
 
                 # Step 5: Generate Articles (CRITICAL) - calls LLM, may take 60-120s
                 logger.info(f"[PIPELINE-JOB] {ctx.job_id} Iniciando GENERATE_ARTICLES (llamadas a LLM)...")
-                success, error = _execute_step(
-                    ctx.job_id,
-                    ProcessingStepName.GENERATE_ARTICLES,
-                    lambda: run_articles(
+                articles_result: List[Dict] = []
+
+                def _run_articles():
+                    articles = run_articles(
                         use_gemini=True,
                         ai_providers=self._ai_providers,
                         generated_articles_repo=self._generated_articles_repo,
@@ -265,11 +280,26 @@ class PipelineRunner:
                         verified_news_repo=self._verified_news_repo,
                         seo_helpers=self._seo_helpers,
                         content_extractor=self._content_extractor,
-                    ),
+                    )
+                    if isinstance(articles, list):
+                        articles_result.extend(articles)
+                    elif articles:
+                        articles_result.append(articles)
+                    return None
+
+                success, error = _execute_step(
+                    ctx.job_id,
+                    ProcessingStepName.GENERATE_ARTICLES,
+                    _run_articles,
                     metrics_steps,
                     step_results,
                 )
                 logger.info(f"[PIPELINE-JOB] {ctx.job_id} GENERATE_ARTICLES terminó (success={success}, error={error})")
+                ctx.article = articles_result[0] if articles_result else None
+                if ctx.article:
+                    logger.info(
+                        f"[PIPELINE-JOB] {ctx.job_id} Artículo ganador capturado: original_url={ctx.article.get('original_url')}"
+                    )
                 if not success:
                     raise RuntimeError(f"Fallo crítico en Articles: {error}")
 
@@ -277,8 +307,9 @@ class PipelineRunner:
                 winning_url = ""
                 try:
                     verified_news = self._verified_news_repo.get_all_news()
-                    if verified_news:
-                        winning_url = verified_news[0].url
+                    if verified_news and isinstance(verified_news, list) and verified_news:
+                        first = verified_news[0]
+                        winning_url = getattr(first, "url", "") or ""
                         logger.info(
                             f"[PIPELINE-JOB] {ctx.job_id} Noticia ganadora para imágenes: {winning_url}"
                         )
@@ -328,18 +359,37 @@ class PipelineRunner:
                     step_results,
                 )
 
-                # Step 8: Generate Audio (ENRICHMENT)
+                # Step 8: Generate Audio (ENRICHMENT) - single-item para la noticia ganadora
                 def _run_audio():
-                    articles = self._generated_articles_repo.load_all()
-
-                    if articles:
-                        updated = self._tts_usecase.execute_batch(articles)
-                        for article in updated:
-                            if article.get("tts_audio_path"):
-                                article_id = article.get("_id")
-                                if article_id:
-                                    self._generated_articles_repo.update_tts_audio_path(str(article_id), article["tts_audio_path"])
-                        logger.info(f"[PIPELINE-JOB] {ctx.job_id} Audio generado")
+                    if not ctx.article:
+                        logger.warning(
+                            f"[PIPELINE-JOB] {ctx.job_id} AUDIO omitido: no hay artículo ganador"
+                        )
+                        return None
+                    # Obtener el artículo desde Mongo (tiene _id) usando la URL original del ganador
+                    article = self._generated_articles_repo.get_by_original_url(
+                        ctx.article.get("original_url", "")
+                    )
+                    if not article:
+                        logger.warning(
+                            f"[PIPELINE-JOB] {ctx.job_id} AUDIO omitido: artículo no encontrado en Mongo "
+                            f"(original_url={ctx.article.get('original_url')})"
+                        )
+                        return None
+                    updated = self._tts_usecase.execute(article)
+                    audio_path = updated.get("tts_audio_path")
+                    if audio_path:
+                        article_id = article.get("_id")
+                        if article_id:
+                            self._generated_articles_repo.update_tts_audio_path(str(article_id), audio_path)
+                            logger.info(
+                                f"[PIPELINE-JOB] {ctx.job_id} Audio generado para artículo ganador: {audio_path}"
+                            )
+                    else:
+                        logger.warning(
+                            f"[PIPELINE-JOB] {ctx.job_id} No se generó audio para el artículo ganador"
+                        )
+                    return None
 
                 success, error = _execute_step(
                     ctx.job_id,
@@ -349,24 +399,42 @@ class PipelineRunner:
                     step_results,
                 )
 
-                # Step 9: Generate Video (ENRICHMENT)
+                # Step 9: Generate Video (ENRICHMENT) - single-item para la noticia ganadora
                 def _run_video():
-                    articles = self._generated_articles_repo.load_all()
-
+                    if not ctx.article:
+                        logger.warning(
+                            f"[PIPELINE-JOB] {ctx.job_id} VIDEO omitido: no hay artículo ganador"
+                        )
+                        return None
+                    article = self._generated_articles_repo.get_by_original_url(
+                        ctx.article.get("original_url", "")
+                    )
+                    if not article:
+                        logger.warning(
+                            f"[PIPELINE-JOB] {ctx.job_id} VIDEO omitido: artículo no encontrado en Mongo "
+                            f"(original_url={ctx.article.get('original_url')})"
+                        )
+                        return None
+                    audio_path = article.get("tts_audio_path")
+                    if not audio_path or not os.path.exists(audio_path):
+                        logger.warning(
+                            f"[PIPELINE-JOB] {ctx.job_id} VIDEO omitido: no hay audio para el artículo ganador"
+                        )
+                        return None
                     video_gen = self._video_generator_factory()
                     if video_gen.is_available():
-                        for article in articles:
-                            audio_path = article.get("tts_audio_path")
-                            if audio_path and os.path.exists(audio_path):
-                                video_path = video_gen.create_video_from_audio(
-                                    audio_path=audio_path,
-                                    image=article.get("image_url"),
+                        video_path = video_gen.create_video_from_audio(
+                            audio_path=audio_path,
+                            image=article.get("image_url"),
+                        )
+                        if video_path:
+                            article_id = article.get("_id")
+                            if article_id:
+                                self._generated_articles_repo.update_generated_video_path(str(article_id), video_path)
+                                logger.info(
+                                    f"[PIPELINE-JOB] {ctx.job_id} Video generado para artículo ganador: {video_path}"
                                 )
-                                if video_path:
-                                    article_id = article.get("_id")
-                                    if article_id:
-                                        self._generated_articles_repo.update_generated_video_path(str(article_id), video_path)
-                        logger.info(f"[PIPELINE-JOB] {ctx.job_id} Videos generados")
+                    return None
 
                 success, error = _execute_step(
                     ctx.job_id,
@@ -376,21 +444,34 @@ class PipelineRunner:
                     step_results,
                 )
 
-                # Step 10: WordPress (CRITICAL)
+                # Step 10: WordPress (CRITICAL) - single-item para la noticia ganadora
+                def _run_wordpress():
+                    if not ctx.article or not ctx.post:
+                        logger.warning(
+                            f"[PIPELINE-JOB] {ctx.job_id} WORDPRESS omitido: no hay artículo/post ganador"
+                        )
+                        return None
+                    return self._wordpress_runner(ctx.article, ctx.post)
+
                 success, error = _execute_step(
                     ctx.job_id,
                     ProcessingStepName.PUBLISH_WORDPRESS,
-                    lambda: self._wordpress_runner(),
+                    _run_wordpress,
                     metrics_steps,
                     step_results,
                 )
                 if not success:
                     raise RuntimeError(f"Fallo crítico en WordPress: {error}")
 
-                # Step 11: Social Networks (CRITICAL)
+                # Step 11: Social Networks (CRITICAL) - single-item para la noticia ganadora
                 def _run_social():
-                    self._social_publisher.publish_all()
-                    logger.info(f"[PIPELINE-JOB] {ctx.job_id} Redes sociales completadas (facade)")
+                    if not ctx.post:
+                        logger.warning(
+                            f"[PIPELINE-JOB] {ctx.job_id} SOCIAL omitido: no hay post ganador"
+                        )
+                        return None
+                    self._social_publisher.publish(ctx.post)
+                    logger.info(f"[PIPELINE-JOB] {ctx.job_id} Redes sociales completadas (single post)")
 
                 success, error = _execute_step(
                     ctx.job_id,

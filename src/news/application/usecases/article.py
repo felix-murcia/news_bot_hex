@@ -1,5 +1,5 @@
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 from urllib.parse import urlparse
@@ -398,7 +398,9 @@ class ArticleUseCase:
             # Solo verificar edad si published_at es un datetime válido
             # (evita fallar con Mocks en tests o datos corruptos)
             if isinstance(published_at, datetime):
-                age_hours = (datetime.utcnow() - published_at).total_seconds() / 3600
+                if published_at.tzinfo is None:
+                    published_at = published_at.replace(tzinfo=timezone.utc)
+                age_hours = (datetime.now(timezone.utc) - published_at).total_seconds() / 3600
                 if age_hours > max_age_hours:
                     logger.warning(f"[ARTICLE] URL verificada tiene {age_hours:.1f}h (máx {max_age_hours}h), ignorando")
                     return ""

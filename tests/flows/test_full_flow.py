@@ -45,6 +45,7 @@ class TestPipelineFullFlow:
             generated_posts_repo=fakes.generated_posts_repo,
             verified_news_repo=fakes.verified_news_repo,
             rss_fetch_runner=overrides.get("rss_fetch_runner", fakes.rss_fetch_runner),
+            prepare_articles_runner=overrides.get("prepare_articles_runner", fakes.prepare_articles_runner),
             full_verify_runner=overrides.get("full_verify_runner", fakes.full_verify_runner),
             metrics_repo=fakes.metrics_repo,
             social_publisher=overrides.get("social_publisher", fakes.social_publisher),
@@ -108,6 +109,7 @@ class TestPipelineFullFlow:
                 "desc": f"Description {i}",
                 "publishedAt": "2026-01-01T00:00:00Z",
                 "source": "Test Source",
+                "status": "pending",
             }
             for i in range(3)
         ]
@@ -121,10 +123,11 @@ class TestPipelineFullFlow:
         assert result.error is None
         assert len(result.failed_steps) == 0
 
-        # Verificar que pasaron los 10 pasos
+        # Verificar que pasaron los 11 pasos (incluye Prepare Articles)
         step_names = [s.name for s in result.steps]
         expected_steps = [
             ProcessingStepName.RSS_FETCH,
+            ProcessingStepName.PREPARE_ARTICLES,
             ProcessingStepName.FULL_VERIFICATION,
             ProcessingStepName.GENERATE_POSTS,
             ProcessingStepName.GENERATE_ARTICLES,
@@ -143,8 +146,8 @@ class TestPipelineFullFlow:
             assert step.status == ProcessingStepStatus.OK, f"Paso crítico {step.name} no OK: {step.error}"
 
         # Verificar invocaciones clave
-        assert "publish_all" in fakes.social_publisher.calls, "SocialPublisher.publish_all no llamado"
-        # wordpress_runner se ejecuta en el paso 9 (PUBLISH_WORDPRESS)
+        assert "publish" in fakes.social_publisher.calls, "SocialPublisher.publish no llamado (single-item)"
+        # wordpress_runner se ejecuta en el paso 10 (PUBLISH_WORDPRESS)
         # Si el test llega aquí, el paso pasó (status=OK), así que se ejecutó
 
     def test_pipeline_aborts_on_critical_failure(self):
@@ -152,13 +155,13 @@ class TestPipelineFullFlow:
         fakes = build_pipeline_fakes()
         # Pre-poblar para que pase hasta el paso de WP
         test_articles = [
-            {"_id": f"art-{i}", "title": f"Test Article {i}", "url": f"https://example.com/article/{i}", "desc": f"Description {i}", "publishedAt": "2026-01-01T00:00:00Z", "source": "Test Source"}
+            {"_id": f"art-{i}", "title": f"Test Article {i}", "url": f"https://example.com/article/{i}", "desc": f"Description {i}", "publishedAt": "2026-11-15T10:00:00Z", "source": "Test Source", "status": "pending"}
             for i in range(3)
         ]
         fakes.generated_articles_repo.save_all(test_articles)
 
-        # WordPress runner que falla
-        def failing_wordpress():
+        # WordPress runner que falla (recibe article y post, firma single-item)
+        def failing_wordpress(article: Optional[Dict] = None, post: Optional[Dict] = None):
             raise RuntimeError("WordPress down")
 
         runner = self._build_runner(fakes, wordpress_runner=failing_wordpress)
@@ -184,19 +187,18 @@ class TestPipelineFullFlow:
     def test_pipeline_marks_partial_on_enrichment_failure(self):
         """Test 3: Fallo en enriquecimiento (audio) → PARTIAL, continúa."""
         fakes = build_pipeline_fakes()
-        # Pre-poblar para que pase hasta el paso de audio
+        # Pre-publar 1 artículo pendiente para que Full Verify tenga algo que procesar
         test_articles = [
-            {"_id": f"art-{i}", "title": f"Test Article {i}", "url": f"https://example.com/article/{i}", "desc": f"Description {i}", "publishedAt": "2026-01-01T00:00:00Z", "source": "Test Source"}
-            for i in range(3)
+            {"_id": "art-1", "title": "Test Article 1", "url": "https://example.com/article/1", "desc": "Description 1", "publishedAt": "2026-11-15T10:00:00Z", "source": "Test Source", "status": "pending"}
         ]
         fakes.generated_articles_repo.save_all(test_articles)
 
-        # TTS use case que falla
+        # TTS use case que falla (single-item execute)
         class FailingTts:
             def __init__(self):
                 self.calls = []
-            def execute_batch(self, articles):
-                self.calls.append("execute_batch")
+            def execute(self, article):
+                self.calls.append("execute")
                 raise RuntimeError("TTS service unavailable")
 
         failing_tts = FailingTts()
@@ -218,6 +220,10 @@ class TestPipelineFullFlow:
 
         social_step = next(s for s in result.steps if s.name == ProcessingStepName.PUBLISH_SOCIAL)
         assert social_step.status == ProcessingStepStatus.OK
+
+        # Verificar single-item: TTS.execute llamado exactamente 1 vez (no execute_batch)
+        assert len(failing_tts.calls) == 1, f"Expected 1 TTS call, got {len(failing_tts.calls)}: {failing_tts.calls}"
+        assert failing_tts.calls[0] == "execute"
 
     def test_wiring_uses_correct_repos(self):
         """Test 4: El wiring real usa GeneratedArticlesRepository (no ArticleRepository).
@@ -265,6 +271,10 @@ class TestPipelineFullFlow:
         from src.news.domain.entities.pipeline_job import JobStatus
 
         fakes = build_pipeline_fakes()
+        # Pre-poblar para que Full Verify tenga artículos que procesar
+        fakes.generated_articles_repo.save_all([
+            {"_id": "art-1", "title": "Test Article 1", "url": "https://example.com/article/1", "desc": "Description 1", "publishedAt": "2026-11-15T10:00:00Z", "source": "Test Source", "status": "pending"}
+        ])
         job_id = create_job()
 
         # execute_pipeline_async usa threading, así que esperamos un poco
@@ -276,6 +286,7 @@ class TestPipelineFullFlow:
             generated_posts_repo=fakes.generated_posts_repo,
             verified_news_repo=fakes.verified_news_repo,
             rss_fetch_runner=fakes.rss_fetch_runner,
+            prepare_articles_runner=fakes.prepare_articles_runner,
             full_verify_runner=fakes.full_verify_runner,
             metrics_repo=fakes.metrics_repo,
             social_publisher=fakes.social_publisher,

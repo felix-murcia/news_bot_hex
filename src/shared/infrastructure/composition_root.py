@@ -219,6 +219,11 @@ def create_social_publisher():
     return SocialMediaPublisher()
 
 
+def create_wordpress_publisher():
+    from src.shared.adapters.wordpress_publisher import WordPressPublisher
+    return WordPressPublisher()
+
+
 def create_debug_output_repository():
     from config.settings import Settings
     from src.shared.adapters.json_debug_output_repository import JsonDebugOutputRepository

@@ -94,8 +94,8 @@ def _audio_fails():
     with contextlib.ExitStack() as stack:
         p = lambda *a, **k: stack.enter_context(patch(*a, **k))  # noqa: E731
 
-        p("src.news.application.usecases.pipeline_runner.run_content")
-        p("src.news.application.usecases.pipeline_runner.run_articles")
+        p("src.news.application.usecases.pipeline_runner.run_content", return_value=[{"url": "https://example.com/test", "title": "Test", "desc": "desc", "source": "Test Source", "tema": "Noticias", "image_url": "", "network": "bluesky"}])
+        p("src.news.application.usecases.pipeline_runner.run_articles", return_value=[{"_id": "art-1", "original_url": "https://example.com/test", "url": "https://example.com/test", "title": "Test Article", "content": "<p>contenido de prueba</p>", "desc": "desc", "source": "Test Source", "tema": "Noticias", "image_url": "", "image_credit": "Test", "alt_text": "test", "slug": "test-article", "seo_title": "test", "focus_keyword": "test"}])
         # Patch WordPress and social to avoid real DB access
         p(
             "src.shared.infrastructure.composition_root.create_video_generator",
@@ -117,8 +117,8 @@ def _video_fails():
     with contextlib.ExitStack() as stack:
         p = lambda *a, **k: stack.enter_context(patch(*a, **k))  # noqa: E731
 
-        p("src.news.application.usecases.pipeline_runner.run_content")
-        p("src.news.application.usecases.pipeline_runner.run_articles")
+        p("src.news.application.usecases.pipeline_runner.run_content", return_value=[{"url": "https://example.com/test", "title": "Test", "desc": "desc", "source": "Test Source", "tema": "Noticias", "image_url": "", "network": "bluesky"}])
+        p("src.news.application.usecases.pipeline_runner.run_articles", return_value=[{"_id": "art-1", "original_url": "https://example.com/test", "url": "https://example.com/test", "title": "Test Article", "content": "<p>contenido de prueba</p>", "desc": "desc", "source": "Test Source", "tema": "Noticias", "image_url": "", "image_credit": "Test", "alt_text": "test", "slug": "test-article", "seo_title": "test", "focus_keyword": "test"}])
         # Patch os.path.exists to return True so the video step attempts generation
         p("os.path.exists", return_value=True)
         # Patch WordPress and social to avoid real DB access
@@ -159,6 +159,10 @@ def _run_pipeline(
     if articles_repo is None:
         mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
         mock_articles_repo.load_all.return_value = []
+        mock_articles_repo.get_by_original_url.return_value = {
+            "_id": "test-id", "tts_audio_path": None, "image_url": None,
+            "original_url": "https://example.com/test", "url": "https://example.com/test",
+        }
         mock_articles_repo.update_tts_audio_path.return_value = True
         mock_articles_repo.update_generated_video_path.return_value = True
     else:
@@ -171,6 +175,9 @@ def _run_pipeline(
 
     if verified_repo is None:
         mock_verified_repo = Mock(spec=VerifiedNewsRepository)
+        mock_verified_repo.get_all_news.return_value = [
+            Mock(url="https://example.com/test", title="Test", desc="desc")
+        ]
     else:
         mock_verified_repo = verified_repo
 
@@ -187,11 +194,13 @@ def _run_pipeline(
 
     if tts_usecase is None:
         tts_usecase = Mock()
-        tts_usecase.execute_batch.side_effect = lambda arts: arts
+        tts_usecase.execute.side_effect = lambda article: article
 
     if social_publisher is None:
         social_publisher = Mock()
-        social_publisher.publish_all.return_value = None
+        social_publisher.publish.return_value = [
+            {"platform": "bluesky", "success": True, "url": "https://example.com/post"}
+        ]
 
     if image_unsplash_runner is None:
         image_unsplash_runner = Mock()
@@ -272,14 +281,22 @@ def _capture_steps(
     if video_scenario:
         # Video test needs articles with valid audio paths
         mock_articles_repo.load_all.return_value = [{"_id": "test-id", "tts_audio_path": "/tmp/test.mp3", "image_url": None}]
+        mock_articles_repo.get_by_original_url.return_value = {
+            "_id": "test-id", "tts_audio_path": "/tmp/test.mp3", "image_url": None,
+            "original_url": "https://example.com/test", "url": "https://example.com/test",
+        }
         tts_usecase = Mock()
-        tts_usecase.execute_batch.side_effect = lambda arts: arts
+        tts_usecase.execute.side_effect = lambda article: article
         video_generator_factory = _failing_video_factory()
     else:
         # Audio test needs articles (audio path can be None since TTS generates it)
         mock_articles_repo.load_all.return_value = [{"_id": "test-id", "tts_audio_path": None, "image_url": None}]
+        mock_articles_repo.get_by_original_url.return_value = {
+            "_id": "test-id", "tts_audio_path": None, "image_url": None,
+            "original_url": "https://example.com/test", "url": "https://example.com/test",
+        }
         tts_usecase = Mock()
-        tts_usecase.execute_batch.side_effect = _Boom("TTS exploded")
+        tts_usecase.execute.side_effect = _Boom("TTS exploded")
     mock_articles_repo.update_tts_audio_path.return_value = True
     mock_articles_repo.update_generated_video_path.return_value = True
 
@@ -332,6 +349,10 @@ class TestAudioFailureIsEnrichment:
 
         mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
         mock_articles_repo.load_all.return_value = [{"_id": "test-id", "tts_audio_path": None, "image_url": None}]
+        mock_articles_repo.get_by_original_url.return_value = {
+            "_id": "test-id", "tts_audio_path": None, "image_url": None,
+            "original_url": "https://example.com/test", "url": "https://example.com/test",
+        }
         mock_articles_repo.update_tts_audio_path.return_value = True
         mock_articles_repo.update_generated_video_path.return_value = True
 
@@ -339,7 +360,7 @@ class TestAudioFailureIsEnrichment:
         mock_metrics_repo.save.return_value = None
 
         tts_usecase = Mock()
-        tts_usecase.execute_batch.side_effect = _Boom("TTS exploded")
+        tts_usecase.execute.side_effect = _Boom("TTS exploded")
 
         with patch.object(pipeline_executor.logger, "error") as err, \
              patch.object(pipeline_executor.logger, "warning") as warn, \
@@ -376,6 +397,10 @@ class TestAudioFailureIsEnrichment:
 
         mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
         mock_articles_repo.load_all.return_value = [{"_id": "test-id", "tts_audio_path": None, "image_url": None}]
+        mock_articles_repo.get_by_original_url.return_value = {
+            "_id": "test-id", "tts_audio_path": None, "image_url": None,
+            "original_url": "https://example.com/test", "url": "https://example.com/test",
+        }
         mock_articles_repo.update_tts_audio_path.return_value = True
         mock_articles_repo.update_generated_video_path.return_value = True
 
@@ -383,7 +408,7 @@ class TestAudioFailureIsEnrichment:
         mock_metrics_repo.save.return_value = None
 
         tts_usecase = Mock()
-        tts_usecase.execute_batch.side_effect = _Boom("TTS exploded")
+        tts_usecase.execute.side_effect = _Boom("TTS exploded")
 
         with patch.object(pipeline_runner, "update_job_status") as update_status, \
              _audio_fails():
@@ -427,6 +452,10 @@ class TestVideoFailureIsEnrichment:
 
         mock_articles_repo = Mock(spec=GeneratedArticlesRepository)
         mock_articles_repo.load_all.return_value = [{"_id": "test-id", "tts_audio_path": "/tmp/test.mp3", "image_url": None}]
+        mock_articles_repo.get_by_original_url.return_value = {
+            "_id": "test-id", "tts_audio_path": "/tmp/test.mp3", "image_url": None,
+            "original_url": "https://example.com/test", "url": "https://example.com/test",
+        }
         mock_articles_repo.update_tts_audio_path.return_value = True
         mock_articles_repo.update_generated_video_path.return_value = True
 
@@ -434,7 +463,7 @@ class TestVideoFailureIsEnrichment:
         mock_metrics_repo.save.return_value = None
 
         tts_usecase = Mock()
-        tts_usecase.execute_batch.side_effect = lambda arts: arts
+        tts_usecase.execute.side_effect = lambda article: article
 
         with patch.object(pipeline_executor.logger, "error") as err, \
              patch.object(pipeline_executor.logger, "warning") as warn, \

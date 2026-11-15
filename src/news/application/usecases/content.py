@@ -178,7 +178,11 @@ class ContentUseCase:
             item_title = news_item.get("title", "")
 
             if self.use_ai:
-                tweet = self._generate_tweet_ai(news_item)
+                try:
+                    tweet = self._generate_tweet_ai(news_item)
+                except Exception as e:
+                    logger.warning(f"[CONTENT] Saltando ítem por error de IA: {e}")
+                    continue
             else:
                 tweet = self._generate_tweet_fallback(news_item)
 
@@ -190,6 +194,7 @@ class ContentUseCase:
                 "source_type": news_item.get("source_type", "news_man"),
                 "tema": news_item.get("tema", "Noticias"),
                 "image_url": news_item.get("image_url", ""),
+                "desc": news_item.get("desc", ""),
                 "network": self.network,
             }
             posts.append(post)

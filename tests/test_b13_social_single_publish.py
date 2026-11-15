@@ -10,7 +10,7 @@ def test_pipeline_runner_does_not_call_social_run_functions_directly():
     assert "run_facebook" not in source
     assert "run_bluesky" not in source
     assert "run_mastodon" not in source
-    assert "publish_all" in source
+    assert "publish" in source
 
 
 def test_process_url_pipeline_does_not_call_social_run_functions_directly():

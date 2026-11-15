@@ -670,6 +670,62 @@ class WordPressPublisher:
             "urls": published_urls,
         }
 
+    def publish_article(self, article: Dict, post: Optional[Dict] = None) -> Dict:
+        """Publica un solo artículo en WordPress (single-item, sin find({}))."""
+        matched_post = post or {}
+        art_url = article.get("original_url") or article.get("url", "")
+
+        title = self._resolve_title(article, matched_post)
+        if not title or not article.get("content"):
+            logger.warning(f"[HOSTING] Artículo inválido url={art_url}")
+            return {"status": "warning", "message": f"Artículo inválido url={art_url}", "published": 0}
+
+        if matched_post.get("wp_url"):
+            logger.warning(f"[HOSTING] Ya publicado: {title}")
+            return {"status": "warning", "message": f"Ya publicado: {title}", "published": 0}
+
+        labels = article.get("labels", [])
+        categoria = labels[0] if labels else "Noticias"
+        if categoria in ["Video", "Política", "Política internacional"]:
+            categoria = "Noticias"
+        categoria_id = ensure_category(categoria)
+
+        precomputed_tags = matched_post.get("hashtags", [])
+        all_tags = list(set((labels or article.get("tags", [])) + precomputed_tags))
+        tag_ids = [ensure_tag(t) for t in all_tags if isinstance(t, str)]
+        tag_ids = [tid for tid in tag_ids if tid is not None]
+
+        featured_image, featured_image_url = self._resolve_featured_media(article)
+        audio_block = self._build_audio_block(article)
+        article_content = self._build_final_content(
+            article, audio_block, featured_image_url, title
+        )
+
+        post_url = publish_post(
+            title=title,
+            content=article_content,
+            categories=[categoria_id] if categoria_id else None,
+            tags=tag_ids,
+            is_draft=article.get("is_draft", False),
+            excerpt=article.get("excerpt"),
+            meta_description=article.get("meta_description"),
+            featured_image=featured_image,
+            featured_image_url=featured_image_url,
+            slug=article.get("slug"),
+            seo_title=article.get("seo_title"),
+            focus_keyword=article.get("focus_keyword"),
+            canonical_url=article.get("canonical_url"),
+        )
+
+        if post_url:
+            logger.info(f"[HOSTING] ✅Publicado: {post_url}")
+            matched_post["wp_url"] = post_url
+            self._save_post(matched_post)
+            return {"status": "success", "published": 1, "url": post_url}
+        else:
+            logger.error(f"[HOSTING] Error al publicar: {title}")
+            return {"status": "error", "message": f"Error al publicar: {title}", "published": 0, "errors": 1}
+
 
 def run() -> Dict:
     """Función principal."""
