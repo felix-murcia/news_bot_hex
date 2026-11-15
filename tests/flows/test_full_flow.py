@@ -5,6 +5,7 @@ y fakes en memoria. Detecta wiring roto (AttributeError, TypeError, etc.).
 """
 
 import pytest
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
 
@@ -108,7 +109,7 @@ class TestPipelineFullFlow:
                 "title": f"Test Article {i}",
                 "url": f"https://example.com/article/{i}",
                 "desc": f"Description {i}",
-                "publishedAt": "2026-01-01T00:00:00Z",
+                "publishedAt": datetime.now(timezone.utc).isoformat(),
                 "source": "Test Source",
                 "status": "pending",
             }

@@ -209,7 +209,7 @@ def _run_pipeline(
     if image_enricher_runner is None:
         image_enricher_runner = Mock()
     if wordpress_runner is None:
-        wordpress_runner = Mock()
+        wordpress_runner = Mock(return_value={"status": "success", "published": 1, "url": "https://fake.wordpress.com/post/1"})
     if video_generator_factory is None:
         vg = Mock()
         vg.is_available.return_value = False
