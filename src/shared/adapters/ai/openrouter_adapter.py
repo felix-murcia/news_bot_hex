@@ -103,24 +103,42 @@ class OpenRouterAdapter(AIModelPort):
                 json=data,
                 timeout=60,
             )
-            try:
-                response.raise_for_status()
-            except requests.HTTPError as e:
-                status = e.response.status_code if e.response else None
-                if status in (401, 403):
-                    raise FatalAuthError(
-                        f"OpenRouter {status}: API Key inválida o sin saldo. "
-                        f"No se reintentará ni se probará con otra candidata."
-                    ) from e
-                raise
+        except requests.RequestException as e:
+            # Errores de red (timeout, conexión): sí son retryables
+            logger.error(f"[OPENROUTER] Error de red: {e}")
+            raise
+
+        # Fail-fast inmediato: 401/403 = API Key inválida o sin saldo.
+        # No reintentar, no probar con otra candidata. Propagar FatalAuthError
+        # directamente desde generate(); el decorador retry no lo captura porque
+        # no hereda de requests.RequestException.
+        if response.status_code in (401, 403):
+            raise FatalAuthError(
+                f"OpenRouter {response.status_code}: API Key inválida o sin saldo. "
+                f"No se reintentará ni se probará con otra candidata."
+            )
+
+        try:
+            response.raise_for_status()
+        except requests.HTTPError as e:
+            # Otros errores HTTP (500, 502, 503, 504): sí son retryables
+            logger.error(f"[OPENROUTER] Error HTTP: {e}")
+            raise
+
+        try:
             result = response.json()
-            choices = result.get("choices", [{}])
-            first_choice = choices[0] if choices else {}
-            finish_reason = first_choice.get("finish_reason")
-            native_finish_reason = first_choice.get("native_finish_reason")
-            content = first_choice.get("message", {}).get("content")
-            reasoning_content = first_choice.get("message", {}).get("reasoning_content")
-            
+        except ValueError as e:
+            logger.error(f"[OPENROUTER] Error parseando JSON: {e}")
+            raise
+
+        choices = result.get("choices", [{}])
+        first_choice = choices[0] if choices else {}
+        finish_reason = first_choice.get("finish_reason")
+        native_finish_reason = first_choice.get("native_finish_reason")
+        content = first_choice.get("message", {}).get("content")
+        reasoning_content = first_choice.get("message", {}).get("reasoning_content")
+
+        try:
             if not content:
                 logger.warning(
                     f"[OPENROUTER] Empty content in response "
