@@ -14,6 +14,7 @@ import os
 import sys
 import time
 import types
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 from src.news.application.usecases import pipeline_executor
@@ -184,7 +185,20 @@ def _run_pipeline(
     if rss_fetch_runner is None:
         rss_fetch_runner = Mock(return_value={})
     if full_verify_runner is None:
-        full_verify_runner = Mock(return_value={})
+        full_verify_runner = Mock(
+            return_value={
+                "candidates": [
+                    {
+                        "url": "https://example.com/test",
+                        "title": "Test",
+                        "desc": "desc",
+                        "source": "Test Source",
+                        "publishedAt": datetime.now(timezone.utc).isoformat(),
+                    }
+                ],
+                "saved": 1,
+            }
+        )
 
     if metrics_repo is None:
         mock_metrics_repo = Mock(spec=MetricsRepositoryPort)

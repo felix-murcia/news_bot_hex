@@ -273,6 +273,16 @@ class PipelineRunner:
                     f"[PIPELINE-JOB] {ctx.job_id} Candidatas disponibles: {len(ctx.candidates)}"
                 )
 
+                # Fail-fast temprano: si no hay noticias candidatas válidas tras Full
+                # Verification, abortar ANTES de llamar al LLM (paso 4) para no gastar
+                # tokens de OpenRouter ni tiempo innecesariamente.
+                if not ctx.candidates:
+                    error_msg = "No hay noticias candidatas para procesar"
+                    logger.error(
+                        f"[PIPELINE-JOB] {ctx.job_id} {error_msg}. Abortando pasos 4-11."
+                    )
+                    raise RuntimeError(error_msg)
+
                 # Step 4: Generate Posts (ENRICHMENT) - posts para todas las candidatas
                 logger.info(f"[PIPELINE-JOB] {ctx.job_id} Iniciando GENERATE_POSTS (llamadas a LLM)...")
                 all_posts: List[Dict] = []
