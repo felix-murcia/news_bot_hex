@@ -387,28 +387,61 @@ class ArticleUseCase:
                 return ""
 
             verified = news[0]
-            # Verificar frescura: publishedAt debe ser reciente
             published_at = verified.publishedAt
+            parsed_at: Optional[datetime] = None
+
+            # --- Parseo robusto de publishedAt ---
             if isinstance(published_at, str):
+                # Intentar fromisoformat (ISO 8601, con o sin zona horaria)
                 try:
-                    published_at = datetime.fromisoformat(published_at.replace("Z", "+00:00"))
-                except Exception:
-                    published_at = datetime.now()
-
-            # Solo verificar edad si published_at es un datetime válido
-            # (evita fallar con Mocks en tests o datos corruptos)
-            if isinstance(published_at, datetime):
-                if published_at.tzinfo is None:
-                    published_at = published_at.replace(tzinfo=timezone.utc)
-                age_hours = (datetime.now(timezone.utc) - published_at).total_seconds() / 3600
-                if age_hours > max_age_hours:
-                    logger.warning(f"[ARTICLE] URL verificada tiene {age_hours:.1f}h (máx {max_age_hours}h), ignorando")
-                    return ""
-                logger.info(f"[ARTICLE] URL verificada fresca ({age_hours:.1f}h): {verified.url}")
+                    parsed_at = datetime.fromisoformat(
+                        published_at.replace("Z", "+00:00")
+                    )
+                except ValueError:
+                    # Fallback: formatos comunes no ISO
+                    for fmt in (
+                        "%Y-%m-%d %H:%M:%S",
+                        "%Y-%m-%dT%H:%M:%S",
+                        "%Y-%m-%d %H:%M:%S.%f",
+                        "%Y-%m-%dT%H:%M:%S.%f",
+                    ):
+                        try:
+                            parsed_at = datetime.strptime(published_at, fmt)
+                            break
+                        except ValueError:
+                            continue
+                if parsed_at is None:
+                    # No se pudo parsear: no rechazar la noticia por error de parseo.
+                    # Asumimos fresca y registramos el diagnóstico.
+                    logger.error(
+                        f"[ARTICLE] No se pudo parsear publishedAt={published_at!r}; "
+                        f"se asume fresca (no se rechaza por error de parseo)"
+                    )
+                    return verified.url
+            elif isinstance(published_at, datetime):
+                parsed_at = published_at
             else:
-                # Si no es datetime válido, asumimos que es fresco (compatibilidad)
-                logger.info(f"[ARTICLE] URL verificada sin timestamp válido, asumiendo fresca: {verified.url}")
+                # Tipo desconocido: no rechazar, asumir fresca
+                logger.error(
+                    f"[ARTICLE] publishedAt tiene tipo inesperado "
+                    f"{type(published_at).__name__}; se asume fresca"
+                )
+                return verified.url
 
+            # Normalizar zona horaria: naive -> UTC
+            if parsed_at.tzinfo is None:
+                parsed_at = parsed_at.replace(tzinfo=timezone.utc)
+
+            age_hours = (datetime.now(timezone.utc) - parsed_at).total_seconds() / 3600
+            if age_hours > max_age_hours:
+                logger.warning(
+                    f"[ARTICLE] URL verificada tiene {age_hours:.1f}h "
+                    f"(máx {max_age_hours}h), ignorando"
+                )
+                return ""
+            logger.info(
+                f"[ARTICLE] URL verificada fresca ({age_hours:.1f}h): {verified.url}"
+            )
             return verified.url
         except Exception as e:
             logger.error(f"[ARTICLE] Error getting verified URL: {e}")

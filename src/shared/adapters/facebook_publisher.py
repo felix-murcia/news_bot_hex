@@ -24,13 +24,29 @@ _facebook_session = requests.Session()
 
 
 def validate_image_url(url: str, max_size_mb: int = 10) -> bool:
-    """Valida imagen antes de subir."""
+    """Valida imagen antes de subir.
+
+    Rechaza SVG (Facebook no lo acepta) y devuelve False para que el post
+    se publique como texto plano sin imagen.
+    """
     try:
+        # Rechazar por extensión de archivo antes de hacer la petición
+        if url.lower().endswith(".svg"):
+            logger.warning(
+                f"[FACEBOOK] Imagen SVG rechazada (no soportada por Facebook): {url}"
+            )
+            return False
         resp = _facebook_session.get(url, stream=True, timeout=15)
         if resp.status_code != 200:
             return False
         content_type = resp.headers.get("Content-Type", "")
         if not content_type.startswith("image/"):
+            return False
+        # Rechazar SVG por content-type (image/svg+xml)
+        if content_type.strip().lower() == "image/svg+xml":
+            logger.warning(
+                f"[FACEBOOK] Imagen SVG rechazada por content-type: {url}"
+            )
             return False
         size = int(resp.headers.get("Content-Length", 0))
         if size and size > max_size_mb * 1024 * 1024:
