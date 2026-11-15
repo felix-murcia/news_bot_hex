@@ -560,21 +560,21 @@ def make_full_verify_runner(
 
 def make_image_unsplash_runner() -> Callable:
     """Runner que no hace nada (simula fetch unsplash)."""
-    def runner() -> None:
+    def runner(url: Optional[str] = None) -> None:
         pass
     return runner
 
 
 def make_image_google_runner() -> Callable:
     """Runner que no hace nada (simula fetch google)."""
-    def runner() -> None:
+    def runner(url: Optional[str] = None) -> None:
         pass
     return runner
 
 
 def make_image_enricher_runner() -> Callable:
     """Runner que no hace nada (simula enrich)."""
-    def runner() -> None:
+    def runner(url: Optional[str] = None) -> None:
         pass
     return runner
 

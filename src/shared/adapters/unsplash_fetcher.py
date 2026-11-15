@@ -1,5 +1,6 @@
 import re
 import requests
+from typing import Optional
 from dotenv import load_dotenv
 
 from config.settings import Settings
@@ -173,14 +174,16 @@ class UnsplashFetcher:
         logger.info(f"[UNSPLASH] {changed} images assigned")
         return posts
 
-    def fetch_from_mongo(self) -> int:
+    def fetch_from_mongo(self, url: Optional[str] = None) -> int:
+        """Descarga imágenes solo del post indicado (url). Si url es None, todos."""
         try:
             from src.shared.adapters.mongo_db import get_database
             db = get_database()
             coll = db["generated_posts"]
-            posts = list(coll.find({}))
+            query = {"url": url} if url else {}
+            posts = list(coll.find(query))
             if not posts:
-                logger.warning("[UNSPLASH] No posts to enrich")
+                logger.warning(f"[UNSPLASH] No posts to enrich (url={url or 'all'})")
                 return 0
             self.fetch_for_posts(posts)
             for post in posts:
@@ -193,9 +196,9 @@ class UnsplashFetcher:
             return 0
 
 
-def run(mode: str = "news") -> int:
-    logger.info(f"[UNSPLASH] Running (mode: {mode})")
-    return UnsplashFetcher(mode=mode).fetch_from_mongo()
+def run(mode: str = "news", url: Optional[str] = None) -> int:
+    logger.info(f"[UNSPLASH] Running (mode: {mode}, url={url or 'all'})")
+    return UnsplashFetcher(mode=mode).fetch_from_mongo(url=url)
 
 
 if __name__ == "__main__":

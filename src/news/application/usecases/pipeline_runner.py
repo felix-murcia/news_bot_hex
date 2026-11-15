@@ -273,23 +273,57 @@ class PipelineRunner:
                 if not success:
                     raise RuntimeError(f"Fallo crítico en Articles: {error}")
 
-                # Step 6: Fetch Images (ENRICHMENT)
+                # Determinar la noticia ganadora: las imágenes solo se buscan/enriquecen para ella.
+                winning_url = ""
+                try:
+                    verified_news = self._verified_news_repo.get_all_news()
+                    if verified_news:
+                        winning_url = verified_news[0].url
+                        logger.info(
+                            f"[PIPELINE-JOB] {ctx.job_id} Noticia ganadora para imágenes: {winning_url}"
+                        )
+                    else:
+                        logger.warning(
+                            f"[PIPELINE-JOB] {ctx.job_id} No hay noticia ganadora; pasos de imagen se omiten"
+                        )
+                except Exception as e:
+                    logger.warning(
+                        f"[PIPELINE-JOB] {ctx.job_id} No se pudo obtener la noticia ganadora: {e}"
+                    )
+
+                # Step 6: Fetch Images (ENRICHMENT) - solo noticia ganadora
+                def _run_fetch_images():
+                    if not winning_url:
+                        logger.warning(
+                            f"[PIPELINE-JOB] {ctx.job_id} FETCH_IMAGES omitido: no hay noticia ganadora"
+                        )
+                        return None
+                    return (
+                        self._image_unsplash_runner(url=winning_url),
+                        self._image_google_runner(url=winning_url),
+                    )
+
                 success, error = _execute_step(
                     ctx.job_id,
                     ProcessingStepName.FETCH_IMAGES,
-                    lambda: (
-                        self._image_unsplash_runner(),
-                        self._image_google_runner(),
-                    ),
+                    _run_fetch_images,
                     metrics_steps,
                     step_results,
                 )
 
-                # Step 7: Enrich Images (ENRICHMENT)
+                # Step 7: Enrich Images (ENRICHMENT) - solo noticia ganadora
+                def _run_enrich_images():
+                    if not winning_url:
+                        logger.warning(
+                            f"[PIPELINE-JOB] {ctx.job_id} ENRICH_IMAGES omitido: no hay noticia ganadora"
+                        )
+                        return None
+                    return self._image_enricher_runner(url=winning_url)
+
                 success, error = _execute_step(
                     ctx.job_id,
                     ProcessingStepName.ENRICH_IMAGES,
-                    lambda: self._image_enricher_runner(),
+                    _run_enrich_images,
                     metrics_steps,
                     step_results,
                 )

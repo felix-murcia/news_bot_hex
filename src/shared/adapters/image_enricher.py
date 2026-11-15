@@ -1,6 +1,7 @@
 import os
 import requests
 from hashlib import md5
+from typing import Optional
 
 from config.settings import Settings
 from config.logging_config import get_logger
@@ -204,16 +205,18 @@ class ImageEnricher:
         except Exception:
             return False
 
-    def enrich_from_mongo(self) -> int:
+    def enrich_from_mongo(self, url: Optional[str] = None) -> int:
+        """Enriquece solo el post indicado (url). Si url es None, todos."""
         try:
             from src.shared.adapters.mongo_db import get_database
 
             db = get_database()
             coll = db["generated_posts"]
-            posts = list(coll.find({}))
+            query = {"url": url} if url else {}
+            posts = list(coll.find(query))
 
             if not posts:
-                logger.warning("[IMAGES] No hay posts para enriquecer")
+                logger.warning(f"[IMAGES] No hay posts para enriquecer (url={url or 'all'})")
                 return 0
 
             self.enrich(posts)
@@ -230,19 +233,20 @@ class ImageEnricher:
             logger.error(f"[IMAGES] Error enrich from MongoDB: {e}")
             return 0
 
-    def enrich_articles_from_mongo(self) -> int:
-        """Enriquece también los artículos generados con imágenes."""
+    def enrich_articles_from_mongo(self, url: Optional[str] = None) -> int:
+        """Enriquece solo el artículo ganador (filtrado por original_url)."""
         try:
             from src.shared.adapters.mongo_db import get_database
 
             db = get_database()
             articles_coll = db["generated_articles"]
             posts_coll = db["generated_posts"]
-            
-            articles = list(articles_coll.find({}))
+
+            query = {"original_url": url} if url else {}
+            articles = list(articles_coll.find(query))
 
             if not articles:
-                logger.warning("[IMAGES] No hay artículos para enriquecer")
+                logger.warning(f"[IMAGES] No hay artículos para enriquecer (url={url or 'all'})")
                 return 0
 
             # Primero, intentar heredar imágenes de posts que tengan el mismo original_url
@@ -254,7 +258,7 @@ class ImageEnricher:
                     if not matching_post:
                         # También buscar por url
                         matching_post = posts_coll.find_one({"url": original_url})
-                    
+
                     if matching_post:
                         # Heredar campos de imagen del post
                         if matching_post.get("image_url"):
@@ -281,11 +285,11 @@ class ImageEnricher:
             return 0
 
 
-def run(mode: str = "news") -> int:
-    logger.info(f"[IMAGES] Ejecutando enrich_with_images (modo: {mode})")
+def run(mode: str = "news", url: Optional[str] = None) -> int:
+    logger.info(f"[IMAGES] Ejecutando enrich_with_images (modo: {mode}, url={url or 'all'})")
     enricher = ImageEnricher(mode=mode)
-    posts_count = enricher.enrich_from_mongo()
-    articles_count = enricher.enrich_articles_from_mongo()
+    posts_count = enricher.enrich_from_mongo(url=url)
+    articles_count = enricher.enrich_articles_from_mongo(url=url)
     logger.info(f"[IMAGES] Enriquecimiento completado: {posts_count} posts, {articles_count} artículos")
     return posts_count + articles_count
 

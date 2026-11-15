@@ -19,6 +19,7 @@ from src.news.domain.ports.metrics_repository_port import MetricsRepositoryPort
 from src.shared.domain.services.ai_providers import AiProviders
 from src.shared.domain.services.image_providers import ImageProviders
 from src.shared.domain.services.wp_helpers import WpHelpers
+from typing import Optional
 
 
 def create_audio_converter() -> AudioConverterPort:
@@ -203,14 +204,14 @@ def run_mastodon():
     return run()
 
 
-def run_image_unsplash():
+def run_image_unsplash(url: Optional[str] = None):
     from src.shared.adapters.unsplash_fetcher import run
-    return run()
+    return run(url=url)
 
 
-def run_image_google():
+def run_image_google(url: Optional[str] = None):
     from src.shared.adapters.google_images_fetcher import run
-    return run()
+    return run(url=url)
 
 
 def create_social_publisher():
@@ -224,6 +225,6 @@ def create_debug_output_repository():
     return JsonDebugOutputRepository(Settings.DATA_DIR)
 
 
-def run_image_enricher():
+def run_image_enricher(url: Optional[str] = None):
     from src.shared.adapters.image_enricher import run
-    return run()
+    return run(url=url)
