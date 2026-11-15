@@ -23,6 +23,18 @@ class FakeGeneratedArticlesRepository:
         self.calls.append("load_all")
         return list(self._articles.values())
 
+    def get_pending_articles(self, limit: int = 1000) -> List[Dict[str, Any]]:
+        self.calls.append(f"get_pending_articles:limit={limit}")
+        pending = [a for a in self._articles.values() if a.get("status") == "pending"]
+        return pending[:limit]
+
+    def mark_verified(self, urls: List[str]) -> bool:
+        self.calls.append(f"mark_verified:count={len(urls)}")
+        for a in self._articles.values():
+            if a.get("url") in urls:
+                a["status"] = "verified"
+        return True
+
     def save_all(self, articles: List[Dict[str, Any]]) -> bool:
         self.calls.append("save_all")
         for a in articles:
@@ -521,7 +533,7 @@ def make_full_verify_runner(
 ) -> Callable:
     """Runner que simula Full Verification (pasa artículos a verified_news)."""
     def runner() -> Dict[str, Any]:
-        articles = generated_articles_repo.load_all()
+        articles = generated_articles_repo.get_pending_articles()
         if not articles:
             return {"status": "error", "message": "No hay artículos nuevos para procesar."}
 

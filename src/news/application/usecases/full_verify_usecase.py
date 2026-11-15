@@ -78,38 +78,25 @@ class FullVerifyNewsUseCase:
         trending_keywords = self._keywords_repo.get_trending_keywords()
         breaking_keywords = self._keywords_repo.get_breaking_keywords()
 
-        published_urls = self._published_urls_repo.get_urls(
-            limits.get("ttl_days", 30), limits.get("max_urls", 1000)
-        )
+        # Query eficiente: solo artículos pendientes (no todo el histórico 66k)
+        raw_articles = self.generated_articles_repo.get_pending_articles()
+        logger.info(f"[FULL_VERIFY] {len(raw_articles)} artículos pendientes cargados en {(time.time()-t0)*1000:.0f}ms")
 
-        raw_articles = self.generated_articles_repo.load_all()
-        logger.info(f"[FULL_VERIFY] {len(raw_articles)} artículos cargados en {(time.time()-t0)*1000:.0f}ms")
-        articles_to_process = []
-        for article in raw_articles:
-            url = article.get("original_url") or article.get("url")
-            if url and url not in published_urls:
-                articles_to_process.append(article)
-
-        if not articles_to_process:
-            logger.warning(f"[FULL_VERIFY] No hay artículos nuevos para procesar")
+        if not raw_articles:
+            logger.warning(f"[FULL_VERIFY] No hay artículos pendientes para procesar")
             return {
                 "status": "error",
-                "message": "No hay artículos nuevos para procesar.",
+                "message": "No hay artículos pendientes para procesar.",
             }
 
-        logger.info(f"[FULL_VERIFY] {len(articles_to_process)} artículos para verificar en {(time.time()-t0)*1000:.0f}ms")
-        # Limitar a un tope razonable para evitar O(n²) en deduplicación con miles de artículos
-        max_articles = limits.get("max_articles_per_run", 100)
-        if len(articles_to_process) > max_articles:
-            logger.warning(
-                f"[FULL_VERIFY] Demasiados artículos ({len(articles_to_process)}). "
-                f"Procesando solo los primeros {max_articles}."
-            )
-            articles_to_process = articles_to_process[:max_articles]
+        logger.info(f"[FULL_VERIFY] {len(raw_articles)} artículos para verificar en {(time.time()-t0)*1000:.0f}ms")
         verified = []
-        for article in articles_to_process:
+        processed_urls = []
+        for article in raw_articles:
             title = article.get("title", "")
             desc = article.get("desc", "")
+            url = article.get("url", "")
+            processed_urls.append(url)
 
             if self._fake_news_model:
                 is_real, confidence = self._fake_news_model.predict(title, desc)
@@ -121,7 +108,7 @@ class FullVerifyNewsUseCase:
                 {
                     "title": title,
                     "desc": desc,
-                    "url": article.get("url", ""),
+                    "url": url,
                     "publishedAt": article.get("publishedAt", ""),
                 },
                 tema,
@@ -145,7 +132,7 @@ class FullVerifyNewsUseCase:
                 desc=desc,
                 source=article.get("source", "NBES"),
                 origin=article.get("origin", "Noticias Web"),
-                url=article.get("url", ""),
+                url=url,
                 publishedAt=datetime.now()
                 if not article.get("publishedAt")
                 else article.get("publishedAt"),
@@ -159,16 +146,6 @@ class FullVerifyNewsUseCase:
             verified.append(verified_article)
 
         logger.info(f"[FULL_VERIFY] {len(verified)} artículos verificados en {(time.time()-t0)*1000:.0f}ms")
-        # Limitar antes de deduplicación (O(n²)): solo top-N por score
-        max_dedup = limits.get("max_dedup_candidates", 50)
-        if len(verified) > max_dedup:
-            logger.info(
-                f"[FULL_VERIFY] {len(verified)} verificados → top {max_dedup} por score antes de deduplicar"
-            )
-            verified_sorted_by_score = sorted(
-                verified, key=lambda v: v.score, reverse=True
-            )
-            verified = verified_sorted_by_score[:max_dedup]
         verificadas_sorted = sort_verified_news([v.to_dict() for v in verified])
         deduplicated = deduplicate_by_similarity(verificadas_sorted)
 
@@ -186,6 +163,9 @@ class FullVerifyNewsUseCase:
             [VerifiedArticle.from_dict(v) for v in diversified_sorted]
         )
 
+        # Marcar TODOS los artículos procesados como verified (no repetirlos mañana)
+        self.generated_articles_repo.mark_verified(processed_urls)
+
         top = diversified_sorted[0] if diversified_sorted else None
         if not top:
             self._verified_repo.delete_all_news()
@@ -195,6 +175,9 @@ class FullVerifyNewsUseCase:
         url = top.get("url")
         if url:
             # La noticia pasó el filtro de verificación → marcar como publicada
+            published_urls = self._published_urls_repo.get_urls(
+                limits.get("ttl_days", 30), limits.get("max_urls", 1000)
+            )
             published_urls.add(url)
             self._published_urls_repo.save_urls(
                 published_urls,
@@ -219,7 +202,7 @@ class FullVerifyNewsUseCase:
 
         return {
             "status": "success",
-            "processed": len(articles_to_process),
+            "processed": len(raw_articles),
             "verified": len(verified),
             "deduplicated": len(deduplicated),
             "saved": 1,

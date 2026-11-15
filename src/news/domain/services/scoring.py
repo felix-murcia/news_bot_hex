@@ -12,56 +12,31 @@ _STOP_WORDS = frozenset({
 })
 
 
-def _title_keywords(title: str) -> set:
-    words = set(re.findall(r"\w+", title.lower()))
-    return {w for w in words if w not in _STOP_WORDS and len(w) > 2}
-
-
-def _jaccard_similarity(title_a: str, title_b: str) -> float:
-    words_a = _title_keywords(title_a)
-    words_b = _title_keywords(title_b)
-    if not words_a or not words_b:
-        return 0.0
-    intersection = words_a & words_b
-    union = words_a | words_b
-    return len(intersection) / len(union)
+def _normalize_title(title: str) -> str:
+    """Normaliza un título para detección de duplicados: minúsculas, sin puntuación."""
+    return re.sub(r"[^\w\s]", "", title.lower()).strip()
 
 
 def deduplicate_by_similarity(articles: List[Dict], threshold: float = 0.35) -> List[Dict]:
-    """Group articles covering the same story and keep only the highest-scored one per group."""
-    if len(articles) <= 1:
-        return articles
+    """Elimina duplicados por título normalizado en O(n) usando un HashSet.
 
-    used = set()
-    result = []
-    deduplicated_count = 0
-
-    for i in range(len(articles)):
-        if i in used:
-            continue
-        group = [i]
-        used.add(i)
-        for j in range(i + 1, len(articles)):
-            if j in used:
-                continue
-            sim = _jaccard_similarity(
-                articles[i].get("title", ""),
-                articles[j].get("title", ""),
-            )
-            if sim >= threshold:
-                group.append(j)
-                used.add(j)
-
-        best_idx = max(group, key=lambda idx: int(articles[idx].get("score", 0)))
-        result.append(articles[best_idx])
-        if len(group) > 1:
-            deduplicated_count += len(group) - 1
+    Reemplaza el doble bucle O(n²) (comparaciones cruzadas) por una pasada lineal.
+    threshold se conserva por compatibilidad de firma pero ya no se usa: el Set
+    de títulos normalizados elimina duplicados exactos/casi-exactos sin coste.
+    """
+    seen_hashes = set()
+    unique_articles = []
+    for art in articles:
+        norm = _normalize_title(art.get("title", ""))
+        if norm and norm not in seen_hashes:
+            seen_hashes.add(norm)
+            unique_articles.append(art)
 
     logger.info(
-        f"[DEDUP] {len(articles)} artículos → {len(result)} únicos "
-        f"({deduplicated_count} duplicados eliminados)"
+        f"[DEDUP] {len(articles)} artículos → {len(unique_articles)} únicos "
+        f"(O(n) HashSet, {len(articles) - len(unique_articles)} duplicados eliminados)"
     )
-    return result
+    return unique_articles
 
 
 def apply_diversity_penalty(

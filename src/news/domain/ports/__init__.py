@@ -176,6 +176,16 @@ class GeneratedArticlesRepository(ABC):
         pass
 
     @abstractmethod
+    def get_pending_articles(self, limit: int = 1000) -> List[dict]:
+        """Devuelve solo artículos con status='pending' (no todo el histórico)."""
+        pass
+
+    @abstractmethod
+    def mark_verified(self, urls: List[str]) -> bool:
+        """Marca artículos como 'verified' para no reprocesarlos."""
+        pass
+
+    @abstractmethod
     def update_tts_audio_path(self, article_id: str, path: str) -> bool:
         pass
 

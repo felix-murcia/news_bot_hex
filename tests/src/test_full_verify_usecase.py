@@ -44,7 +44,7 @@ def test_full_verify_saves_extracted_content():
     extracted = "Contenido extraído de la noticia completa. " * 50  # >1000 chars
 
     articles_repo = Mock(spec=GeneratedArticlesRepository)
-    articles_repo.load_all.return_value = [{
+    articles_repo.get_pending_articles.return_value = [{
         "url": "https://example.com/noticia",
         "title": "Título de la noticia importante",
         "desc": "Descripción corta del RSS",

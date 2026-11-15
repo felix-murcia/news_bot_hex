@@ -532,11 +532,42 @@ class MongoGeneratedArticlesRepository(GeneratedArticlesRepository):
         try:
             self._collection.delete_many({})
             if articles:
+                for a in articles:
+                    a.setdefault("status", "pending")
                 self._collection.insert_many(articles)
             logger.info(f"Saved {len(articles)} generated articles")
             return True
         except Exception as e:
             logger.error(f"Error saving generated articles: {e}")
+            return False
+
+    def get_pending_articles(self, limit: int = 1000) -> List[dict]:
+        """Devuelve solo artículos con status='pending' (query eficiente, sin load_all)."""
+        try:
+            articles = list(
+                self._collection.find({"status": "pending"}).limit(limit)
+            )
+            for a in articles:
+                a.pop("_id", None)
+            logger.info(f"Cargados {len(articles)} artículos pending (límite={limit})")
+            return articles
+        except Exception as e:
+            logger.error(f"Error loading pending articles: {e}")
+            raise RepositoryError(f"Error loading pending articles: {e}") from e
+
+    def mark_verified(self, urls: List[str]) -> bool:
+        """Marca artículos como 'verified' para no reprocesarlos en futuros runs."""
+        if not urls:
+            return True
+        try:
+            result = self._collection.update_many(
+                {"url": {"$in": urls}},
+                {"$set": {"status": "verified"}},
+            )
+            logger.info(f"Marcados {result.modified_count} artículos como verified")
+            return True
+        except Exception as e:
+            logger.error(f"Error marking articles as verified: {e}")
             return False
 
     def delete_all(self) -> bool:
