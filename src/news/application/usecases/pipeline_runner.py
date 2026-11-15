@@ -73,8 +73,10 @@ def _execute_step(
     step_start_ns = time.time_ns()
 
     try:
+        logger.info(f"[PIPELINE-JOB] {job_id} Ejecutando paso {step_name.value}...")
         result = step_func()
         step_duration_ms = (time.time_ns() - step_start_ns) // 1_000_000
+        logger.info(f"[PIPELINE-JOB] {job_id} Paso {step_name.value} retornó en {step_duration_ms}ms")
 
         # Check if result is an error dict (e.g., {"status": "error", ...})
         if isinstance(result, dict) and result.get("status") == "error":
@@ -216,6 +218,7 @@ class PipelineRunner:
                     raise RuntimeError(f"Fallo crítico en Prepare Articles: {error}")
 
                 # Step 3: Full Verification (CRITICAL)
+                logger.info(f"[PIPELINE-JOB] {ctx.job_id} Iniciando FULL_VERIFICATION...")
                 success, error = _execute_step(
                     ctx.job_id,
                     ProcessingStepName.FULL_VERIFICATION,
@@ -223,6 +226,7 @@ class PipelineRunner:
                     metrics_steps,
                     step_results,
                 )
+                logger.info(f"[PIPELINE-JOB] {ctx.job_id} FULL_VERIFICATION terminó (success={success}, error={error})")
                 if not success:
                     raise RuntimeError(f"Fallo crítico en Verification: {error}")
 
@@ -244,6 +248,7 @@ class PipelineRunner:
                     metrics_steps,
                     step_results,
                 )
+                logger.info(f"[PIPELINE-JOB] {ctx.job_id} GENERATE_POSTS terminó (success={success}, error={error})")
                 if not success:
                     raise RuntimeError(f"Fallo en Posts: {error}")
 
@@ -264,6 +269,7 @@ class PipelineRunner:
                     metrics_steps,
                     step_results,
                 )
+                logger.info(f"[PIPELINE-JOB] {ctx.job_id} GENERATE_ARTICLES terminó (success={success}, error={error})")
                 if not success:
                     raise RuntimeError(f"Fallo crítico en Articles: {error}")
 
