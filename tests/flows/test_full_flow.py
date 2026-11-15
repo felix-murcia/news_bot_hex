@@ -23,6 +23,7 @@ class PipelineContext:
     images: Any = None
     audio_path: Any = None
     video_path: Any = None
+    wp_url: Any = None
 
 # Imports del código de producción
 from src.news.domain.entities.pipeline_job import (

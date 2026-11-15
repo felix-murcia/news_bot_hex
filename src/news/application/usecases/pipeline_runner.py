@@ -46,6 +46,7 @@ class PipelineContext:
     images: Optional[list] = None
     audio_path: Optional[str] = None
     video_path: Optional[str] = None
+    wp_url: Optional[str] = None
 
 
 def _format_duration(milliseconds: int) -> str:
@@ -451,7 +452,16 @@ class PipelineRunner:
                             f"[PIPELINE-JOB] {ctx.job_id} WORDPRESS omitido: no hay artículo/post ganador"
                         )
                         return None
-                    return self._wordpress_runner(ctx.article, ctx.post)
+                    result = self._wordpress_runner(ctx.article, ctx.post)
+                    # Capturar la URL de WordPress devuelta por publish_article()
+                    if isinstance(result, dict):
+                        wp_url = result.get("url") or ""
+                        if wp_url:
+                            ctx.wp_url = wp_url
+                            logger.info(
+                                f"[PIPELINE-JOB] {ctx.job_id} URL WordPress capturada (paso 10): {wp_url}"
+                            )
+                    return result
 
                 success, error = _execute_step(
                     ctx.job_id,
@@ -470,6 +480,31 @@ class PipelineRunner:
                             f"[PIPELINE-JOB] {ctx.job_id} SOCIAL omitido: no hay post ganador"
                         )
                         return None
+                    # Reemplazar la URL original por la de WordPress en el texto del post
+                    # antes de publicar en redes sociales (paso 11).
+                    tweet = ctx.post.get("tweet", "")
+                    wp_url = ctx.wp_url or ""
+                    original_url = (
+                        ctx.post.get("url")
+                        or ctx.post.get("original_url")
+                        or ""
+                    )
+                    if wp_url and original_url and original_url in tweet:
+                        ctx.post["tweet"] = tweet.replace(original_url, wp_url)
+                        logger.info(
+                            f"[PIPELINE-JOB] {ctx.job_id} URL original reemplazada por WP en tweet"
+                        )
+                    elif wp_url and "http" not in tweet:
+                        # Añadir "Más info: <url_wordpress>" respetando el límite de 280 caracteres
+                        suffix = f" Más info: {wp_url}"
+                        if len(tweet) + len(suffix) <= 280:
+                            ctx.post["tweet"] = tweet + suffix
+                            logger.info(
+                                f"[PIPELINE-JOB] {ctx.job_id} URL de WordPress añadida al tweet"
+                            )
+                    # Exponer wp_url también como metadata del post (social.py la usa)
+                    if wp_url:
+                        ctx.post["wp_url"] = wp_url
                     self._social_publisher.publish(ctx.post)
                     logger.info(f"[PIPELINE-JOB] {ctx.job_id} Redes sociales completadas (single post)")
 
