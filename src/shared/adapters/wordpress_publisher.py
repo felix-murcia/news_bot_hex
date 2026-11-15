@@ -422,34 +422,6 @@ def publish_post(
 class WordPressPublisher:
     """Publisher para WordPress Hosting."""
 
-    def _load_articles_from_mongo(self) -> List[Dict]:
-        try:
-            from src.shared.adapters.mongo_db import get_database
-
-            db = get_database()
-            coll = db["generated_articles"]
-            articles = list(coll.find({}))
-            for a in articles:
-                a.pop("_id", None)
-            return articles
-        except Exception as e:
-            logger.error(f"[HOSTING] Error cargando artículos: {e}")
-            return []
-
-    def _load_posts_from_mongo(self) -> List[Dict]:
-        try:
-            from src.shared.adapters.mongo_db import get_database
-
-            db = get_database()
-            coll = db["generated_posts"]
-            posts = list(coll.find({}))
-            for p in posts:
-                p.pop("_id", None)
-            return posts
-        except Exception as e:
-            logger.error(f"[HOSTING] Error cargando posts: {e}")
-            return []
-
     def _save_post(self, post: Dict) -> bool:
         try:
             from src.shared.adapters.mongo_db import get_database
@@ -463,6 +435,14 @@ class WordPressPublisher:
         except Exception as e:
             logger.error(f"[HOSTING] Error guardando post: {e}")
             return False
+
+    def _load_articles_from_mongo(self) -> List[Dict]:
+        """Deprecated: el pipeline single-item no usa carga masiva de Mongo."""
+        return []
+
+    def _load_posts_from_mongo(self) -> List[Dict]:
+        """Deprecated: el pipeline single-item no usa carga masiva de Mongo."""
+        return []
 
     @staticmethod
     def _resolve_title(art: Dict, matched_post: Dict) -> Optional[str]:
@@ -579,7 +559,11 @@ class WordPressPublisher:
     def publish_articles(
         self, articles: Optional[List[Dict]] = None, posts: Optional[List[Dict]] = None
     ) -> Dict:
-        """Publica artículos en WordPress."""
+        """Publica artículos en WordPress (single-item/batch, sin find({})).
+
+        articles y posts se reciben directamente; cuando no se proveen,
+        se usan stubs vacíos (sin find({})).
+        """
         if articles is None:
             articles = self._load_articles_from_mongo()
         if posts is None:
