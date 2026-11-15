@@ -13,6 +13,14 @@ from typing import Callable, Type, Tuple, Optional, Any
 logger = logging.getLogger(__name__)
 
 
+class FatalAuthError(Exception):
+    """Excepción fatal de autenticación (401/403).
+
+    No debe reintentarse: el problema es la API Key inválida o sin saldo,
+    no una falla transitoria. Propagarse inmediatamente para abortar el pipeline.
+    """
+
+
 def retry_with_backoff(
     max_retries: int = 3,
     base_delay: float = 1.0,

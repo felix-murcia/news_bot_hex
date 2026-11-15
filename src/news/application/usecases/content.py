@@ -4,6 +4,7 @@ from typing import Callable, Dict, List, Optional
 import logging
 from src.news.domain.ports import VerifiedNewsRepository, GeneratedPostsRepository
 from src.shared.domain.services.ai_providers import AiProviders
+from src.shared.utils.retry import FatalAuthError
 
 logger = logging.getLogger(__name__)
 POST_LIMITS = {
@@ -180,6 +181,10 @@ class ContentUseCase:
             if self.use_ai:
                 try:
                     tweet = self._generate_tweet_ai(news_item)
+                except FatalAuthError:
+                    # Error de autenticación global (401/403): no reintentar
+                    # con otra candidata. Propagar para abortar el pipeline.
+                    raise
                 except Exception as e:
                     logger.warning(f"[CONTENT] Saltando ítem por error de IA: {e}")
                     continue

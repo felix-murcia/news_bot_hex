@@ -10,7 +10,7 @@ from typing import Dict, Optional
 import requests
 from dotenv import load_dotenv
 
-from src.shared.utils.retry import retry_with_backoff
+from src.shared.utils.retry import retry_with_backoff, FatalAuthError
 from src.shared.domain.ports.ai_model_port import AIModelPort
 from config.settings import Settings
 
@@ -103,7 +103,16 @@ class OpenRouterAdapter(AIModelPort):
                 json=data,
                 timeout=60,
             )
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except requests.HTTPError as e:
+                status = e.response.status_code if e.response else None
+                if status in (401, 403):
+                    raise FatalAuthError(
+                        f"OpenRouter {status}: API Key inválida o sin saldo. "
+                        f"No se reintentará ni se probará con otra candidata."
+                    ) from e
+                raise
             result = response.json()
             choices = result.get("choices", [{}])
             first_choice = choices[0] if choices else {}

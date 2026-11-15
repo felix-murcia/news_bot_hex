@@ -12,6 +12,7 @@ from typing import Callable, Dict, List, Optional
 from src.news.domain.ports import ContentExtractor
 from src.shared.domain.ports.video_generator_port import VideoGeneratorPort
 from src.shared.domain.services.ai_providers import AiProviders
+from src.shared.utils.retry import FatalAuthError
 
 import logging
 from src.news.application.usecases.pipeline_log_handler import (
@@ -372,6 +373,13 @@ class PipelineRunner:
                         ctx.article = (
                             articles[0] if isinstance(articles, list) and articles else None
                         )
+                    except FatalAuthError as e:
+                        # Error de autenticación global (401/403): abortar el
+                        # pipeline inmediatamente, sin probar otras candidatas.
+                        logger.error(
+                            f"[PIPELINE-JOB] {ctx.job_id} Error de autenticación fatal: {e}"
+                        )
+                        raise RuntimeError(f"Error de autenticación fatal: {e}")
                     except Exception as e:
                         logger.error(
                             f"[PIPELINE-JOB] {ctx.job_id} Error generando artículo para {candidate_url}: {e}"
