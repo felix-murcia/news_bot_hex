@@ -98,6 +98,14 @@ class FullVerifyNewsUseCase:
             }
 
         logger.info(f"[FULL_VERIFY] {len(articles_to_process)} artículos para verificar en {(time.time()-t0)*1000:.0f}ms")
+        # Limitar a un tope razonable para evitar O(n²) en deduplicación con miles de artículos
+        max_articles = limits.get("max_articles_per_run", 100)
+        if len(articles_to_process) > max_articles:
+            logger.warning(
+                f"[FULL_VERIFY] Demasiados artículos ({len(articles_to_process)}). "
+                f"Procesando solo los primeros {max_articles}."
+            )
+            articles_to_process = articles_to_process[:max_articles]
         verified = []
         for article in articles_to_process:
             title = article.get("title", "")
@@ -151,6 +159,16 @@ class FullVerifyNewsUseCase:
             verified.append(verified_article)
 
         logger.info(f"[FULL_VERIFY] {len(verified)} artículos verificados en {(time.time()-t0)*1000:.0f}ms")
+        # Limitar antes de deduplicación (O(n²)): solo top-N por score
+        max_dedup = limits.get("max_dedup_candidates", 50)
+        if len(verified) > max_dedup:
+            logger.info(
+                f"[FULL_VERIFY] {len(verified)} verificados → top {max_dedup} por score antes de deduplicar"
+            )
+            verified_sorted_by_score = sorted(
+                verified, key=lambda v: v.score, reverse=True
+            )
+            verified = verified_sorted_by_score[:max_dedup]
         verificadas_sorted = sort_verified_news([v.to_dict() for v in verified])
         deduplicated = deduplicate_by_similarity(verificadas_sorted)
 
