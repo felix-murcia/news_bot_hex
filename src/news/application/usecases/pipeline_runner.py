@@ -458,6 +458,13 @@ class PipelineRunner:
                 if not success:
                     raise RuntimeError(f"Fallo crítico en Articles: {error}")
 
+                # Fail-fast global: si no hay artículo ganador tras Generate Articles,
+                # no continuar con Audio, Video, WordPress ni Social (pasos 6-11).
+                if not ctx.article:
+                    error_msg = "[PIPELINE] No hay artículo ganador. Abortando pasos 6-11."
+                    logger.error(f"[PIPELINE-JOB] {ctx.job_id} {error_msg}")
+                    raise RuntimeError(error_msg)
+
                 # Step 6: Fetch Images (ENRICHMENT) - solo noticia ganadora
                 def _run_fetch_images():
                     if not winning_url:
