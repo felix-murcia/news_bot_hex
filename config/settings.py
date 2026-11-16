@@ -109,6 +109,7 @@ class Settings:
         "mock": "src.shared.adapters.ai.local_adapter.MockAdapter",
         "groq": "src.shared.adapters.ai.groq_adapter.GroqAdapter",
         "nvidia": "src.shared.adapters.ai.nvidia_adapter.NVIDIAAdapter",
+        "opencode": "src.shared.adapters.ai.opencode_adapter.OpenCodeAdapter",
     }
 
     GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
@@ -149,6 +150,13 @@ class Settings:
         "NVIDIA_API_URL", "https://integrate.api.nvidia.com/v1/chat/completions"
     )
     NVIDIA_MODEL = os.getenv("NVIDIA_MODEL", "meta/llama-3.1-8b-instruct")
+
+    # === OpenCode Adapter Configuration ===
+    OPENCODE_API_KEY = os.getenv("OPENCODE_API_KEY", "")
+    OPENCODE_API_URL = os.getenv(
+        "OPENCODE_API_URL", "https://api.opencode.example.com/v1/chat/completions"
+    )
+    OPENCODE_MODEL = os.getenv("OPENCODE_MODEL", "meta/llama-3.1-8b-instruct")
 
     # === Local Model Configuration ===
     LOCAL_MODEL_PATH = MODELS_DIR / os.getenv("LOCAL_MODEL", "qwen2-7b-q4_k_m.gguf")
@@ -214,6 +222,7 @@ class Settings:
         "openrouter": os.getenv("OPENROUTER_API_KEY"),
         "gemini": os.getenv("GEMINI_API_KEY"),
         "nvidia": os.getenv("NVIDIA_API_KEY"),
+        "opencode": os.getenv("OPENCODE_API_KEY"),
         "unsplash": os.getenv("UNSPLASH_ACCESS_KEY"),
         "google_search": os.getenv("GOOGLE_SEARCH_API_KEY"),
         "facebook": os.getenv("FACEBOOK_PAGE_ACCESS_TOKEN"),
