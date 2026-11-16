@@ -100,7 +100,7 @@ class Settings:
     # === AI Model Configuration ===
     # Default is "openrouter" — external provider used unless explicitly configured otherwise
     AI_PROVIDER = os.getenv("AI_PROVIDER", "openrouter")
-    SUPPORTED_AI_PROVIDERS = ["openrouter", "gemini", "local", "mock", "groq"]
+    SUPPORTED_AI_PROVIDERS = ["openrouter", "gemini", "local", "mock", "groq", "nvidia"]
 
     AI_ADAPTER_MAP = {
         "gemini": "src.shared.adapters.ai.gemini_adapter.GeminiAdapter",
@@ -108,6 +108,7 @@ class Settings:
         "local": "src.shared.adapters.ai.local_adapter.LocalAdapter",
         "mock": "src.shared.adapters.ai.local_adapter.MockAdapter",
         "groq": "src.shared.adapters.ai.groq_adapter.GroqAdapter",
+        "nvidia": "src.shared.adapters.ai.nvidia_adapter.NVIDIAAdapter",
     }
 
     GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
@@ -138,6 +139,16 @@ class Settings:
         "GROQ_API_URL", "https://api.groq.com/openai/v1/audio/transcriptions"
     )
     GROQ_TTS_MODEL = os.getenv("GROQ_TTS_MODEL", "whisper-large-v3-turbo")
+
+    # === NVIDIA NIM / API catalog Configuration ===
+    # OpenAI-compatible chat completions endpoint.
+    # Ejemplo de URL: https://integrate.api.nvidia.com/v1/chat/completions
+    # Ejemplo de modelo: meta/llama-3.1-8b-instruct o nvidia/llama-3.1-nemotron-70b-instruct
+    NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "")
+    NVIDIA_API_URL = os.getenv(
+        "NVIDIA_API_URL", "https://integrate.api.nvidia.com/v1/chat/completions"
+    )
+    NVIDIA_MODEL = os.getenv("NVIDIA_MODEL", "meta/llama-3.1-8b-instruct")
 
     # === Local Model Configuration ===
     LOCAL_MODEL_PATH = MODELS_DIR / os.getenv("LOCAL_MODEL", "qwen2-7b-q4_k_m.gguf")
@@ -202,6 +213,7 @@ class Settings:
         "grok": os.getenv("GROK_API_KEY"),
         "openrouter": os.getenv("OPENROUTER_API_KEY"),
         "gemini": os.getenv("GEMINI_API_KEY"),
+        "nvidia": os.getenv("NVIDIA_API_KEY"),
         "unsplash": os.getenv("UNSPLASH_ACCESS_KEY"),
         "google_search": os.getenv("GOOGLE_SEARCH_API_KEY"),
         "facebook": os.getenv("FACEBOOK_PAGE_ACCESS_TOKEN"),
