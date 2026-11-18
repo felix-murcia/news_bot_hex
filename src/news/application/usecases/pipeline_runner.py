@@ -69,19 +69,30 @@ def _candidate_is_fresh(candidate: dict, max_age_hours: int = 24) -> bool:
 
     published_at = candidate.get("publishedAt")
     if not published_at:
-        return True
+        return False
+    parsed_at: Optional[datetime] = None
+
     if isinstance(published_at, str):
         try:
-            published_at = datetime.fromisoformat(
+            parsed_at = datetime.fromisoformat(
                 published_at.replace("Z", "+00:00")
             )
         except ValueError:
-            return True  # fecha no parseable → no rechazar
-    if isinstance(published_at, datetime):
-        if published_at.tzinfo is None:
-            published_at = published_at.replace(tzinfo=timezone.utc)
-        age_hours = (datetime.now(timezone.utc) - published_at).total_seconds() / 3600
-        return age_hours <= max_age_hours
+            return False  # fecha no parseable → no elegible
+    elif isinstance(published_at, datetime):
+        parsed_at = published_at
+
+    if parsed_at is not None:
+        if parsed_at.tzinfo is None:
+            parsed_at = parsed_at.replace(tzinfo=timezone.utc)
+        age_hours = (datetime.now(timezone.utc) - parsed_at).total_seconds() / 3600
+        if age_hours > max_age_hours:
+            logger.warning(
+                f"[PIPELINE-JOB] Candidata omitida (fecha: {parsed_at} | "
+                f"antigüedad: {age_hours:.1f}h > {max_age_hours}h): "
+                f"{candidate.get('url', 'unknown')}"
+            )
+            return False
     return True
 
 def _execute_step(
@@ -284,7 +295,53 @@ class PipelineRunner:
                     )
                     raise RuntimeError(error_msg)
 
-                # Step 4: Generate Posts (ENRICHMENT) - posts para todas las candidatas
+                # Filtrar candidatas por freshness (antigüedad ≤ 24h) ANTES de
+                # llamar al LLM. Evita invocar al proveedor IA cuando ninguna
+                # candidata cumple los requisitos deterministas.
+                fresh_candidates = [c for c in ctx.candidates if _candidate_is_fresh(c)]
+                if not fresh_candidates:
+                    error_msg = (
+                        "No hay noticias candidatas elegibles (todas >24h). "
+                        "Abortando antes de LLM."
+                    )
+                    logger.warning(
+                        f"[PIPELINE-JOB] {ctx.job_id} {error_msg}"
+                    )
+                    raise RuntimeError(error_msg)
+
+                ctx.candidates = fresh_candidates
+
+                # --- Filtro editorial (FASE 2B) ---
+                # Excluir candidatas con editorial_decision == "descartar".
+                # Mantener admitir, fallback, None y campos ausentes (compatibilidad histórica).
+                # No reordenar: conservar el orden convencional de FullVerify.
+                editorial_filtered: List[Dict] = []
+                for candidate in ctx.candidates:
+                    decision = candidate.get("editorial_decision")
+                    candidate_url = candidate.get("url", "unknown")
+
+                    if decision == "descartar":
+                        logger.info(
+                            f"[PIPELINE-JOB] {ctx.job_id} Candidata excluida (editorial descartar): {candidate_url}"
+                        )
+                        continue
+
+                    if decision not in ("admitir", "fallback", None):
+                        logger.warning(
+                            f"[PIPELINE-JOB] {ctx.job_id} editorial_decision desconocido '{decision}' "
+                            f"para {candidate_url}; admitiendo mediante fallback convencional"
+                        )
+
+                    editorial_filtered.append(candidate)
+
+                # Si todas las candidatas fueron descartadas, editorial_filtered quedará vacío.
+                # El bucle de selección manejará esto como ausencia de ganador (comportamiento existente).
+                ctx.candidates = editorial_filtered
+                logger.info(
+                    f"[PIPELINE-JOB] {ctx.job_id} Candidatas tras filtro editorial: {len(ctx.candidates)}"
+                )
+
+                # Step 4: Generate Posts (ENRICHMENT) - posts para las candidatas elegibles
                 logger.info(f"[PIPELINE-JOB] {ctx.job_id} Iniciando GENERATE_POSTS (llamadas a LLM)...")
                 all_posts: List[Dict] = []
 
@@ -329,11 +386,12 @@ class PipelineRunner:
                 if not ctx.candidates and ctx.post:
                     ctx.candidates = [{"url": ctx.post.get("url")}]
 
-                # --- Bucle de candidatas (pasos 5 y 10 por candidata) ---
-                # Se intenta generar artículo + WordPress para cada candidata hasta que
-                # una tenga éxito. Si ninguna funciona, se aborta (FAILED) sin publicar.
+                # --- Bucle de candidatas (paso 5) ---
+                # Se genera artículo para cada candidata hasta que una lo logre.
+                # SÍ se publica en WordPress aquí; la publicación real se hará después
+                # del enriquecimiento multimedia en un único punto (step 10 posterior).
+                # El bucle solo selecciona la primera candidata cuya artículo se genere.
                 winner_found = False
-                last_wp_error = None
                 for candidate in (ctx.candidates or []):
                     candidate_url = candidate.get("url") or ""
                     if not candidate_url:
@@ -358,7 +416,7 @@ class PipelineRunner:
                     if not ctx.post:
                         continue
 
-                    # Paso 5 (intento): generar artículo para esta candidata.
+                    # Generar artículo para esta candidata.
                     try:
                         articles = run_articles(
                             use_gemini=True,
@@ -389,30 +447,16 @@ class PipelineRunner:
                     if not ctx.article:
                         continue
 
-                    # Paso 10 (intento): publicar en WordPress para esta candidata.
-                    try:
-                        wp_result = self._wordpress_runner(ctx.article, ctx.post)
-                        wp_url = wp_result.get("url") if isinstance(wp_result, dict) else ""
-                    except Exception as e:
-                        last_wp_error = str(e)
-                        logger.error(
-                            f"[PIPELINE-JOB] {ctx.job_id} Error publicando en WP para {candidate_url}: {e}"
-                        )
-                        wp_url = ""
-                    if wp_url:
-                        ctx.wp_url = wp_url
-                        winner_found = True
-                        logger.info(
-                            f"[PIPELINE-JOB] {ctx.job_id} Candidata ganadora: {candidate_url} (WP: {wp_url})"
-                        )
-                        break
-                    ctx.wp_url = None
+                    # Candidata seleccionada como ganador (primera que genera artículo).
+                    winner_found = True
+                    logger.info(
+                        f"[PIPELINE-JOB] {ctx.job_id} Candidata seleccionada: {candidate_url}"
+                    )
+                    break
 
                 if not winner_found:
                     msg = (
-                        f"WordPress falló en todas las candidatas: {last_wp_error}"
-                        if last_wp_error
-                        else "Ninguna candidata generó un artículo publicable en WordPress; "
+                        "No se generó ningún artículo para las candidatas; "
                         "el pipeline finaliza sin publicar."
                     )
 
@@ -520,6 +564,19 @@ class PipelineRunner:
                     step_results,
                 )
 
+                # Transferir image_url desde MongoDB a ctx.article y ctx.post para que esté disponible en la publicación
+                # El enriquecedor de imágenes establece image_url en los artículos de MongoDB,
+                # pero no en ctx.article ni ctx.post en memoria.
+                if winning_url:
+                    article_from_mongo = self._generated_articles_repo.get_by_original_url(winning_url)
+                    if article_from_mongo and article_from_mongo.get("image_url"):
+                        ctx.article["image_url"] = article_from_mongo["image_url"]
+                        # También transferir a ctx.post para el publisher de redes sociales (Bluesky, Mastodon)
+                        ctx.post["image_url"] = article_from_mongo["image_url"]
+                        logger.info(
+                            f"[PIPELINE-JOB] {ctx.job_id} image_url transferido a ctx.article y ctx.post: {ctx.article['image_url']}"
+                        )
+
                 # Step 8: Generate Audio (ENRICHMENT) - single-item para la noticia ganadora
                 def _run_audio():
                     if not ctx.article:
@@ -543,6 +600,8 @@ class PipelineRunner:
                         article_id = article.get("_id")
                         if article_id:
                             self._generated_articles_repo.update_tts_audio_path(str(article_id), audio_path)
+                            # Transferir tts_audio_path a ctx.article para que esté disponible en la publicación
+                            ctx.article["tts_audio_path"] = audio_path
                             logger.info(
                                 f"[PIPELINE-JOB] {ctx.job_id} Audio generado para artículo ganador: {audio_path}"
                             )
@@ -604,6 +663,21 @@ class PipelineRunner:
                     metrics_steps,
                     step_results,
                 )
+
+                # Transferir video_path desde MongoDB a ctx.article para que esté disponible
+                # en la publicación de WordPress y redes sociales.
+                # El generador de video persiste video_path en MongoDB, pero no lo actualiza
+                # en ctx.article en memoria.
+                article_from_mongo = self._generated_articles_repo.get_by_original_url(
+                    ctx.article.get("original_url", "")
+                )
+                if article_from_mongo and article_from_mongo.get("video_path"):
+                    ctx.article["video_path"] = article_from_mongo["video_path"]
+                    # También transferir video_path a ctx.post para el publisher de redes sociales
+                    ctx.post["video_path"] = article_from_mongo["video_path"]
+                    logger.info(
+                        f"[PIPELINE-JOB] {ctx.job_id} video_path transferido a ctx.article y ctx.post"
+                    )
 
                 # Step 10: WordPress (CRITICAL) - single-item para la noticia ganadora
                 def _run_wordpress():
