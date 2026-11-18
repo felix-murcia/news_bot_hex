@@ -184,7 +184,9 @@ class TestVideoGeneratorAdapter:
 
         # Mock del image provider
         mock_provider = Mock()
-        mock_provider.get_random_image.return_value = str(tmp_path / "test.jpg")
+        img_path = tmp_path / "test.jpg"
+        img_path.write_bytes(b"fake img")
+        mock_provider.get_random_image.return_value = str(img_path)
 
         # El servicio genera el MP4 en disco; el adaptador lo valida con exists().
         output_path = tmp_path / "test_video.mp4"

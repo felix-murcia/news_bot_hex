@@ -220,12 +220,22 @@ class VideoGeneratorAdapter(VideoGeneratorPort):
             logger.error("[VIDEO GENERATOR] No se pudo obtener una imagen, abortando")
             return None
 
+        # Verificar que los archivos existen antes de llamar a ffmpeg-api
+        if not os.path.exists(audio_path):
+            logger.error(f"[VIDEO GENERATOR] Audio no existe en ruta: {audio_path}")
+            return None
+        if not os.path.exists(image_path):
+            logger.error(f"[VIDEO GENERATOR] Imagen no existe en ruta: {image_path}")
+            return None
+
         # Construir payload
         payload = {"audio_path": audio_path, "image_path": image_path}
 
         logger.info(
-            f"[VIDEO GENERATOR] Creando video: audio={os.path.basename(audio_path)}, "
-            f"image={os.path.basename(image_path)}"
+            f"[VIDEO GENERATOR] Creando video: audio={os.path.basename(audio_path)} "
+            f"({os.path.getsize(audio_path)} bytes), "
+            f"image={os.path.basename(image_path)} "
+            f"({os.path.getsize(image_path)} bytes)"
         )
 
         try:
