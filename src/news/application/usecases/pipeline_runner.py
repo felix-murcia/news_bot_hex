@@ -666,17 +666,18 @@ class PipelineRunner:
 
                 # Transferir video_path desde MongoDB a ctx.article para que esté disponible
                 # en la publicación de WordPress y redes sociales.
-                # El generador de video persiste video_path en MongoDB, pero no lo actualiza
-                # en ctx.article en memoria.
+                # El generador de video persiste video_path en MongoDB (campo generated_video_path),
+                # pero no lo actualiza en ctx.article en memoria.
                 article_from_mongo = self._generated_articles_repo.get_by_original_url(
                     ctx.article.get("original_url", "")
                 )
-                if article_from_mongo and article_from_mongo.get("video_path"):
-                    ctx.article["video_path"] = article_from_mongo["video_path"]
+                if article_from_mongo and article_from_mongo.get("generated_video_path"):
+                    video_path = article_from_mongo["generated_video_path"]
+                    ctx.article["video_path"] = video_path
                     # También transferir video_path a ctx.post para el publisher de redes sociales
-                    ctx.post["video_path"] = article_from_mongo["video_path"]
+                    ctx.post["video_path"] = video_path
                     logger.info(
-                        f"[PIPELINE-JOB] {ctx.job_id} video_path transferido a ctx.article y ctx.post"
+                        f"[PIPELINE-JOB] {ctx.job_id} video_path transferido a ctx.article y ctx.post: {video_path}"
                     )
 
                 # Step 10: WordPress (CRITICAL) - single-item para la noticia ganadora
